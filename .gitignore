@@ -1,0 +1,52 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+
+# Flask stuff
+instance/
+.webassets-cache
+
+# Uploaded spreadsheets
+static/uploads/*
+!static/uploads/.gitkeep
+
+# Downloaded files
+static/downloads/*
+!static/downloads/.gitkeep
+
+# JSON cache files
+static/json/*
+!static/json/.gitkeep
+
+# Generated script files
+src/script/*
+!src/script/__init__.py
+!src/script/.gitkeep
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Logs
+logs/
+*.log
+
+# OS specific files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,87 @@
+/* Main Stylesheet for Spreadsheet Auto-Editor */
+
+body {
+    background-color: #f8f9fa;
+}
+
+.card {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    border: none;
+}
+
+.card-header {
+    background-color: #f1f3f5;
+    border-bottom: 1px solid #e9ecef;
+    font-weight: bold;
+    border-radius: 8px 8px 0 0 !important;
+}
+
+#spreadsheetData {
+    height: 400px;
+    width: 100%;
+    overflow: auto;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+}
+
+#commandInput {
+    resize: vertical;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+#loadingMessage {
+    font-size: 1.1rem;
+    color: #6c757d;
+}
+
+/* Custom styling for Handsontable headers */
+.handsontable th {
+    background-color: #e9ecef;
+    font-weight: bold;
+}
+
+.handsontable td.modified {
+    background-color: rgba(255, 243, 205, 0.5);
+    transition: background-color 0.5s ease;
+}
+
+/* Status indicators for undo/redo */
+.status-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+}
+
+.status-active {
+    background-color: #28a745;
+}
+
+.status-inactive {
+    background-color: #dc3545;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .card-header div {
+        margin-top: 10px;
+    }
+}
