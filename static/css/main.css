@@ -1,7 +1,17 @@
 /* Main Stylesheet for Spreadsheet Auto-Editor */
 
+/* Theme Colors */
+:root {
+    --color-primary-dark: #0c134f;
+    --color-primary: #5c469c;
+    --color-accent: #5c469c;
+    --color-bg-light: #f5f5fa;
+}
+
+/* Body and background */
 body {
-    background-color: #f8f9fa;
+    background: var(--color-bg-light);
+    color: var(--color-primary-dark);
 }
 
 .card {
@@ -11,8 +21,9 @@ body {
 }
 
 .card-header {
-    background-color: #f1f3f5;
-    border-bottom: 1px solid #e9ecef;
+    background: var(--color-primary-dark);
+    color: var(--color-bg-light);
+    border-bottom: none;
     font-weight: bold;
     border-radius: 8px 8px 0 0 !important;
 }
@@ -21,29 +32,58 @@ body {
     height: 400px;
     width: 100%;
     overflow: auto;
+    background: var(--color-bg-light);
+    border-radius: 4px;
+    padding: 1rem;
+    min-height: 120px;
 }
 
-.navbar-brand {
-    font-weight: bold;
-    letter-spacing: 0.5px;
+.navbar {
+    background: var(--color-primary-dark) !important;
+}
+.navbar .navbar-brand {
+    color: var(--color-bg-light) !important;
+}
+
+.sidebar-custom .card,
+#commandContainer .card,
+#uploadContainer .card {
+    background: var(--color-accent);
+    border: none;
+    color: var(--color-bg-light);
+}
+
+#spreadsheetContainer .card,
+#loadingContainer .card {
+    background: var(--color-bg-light);
+    border: 1px solid var(--color-accent);
+    color: var(--color-primary-dark);
 }
 
 .btn-primary {
-    background-color: #0d6efd;
+    background: var(--color-primary-dark);
+    border-color: var(--color-primary-dark);
 }
-
-#commandInput {
-    resize: vertical;
+.btn-primary:hover, .btn-primary:focus {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
 }
-
-.spinner-border {
-    width: 3rem;
-    height: 3rem;
+.btn-success {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
 }
-
-#loadingMessage {
-    font-size: 1.1rem;
-    color: #6c757d;
+.btn-success:hover, .btn-success:focus {
+    background: var(--color-primary-dark);
+    border-color: var(--color-primary-dark);
+    color: var(--color-bg-light);
+}
+.btn-outline-secondary {
+    color: var(--color-primary-dark);
+    border-color: var(--color-primary-dark);
+}
+.btn-outline-secondary:hover, .btn-outline-secondary:focus {
+    background: var(--color-primary-dark);
+    color: var(--color-bg-light);
 }
 
 /* Custom styling for Handsontable headers */
@@ -84,4 +124,77 @@ body {
     .card-header div {
         margin-top: 10px;
     }
+}
+
+/* Sidebar and main content layout */
+.sidebar-custom {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 70vh;
+    background: rgba(92, 70, 156,0);    
+}
+
+@media (min-width: 992px) {
+    .sidebar-custom {
+        position: sticky;
+        top: 1rem;
+        height: calc(100vh - 5rem);
+    }
+    #commandContainer {
+        margin-top: auto;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .sidebar-custom {
+        flex-direction: column;
+        position: static;
+        height: auto;
+    }
+    #commandContainer {
+        margin-top: 1.5rem;
+    }
+}
+
+/* Loading container styling */
+#loadingContainer .card {
+    min-height: 250px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Hide spreadsheetContainer when loading, and vice versa (handled by JS) */
+
+/* Responsive tweaks for spreadsheet data */
+#spreadsheetData {
+    overflow-x: auto;
+}
+
+/* Inputs and textarea */
+.form-control, .form-select, textarea {
+    background: var(--color-bg-light);
+    color: var(--color-primary-dark);
+    border: 1px solid var(--color-accent);
+}
+.form-control:focus, .form-select:focus, textarea:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 0.2rem rgba(92, 70, 156, 0.15);
+}
+
+/* Modal */
+.modal-content {
+    background: var(--color-accent);
+    color: var(--color-bg-light);
+}
+
+/* Glassmorphism effect */
+.glass-effect {
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    background: rgba(92, 70, 156, 0.5);
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.15);
+    border: 1px solid rgba(255,255,255,0.18);
 }

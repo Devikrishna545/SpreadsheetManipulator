@@ -8,75 +8,81 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
-<body>
+<body style="background: rgba(92,70,156,0.5);">
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="#">Spreadsheet Auto-Editor</a>
         </div>
     </nav>
 
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-12">
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5>Upload Spreadsheet</h5>
+    <div class="container-fluid mt-4">
+        <div class="row flex-lg-nowrap">
+            <!-- Sidebar (Left) -->
+            <div class="col-12 col-lg-4 col-xl-3 sidebar-custom">
+                <div id="uploadContainer">
+                    <div class="card mb-6">
+                        <div class="card-header">
+                            <h5>Upload Spreadsheet</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="uploadForm" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label for="fileInput" class="form-label">Select a spreadsheet file</label>
+                                    <input class="form-control" type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+                                    <div class="form-text">Supported formats: Excel (.xlsx, .xls), CSV (.csv)</div>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Upload</button>
+                            </form>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <form id="uploadForm" enctype="multipart/form-data">
+                </div>
+                <!-- Spacer for vertical centering -->
+                <div class="flex-grow-1 d-none d-lg-block my-2 glass-effect"></div>
+                <div id="commandContainer" class="mt-lg-auto">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5>Enter Commands</h5>
+                        </div>
+                        <div class="card-body">
                             <div class="mb-3">
-                                <label for="fileInput" class="form-label">Select a spreadsheet file</label>
-                                <input class="form-control" type="file" id="fileInput" accept=".xlsx,.xls,.csv">
-                                <div class="form-text">Supported formats: Excel (.xlsx, .xls), CSV (.csv)</div>
+                                <label for="commandInput" class="form-label">What would you like to do with this spreadsheet?</label>
+                                <textarea class="form-control" id="commandInput" rows="3" placeholder="e.g., Add a column named 'Total' that sums columns A and B"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-primary">Upload</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row" id="spreadsheetContainer" style="display: none;">
-            <div class="col-md-12">
-                <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5>Spreadsheet Data</h5>
-                        <div>
-                            <button id="downloadBtn" class="btn btn-success btn-sm">Download</button>
+                            <button id="processBtn" class="btn btn-primary">Process</button>
+                            <button id="undoBtn" class="btn btn-outline-secondary ms-2" disabled>Undo</button>
+                            <button id="redoBtn" class="btn btn-outline-secondary ms-2" disabled>Redo</button>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div id="spreadsheetData" class="mb-4"></div>
-                    </div>
                 </div>
             </div>
-        </div>
-
-        <div class="row" id="commandContainer" style="display: none;">
-            <div class="col-md-12">
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5>Enter Commands</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label for="commandInput" class="form-label">What would you like to do with this spreadsheet?</label>
-                            <textarea class="form-control" id="commandInput" rows="3" placeholder="e.g., Add a column named 'Total' that sums columns A and B"></textarea>
+            <!-- Main Content (Right) -->
+            <div class="col-12 col-lg-8 col-xl-9" style="background: rgba(92,70,156,0); display: flex; flex-direction: column; min-height: 0;">
+                <div id="spreadsheetContainer">
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5>Spreadsheet Data</h5>
+                            <div>
+                                <button id="downloadBtn" class="btn btn-success btn-sm" style="display: none;">Download</button>
+                            </div>
                         </div>
-                        <button id="processBtn" class="btn btn-primary">Process</button>
-                        <button id="undoBtn" class="btn btn-outline-secondary ms-2" disabled>Undo</button>
-                        <button id="redoBtn" class="btn btn-outline-secondary ms-2" disabled>Redo</button>
+                        <div class="card-body">
+                            <div id="spreadsheetData" class="mb-4 text-center text-muted">
+                                No files uploaded
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <div class="row" id="loadingContainer" style="display: none;">
-            <div class="col-md-12 text-center py-4">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
+                <div id="loadingContainer"style="display: none;">
+                    <div class="card mb-4">
+                        <div class="card-body text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2" id="loadingMessage">Processing your command...</p>
+                        </div>
+                    </div>
                 </div>
-                <p class="mt-2" id="loadingMessage">Processing your command...</p>
+                <div id="glassPlaceholder" class="glass-effect mb-4" style="display: block;flex:auto"></div>
             </div>
         </div>
     </div>
