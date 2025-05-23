@@ -4,20 +4,19 @@ API Endpoints module
 Defines RESTful API endpoints for the application
 """
 
-from flask import Blueprint, request, jsonify
-from typing import Dict, Any
+from flask import Blueprint, jsonify
 
 # Blueprint for API routes
 api_bp = Blueprint('api', __name__)
 
 
 @api_bp.route('/health', methods=['GET'])
-def health_check() -> Dict[str, Any]:
+def health_check():
     """
     Health check endpoint
     
     Returns:
-        Dict[str, Any]: Health status
+        flask.Response: JSON response with health status
     """
     return jsonify({
         'status': 'ok',

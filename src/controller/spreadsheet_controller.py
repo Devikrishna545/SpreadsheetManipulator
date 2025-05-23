@@ -8,10 +8,9 @@ import os
 import uuid
 import pandas as pd
 from werkzeug.datastructures import FileStorage
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any
 from src.model.session_manager import SessionManager
 from src.model.spreadsheet import Spreadsheet
-from src.model.spreadsheet_parser import SpreadsheetParser
 from src.model.modification_history import ModificationHistory
 from src.llm.llm_service import LLMService
 from src.controller.script_executor import ScriptExecutor
@@ -51,6 +50,9 @@ class SpreadsheetController:
             str: Session ID for the new session
         """
         # Validate file
+        if file.filename is None:
+            raise ValueError("No filename provided")
+            
         if not self.file_manager.validate_file_type(file.filename):
             raise ValueError("Invalid file format. Supported formats: xlsx, xls, csv")
         
@@ -65,12 +67,20 @@ class SpreadsheetController:
         elif file_path.endswith('.csv'):
             df = pd.read_csv(file_path)
         
+        # Check if df is None
+        if df is None:
+            raise ValueError(f"Unsupported file format: {file_path}")
+            
         # Create spreadsheet object
         spreadsheet = Spreadsheet(file_id, file.filename, df, file_path)
         
         # Create session
         session_id = self.session_manager.create_session()
         session = self.session_manager.get_session(session_id)
+        
+        # Check if session exists
+        if not session:
+            raise ValueError("Failed to create or retrieve session")
         
         # Create modification history and add initial state
         history = ModificationHistory()
@@ -99,6 +109,9 @@ class SpreadsheetController:
         
         # Get current spreadsheet state
         history = session.get_modification_history()
+        if not history:
+            raise ValueError("Modification history not found for this session")
+            
         spreadsheet = history.get_current_state()
         if not spreadsheet:
             raise ValueError("No spreadsheet data found")
@@ -131,8 +144,12 @@ class SpreadsheetController:
         session = self.session_manager.get_session(session_id)
         if not session:
             raise ValueError("Session not found or expired")
-          # Get current spreadsheet state
+        
+        # Get current spreadsheet state
         history = session.get_modification_history()
+        if not history:
+            raise ValueError("Modification history not found for this session")
+            
         current_spreadsheet = history.get_current_state()
         if not current_spreadsheet:
             raise ValueError("No spreadsheet data found")
@@ -195,6 +212,8 @@ class SpreadsheetController:
         
         # Get history and undo
         history = session.get_modification_history()
+        if not history:
+            raise ValueError("No modification history found")
         previous_spreadsheet = history.undo()
         
         if not previous_spreadsheet:
@@ -234,6 +253,8 @@ class SpreadsheetController:
         
         # Get history and redo
         history = session.get_modification_history()
+        if not history:
+            raise ValueError("No modification history found")
         next_spreadsheet = history.redo()
         
         if not next_spreadsheet:
@@ -247,6 +268,7 @@ class SpreadsheetController:
         data = df.replace({float('nan'): None}).values.tolist()
         headers = df.columns.tolist()
         
+        # Since we've already verified history is not None, we can safely call these methods
         return {
             'data': data,
             'headers': headers,
@@ -256,7 +278,7 @@ class SpreadsheetController:
             'modified_cells': []  # No specific cells to highlight in redo
         }
     
-    def download_spreadsheet(self, session_id: str) -> str:
+    def download_spreadsheet(self, session_id: str) -> tuple:
         """
         Generate a downloadable spreadsheet file
 
@@ -264,7 +286,7 @@ class SpreadsheetController:
             session_id: Session ID
 
         Returns:
-            str: Path to the downloadable file
+            tuple: (Path to the downloadable file, Original filename)
         """
         # Get session
         session = self.session_manager.get_session(session_id)
@@ -273,6 +295,8 @@ class SpreadsheetController:
         
         # Get current spreadsheet
         history = session.get_modification_history()
+        if not history:
+            raise ValueError("No modification history found")
         spreadsheet = history.get_current_state()
         if not spreadsheet:
             raise ValueError("No spreadsheet data found")
@@ -284,7 +308,8 @@ class SpreadsheetController:
         # Save to download directory
         download_path = spreadsheet.save(self.file_manager.download_dir, format_type)
         
-        return download_path
+        # Return both the file path and the original filename
+        return download_path, spreadsheet.original_filename
     
     def cleanup_session(self, session_id: str) -> None:
         """
@@ -299,7 +324,7 @@ class SpreadsheetController:
         
         # Get spreadsheet for file cleanup
         history = session.get_modification_history()
-        spreadsheet = history.get_current_state()
+        spreadsheet = history.get_current_state() if history and hasattr(history, 'get_current_state') else None
         
         # Get associated script if available
         generated_script = session.get_generated_script()
@@ -308,14 +333,20 @@ class SpreadsheetController:
             # Clean up files
             original_file = spreadsheet.file_path
             if original_file and os.path.exists(original_file):
-                os.remove(original_file)
+                try:
+                    os.remove(original_file)
+                except (PermissionError, OSError) as e:
+                    print(f"Warning: Could not delete file {original_file}: {e}")
             
             # Remove download files (they're temporary)
             file_id = spreadsheet.file_id
             for format_type in ['xlsx', 'csv']:
                 download_path = os.path.join(self.file_manager.download_dir, f"{file_id}.{format_type}")
                 if os.path.exists(download_path):
-                    os.remove(download_path)
+                    try:
+                        os.remove(download_path)
+                    except (PermissionError, OSError) as e:
+                        print(f"Warning: Could not delete file {download_path}: {e}")
         
         # Remove session
         self.session_manager.remove_session(session_id)

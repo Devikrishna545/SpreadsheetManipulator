@@ -16,7 +16,7 @@ class Spreadsheet:
     Represents a spreadsheet with data and operations
     """
     
-    def __init__(self, file_id: str, original_filename: str, data_df: pd.DataFrame = None, file_path: str = None):
+    def __init__(self, file_id: str, original_filename: str, data_df: Optional[pd.DataFrame] = None, file_path: Optional[str] = None):
         """
         Initialize a spreadsheet
 
@@ -36,12 +36,12 @@ class Spreadsheet:
             'rows': len(data_df) if data_df is not None else 0
         }
     
-    def get_data(self) -> pd.DataFrame:
+    def get_data(self) -> Optional[pd.DataFrame]:
         """
         Get spreadsheet data as DataFrame
 
         Returns:
-            pd.DataFrame: Spreadsheet data
+            Optional[pd.DataFrame]: Spreadsheet data, or None if not loaded
         """
         return self.data_df
     
@@ -64,7 +64,8 @@ class Spreadsheet:
             Dict[str, Any]: Metadata dict with filename and dimensions
         """
         return self.metadata
-      def to_json(self, save_to_file: bool = False, file_manager = None) -> str:
+    
+    def to_json(self, save_to_file: bool = False, file_manager = None) -> str:
         """
         Convert spreadsheet to JSON string
 
@@ -75,13 +76,18 @@ class Spreadsheet:
         Returns:
             str: JSON representation of spreadsheet
         """
-        # Handle NaN values and other non-serializable types
-        df_json = self.data_df.replace({np.nan: None}).to_dict(orient='records')
+        if self.data_df is not None:
+            # Handle NaN values and other non-serializable types
+            df_json = self.data_df.replace({np.nan: None}).to_dict(orient='records')
+            headers = self.data_df.columns.tolist()
+        else:
+            df_json = []
+            headers = []
         
         data = {
             'metadata': self.metadata,
             'data': df_json,
-            'headers': self.data_df.columns.tolist()
+            'headers': headers
         }
         
         json_str = json.dumps(data)
@@ -89,7 +95,7 @@ class Spreadsheet:
         # Save to file if requested
         if save_to_file and file_manager is not None:
             file_manager.save_json_data(data, f"spreadsheet_{self.file_id}")
-            
+        
         return json_str
     
     @classmethod
@@ -120,6 +126,9 @@ class Spreadsheet:
         Returns:
             str: Path to the saved file
         """
+        if self.data_df is None:
+            raise ValueError("Cannot save spreadsheet: no data loaded.")
+            
         os.makedirs(save_dir, exist_ok=True)
         
         file_path = os.path.join(save_dir, f"{self.file_id}.{format}")

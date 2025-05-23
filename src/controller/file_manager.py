@@ -7,7 +7,7 @@ Handles file operations for uploads and downloads
 import os
 import uuid
 from werkzeug.utils import secure_filename
-from typing import List, Optional
+from typing import Optional, Any
 from werkzeug.datastructures import FileStorage
 
 
@@ -37,7 +37,7 @@ class FileManager:
         
         self.allowed_extensions = {'xlsx', 'xls', 'csv'}
     
-    def save_uploaded_file(self, file: FileStorage, file_id: str = None) -> str:
+    def save_uploaded_file(self, file: FileStorage, file_id: Optional[str] = None) -> str:
         """
         Save an uploaded file to the upload directory
 
@@ -49,7 +49,7 @@ class FileManager:
             str: Path to the saved file
         """
         # Validate file
-        if not self.validate_file_type(file.filename):
+        if file.filename is None or not self.validate_file_type(file.filename):
             raise ValueError(f"Unsupported file format. Supported formats: {', '.join(self.allowed_extensions)}")
         
         # Validate file size
@@ -65,7 +65,7 @@ class FileManager:
         
         # Save file
         file_path = os.path.join(self.upload_dir, filename)
-        file.save(file_path)
+        file.save(file_path)  # type: ignore[misc]
         
         return file_path
     
@@ -104,8 +104,12 @@ class FileManager:
             bool: True if the file was deleted, False otherwise
         """
         if os.path.exists(file_path):
-            os.remove(file_path)
-            return True
+            try:
+                os.remove(file_path)
+                return True
+            except (PermissionError, OSError) as e:
+                print(f"Warning: Could not delete file {file_path}: {e}")
+                return False
         
         return False
     
@@ -122,7 +126,7 @@ class FileManager:
         ext = os.path.splitext(filename)[1].lower()[1:]  # Remove the dot
         return ext in self.allowed_extensions
     
-    def save_json_data(self, data, filename: str) -> str:
+    def save_json_data(self, data: Any, filename: str) -> str:
         """
         Save JSON data to the json directory
         
@@ -186,33 +190,48 @@ class FileManager:
         max_age_seconds = max_age_hours * 3600
         deleted_count = 0
         
+        # Files to preserve
+        protected_files = ['.gitkeep']
+        
         # Clean up upload directory
-        for root, dirs, files in os.walk(self.upload_dir):
+        for root, _, files in os.walk(self.upload_dir):
             for filename in files:
+                if filename in protected_files:
+                    continue
                 file_path = os.path.join(root, filename)
-                if os.path.isfile(file_path) and now - os.path.getmtime(file_path) > max_age_seconds:
-                    os.remove(file_path)
-                    deleted_count += 1
+                if os.path.isfile(file_path):
+                    try:
+                        os.remove(file_path)
+                        deleted_count += 1
+                    except (PermissionError, OSError) as e:
+                        print(f"Warning: Could not delete file {file_path}: {e}")
         
         # Clean up download directory
-        for root, dirs, files in os.walk(self.download_dir):
+        for root, _, files in os.walk(self.download_dir):
             for filename in files:
+                if filename in protected_files:
+                    continue
                 file_path = os.path.join(root, filename)
-                if os.path.isfile(file_path) and now - os.path.getmtime(file_path) > max_age_seconds:
-                    os.remove(file_path)
-                    deleted_count += 1
+                if os.path.isfile(file_path):
+                    try:
+                        os.remove(file_path)
+                        deleted_count += 1
+                    except (PermissionError, OSError) as e:
+                        print(f"Warning: Could not delete file {file_path}: {e}")
         
-        # Clean up old JSON files (keep some longer)
-        for root, dirs, files in os.walk(self.json_dir):
+        # Clean up JSON files
+        for root, _, files in os.walk(self.json_dir):
             for filename in files:
-                # Skip manifest.json which should be in the favicon directory
-                if filename == 'manifest.json':
+                # Skip manifest.json and protected files
+                if filename == 'manifest.json' or filename in protected_files:
                     continue
                     
                 file_path = os.path.join(root, filename)
-                # Use a longer retention for JSON files (3 days)
-                if os.path.isfile(file_path) and now - os.path.getmtime(file_path) > (max_age_seconds * 3):
-                    os.remove(file_path)
-                    deleted_count += 1
+                if os.path.isfile(file_path):
+                    try:
+                        os.remove(file_path)
+                        deleted_count += 1
+                    except (PermissionError, OSError) as e:
+                        print(f"Warning: Could not delete file {file_path}: {e}")
         
         return deleted_count

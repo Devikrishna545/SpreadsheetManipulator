@@ -5,11 +5,8 @@ A Flask application that allows accountants to edit spreadsheets using natural l
 """
 
 import os
-from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
-from werkzeug.utils import secure_filename
+from flask import Flask, render_template, request, jsonify, send_file, g
 from dotenv import load_dotenv
-
-# Import components from src folders
 from src.controller.spreadsheet_controller import SpreadsheetController
 from src.model.session_manager import SessionManager
 
@@ -21,7 +18,7 @@ app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 app.config['DOWNLOAD_FOLDER'] = os.path.join('static', 'downloads')
 app.config['JSON_FOLDER'] = os.path.join('static', 'json')
 app.config['SCRIPT_FOLDER'] = os.path.join('src', 'script')
-app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # Default 16MB max upload size
+app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 'MAX_CONTENT_LENGTH'))
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default-dev-key')
 app.config['LLM_API_KEY'] = os.getenv('LLM_API_KEY')
 app.config['LLM_ENDPOINT'] = os.getenv('LLM_ENDPOINT')
@@ -113,18 +110,24 @@ def redo_modification(session_id):
 def download_spreadsheet(session_id):
     """Download the modified spreadsheet."""
     try:
-        file_path = spreadsheet_controller.download_spreadsheet(session_id)
-        filename = os.path.basename(file_path)
+        file_path, original_filename = spreadsheet_controller.download_spreadsheet(session_id)
+        
+        # Preserve original file extension
+        original_ext = os.path.splitext(original_filename)[1].lower()
         
         # Schedule cleanup after download
-        @app.after_response
         def cleanup():
             spreadsheet_controller.cleanup_session(session_id)
+        
+        # Use Flask's g context to store after_response_funcs per request
+        if not hasattr(g, 'after_response_funcs'):
+            g.after_response_funcs = []
+        g.after_response_funcs.append(cleanup)
         
         return send_file(
             file_path,
             as_attachment=True,
-            download_name=filename
+            download_name=original_filename
         )
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -133,24 +136,33 @@ def download_spreadsheet(session_id):
 # Register after_response handler
 @app.after_request
 def after_request(response):
-    for func in getattr(app, 'after_response_funcs', []):
+    for func in getattr(g, 'after_response_funcs', []):
         func()
-    app.after_response_funcs = []
+    # No need to clear g.after_response_funcs, as g is per-request
     return response
 
 
 if __name__ == '__main__':
     # Add cleanup of expired sessions and files
     from apscheduler.schedulers.background import BackgroundScheduler
+    from src.controller.script_manager import ScriptManager
+    from src.controller.file_manager import FileManager
     
     def cleanup_expired_resources():
         # Clean up expired sessions
         session_manager.cleanup_expired_sessions()
         
         # Clean up old scripts
-        from src.controller.script_manager import ScriptManager
         script_manager = ScriptManager(os.path.join('src', 'script'))
         script_manager.cleanup_old_scripts(24)  # Keep scripts for 24 hours
+        
+        # Clean up uploaded and downloaded files
+        file_manager = FileManager(
+            upload_dir=app.config['UPLOAD_FOLDER'],
+            download_dir=app.config['DOWNLOAD_FOLDER'],
+            json_dir=app.config['JSON_FOLDER']
+        )
+        file_manager.cleanup_files(24)  # Keep files for 24 hours
     
     scheduler = BackgroundScheduler()
     scheduler.add_job(cleanup_expired_resources, 'interval', minutes=30)

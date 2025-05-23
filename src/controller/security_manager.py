@@ -4,9 +4,8 @@ Security Manager module
 Validates scripts for security before execution
 """
 
-import re
 import ast
-from typing import List, Dict, Any, Set
+from typing import Dict, Any
 
 
 class SecurityManager:
