@@ -106,22 +106,17 @@ Generated on: {timestamp}
         max_age_seconds = max_age_hours * 3600
         deleted_count = 0
         
-        # Files to preserve
-        protected_files = ['.gitkeep']
-        
         if not os.path.exists(self.script_dir):
             return 0
             
         for filename in os.listdir(self.script_dir):
-            if filename in protected_files:
-                continue
-                
-            file_path = os.path.join(self.script_dir, filename)
-            if os.path.isfile(file_path):
-                try:
-                    os.remove(file_path)
-                    deleted_count += 1
-                except (PermissionError, OSError) as e:
-                    print(f"Warning: Could not delete script file {file_path}: {e}")
-    
+            if filename.startswith("script_") and filename.endswith(".py"):
+                file_path = os.path.join(self.script_dir, filename)
+                if os.path.isfile(file_path) and now - os.path.getmtime(file_path) > max_age_seconds:
+                    try:
+                        os.remove(file_path)
+                        deleted_count += 1
+                    except (PermissionError, OSError) as e:
+                        print(f"Warning: Could not delete script file {file_path}: {e}")
+        
         return deleted_count

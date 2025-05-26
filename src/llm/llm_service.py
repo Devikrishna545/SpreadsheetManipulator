@@ -19,7 +19,7 @@ class LLMService:
     """
     def __init__(self):
         self.api_key = os.getenv('GEMINI_API_KEY')
-        self.model = os.getenv('GEMINI_MODEL')
+        self.model = os.getenv('GEMINI_MODEL', 'gemini-pro')  # Default to gemini-pro if not set
         
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
@@ -54,12 +54,19 @@ class LLMService:
             }
         ]
 
-    def generate_script(self, spreadsheet_json: str, command: str) -> str:
+    def generate_script(self, spreadsheet_data: Dict[str, Any], command: str) -> str:
         try:
-            data_obj = json.loads(spreadsheet_json)
+            # The input 'spreadsheet_data' is already a dictionary.
+            # No need to call json.loads()
+            data_obj = spreadsheet_data 
             headers = data_obj.get('headers', [])
             metadata = data_obj.get('metadata', {})
-            data_sample = data_obj.get('data', [])[:5]
+            data_sample = data_obj.get('data', [])[:5] # Ensure data_sample is a list of dicts
+            
+            # If data_sample itself is a dict (e.g. from to_dict('records')), it's fine.
+            # If data_obj['data'] was a list of lists, it would need conversion.
+            # Based on Spreadsheet.to_json, data_obj['data'] is already a list of dicts.
+
             prompt = self._create_prompt(headers, metadata, data_sample, command)
             response = self._call_gemini_api(prompt)
             script = self._extract_script(response)

@@ -3,96 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spreadsheet Auto-Editor</title>    <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/favicon/favicon.png') }}">
+    <title>Auto-Editor</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/favicon/favicon.png') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 </head>
-<body style="background: rgba(92,70,156,0.5);">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="#">Spreadsheet Auto-Editor</a>
+<body class="dark-theme">
+    <!-- Top Navigation -->
+    <nav class="navbar navbar-dark bg-dark-custom">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fas fa-table me-2"></i>Auto Editor
+            </span>
+            <div class="d-flex align-items-center">
+                <span class="status-badge" id="statusBadge">Ready</span>
+            </div>
         </div>
     </nav>
 
-    <div class="container-fluid mt-4">
-        <div class="row flex-lg-nowrap">
-            <!-- Sidebar (Left) -->
-            <div class="col-12 col-lg-4 col-xl-3 sidebar-custom">
-                <div id="uploadContainer">
-                    <div class="card mb-6">
-                        <div class="card-header">
-                            <h5>Upload Spreadsheet</h5>
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-content">
+                <!-- Upload Section -->
+                <div class="sidebar-section">
+                    <h6 class="sidebar-title">
+                        <i class="fas fa-upload me-2"></i>File Management
+                    </h6>
+                    <form id="uploadForm" enctype="multipart/form-data" class="mb-3">
+                        <div class="file-input-wrapper">
+                            <input class="form-control file-input" type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+                            <label for="fileInput" class="file-input-label">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>Choose File</span>
+                            </label>
                         </div>
-                        <div class="card-body">
-                            <form id="uploadForm" enctype="multipart/form-data">
-                                <div class="mb-3">
-                                    <label for="fileInput" class="form-label">Select a spreadsheet file</label>
-                                    <input class="form-control" type="file" id="fileInput" accept=".xlsx,.xls,.csv">
-                                    <div class="form-text">Supported formats: Excel (.xlsx, .xls), CSV (.csv)</div>
-                                </div>
-                                <button type="submit" class="btn btn-primary">Upload</button>
-                            </form>
-                        </div>
+                        <small class="form-text text-muted">Excel (.xlsx, .xls), CSV (.csv)</small>
+                        <button type="submit" class="btn btn-primary btn-futuristic w-100 mt-2">
+                            <i class="fas fa-upload me-2"></i>Upload
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Actions Section -->
+                <div class="sidebar-section" id="actionsSection" style="display: none;">
+                    <h6 class="sidebar-title">
+                        <i class="fas fa-cogs me-2"></i>Actions
+                    </h6>
+                    <div class="action-buttons">
+                        <button id="undoBtn" class="btn btn-outline-warning btn-futuristic w-100 mb-2" disabled>
+                            <i class="fas fa-undo me-2"></i>Undo
+                        </button>
+                        <button id="redoBtn" class="btn btn-outline-info btn-futuristic w-100 mb-2" disabled>
+                            <i class="fas fa-redo me-2"></i>Redo
+                        </button>
+                        <button id="downloadBtn" class="btn btn-success btn-futuristic w-100">
+                            <i class="fas fa-download me-2"></i>Download
+                        </button>
                     </div>
                 </div>
-                <!-- Spacer for vertical centering -->
-                <div class="flex-grow-1 d-none d-lg-block my-2 glass-effect"></div>
-                <div id="commandContainer" class="mt-lg-auto">
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5>Enter Commands</h5>
+
+                <!-- Session Info -->
+                <div class="sidebar-section" id="sessionInfo" style="display: none;">
+                    <h6 class="sidebar-title">
+                        <i class="fas fa-info-circle me-2"></i>Session Info
+                    </h6>
+                    <div class="session-details">
+                        <div class="session-item">
+                            <span class="session-label">Status:</span>
+                            <span class="session-value" id="sessionStatus">Active</span>
                         </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <label for="commandInput" class="form-label">What would you like to do with this spreadsheet?</label>
-                                <textarea class="form-control" id="commandInput" rows="3" placeholder="e.g., Add a column named 'Total' that sums columns A and B"></textarea>
-                            </div>
-                            <button id="processBtn" class="btn btn-primary">Process</button>
-                            <button id="undoBtn" class="btn btn-outline-secondary ms-2" disabled>Undo</button>
-                            <button id="redoBtn" class="btn btn-outline-secondary ms-2" disabled>Redo</button>
+                        <div class="session-item">
+                            <span class="session-label">File:</span>
+                            <span class="session-value" id="fileName">-</span>
                         </div>
                     </div>
                 </div>
             </div>
-            <!-- Main Content (Right) -->
-            <div class="col-12 col-lg-8 col-xl-9" style="background: rgba(92,70,156,0); display: flex; flex-direction: column; min-height: 0;">
-                <div id="spreadsheetContainer">
-                    <div class="card mb-4">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5>Spreadsheet Data</h5>
-                            <div>
-                                <button id="downloadBtn" class="btn btn-success btn-sm" style="display: none;">Download</button>
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <div id="spreadsheetData" class="mb-4 text-center text-muted">
-                                No files uploaded
-                            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Command Input Section -->
+            <div class="command-section" id="commandContainer" style="display: none;">
+                <div class="command-card">
+                    <div class="command-header">
+                        <h5><i class="fas fa-terminal me-2"></i>AI Command Interface</h5>
+                    </div>
+                    <div class="command-body">
+                        <div class="command-input-wrapper">
+                            <textarea class="form-control command-input" id="commandInput" rows="3" 
+                                placeholder="Describe what you want to do with your spreadsheet...&#10;Example: Add a column named 'Total' that sums columns A and B"></textarea>
+                            <button id="processBtn" class="btn btn-primary btn-process">
+                                <i class="fas fa-magic me-2"></i>Process
+                            </button>
                         </div>
                     </div>
                 </div>
-                <div id="loadingContainer"style="display: none;">
-                    <div class="card mb-4">
-                        <div class="card-body text-center py-4">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                            <p class="mt-2" id="loadingMessage">Processing your command...</p>
-                        </div>
-                    </div>
-                </div>
-                <div id="glassPlaceholder" class="glass-effect mb-4" style="display: block;flex:auto"></div>
             </div>
+
+            <!-- Spreadsheet Display -->
+            <div class="spreadsheet-section" id="spreadsheetContainer" style="display: none;">
+                <div class="spreadsheet-card">
+                    <div class="spreadsheet-header">
+                        <h5><i class="fas fa-table me-2"></i>Spreadsheet Data</h5>
+                        <div class="spreadsheet-controls">
+                            <button class="btn btn-sm btn-outline-light" id="fullscreenBtn">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="spreadsheet-body">
+                        <div id="spreadsheetData"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingContainer" style="display: none;">
+        <div class="loading-content">
+            <div class="spinner-futuristic">
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+            </div>
+            <p class="loading-text" id="loadingMessage">Processing your command...</p>
         </div>
     </div>
 
     <!-- Error Modal -->
     <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="errorModalLabel">Error</h5>
+                    <h5 class="modal-title" id="errorModalLabel">
+                        <i class="fas fa-exclamation-triangle me-2 text-warning"></i>Error
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body" id="errorModalBody">

@@ -8,7 +8,6 @@ import os
 import pandas as pd
 from typing import Union, Dict, Any, Tuple
 
-
 class SpreadsheetParser:
     """
     Handles parsing of spreadsheet files

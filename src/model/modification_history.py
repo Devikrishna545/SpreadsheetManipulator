@@ -7,7 +7,6 @@ Tracks modifications to a spreadsheet with undo/redo functionality
 from typing import List, Optional
 from src.model.spreadsheet import Spreadsheet
 
-
 class ModificationHistory:
     """
     Tracks spreadsheet modifications and provides undo/redo functionality

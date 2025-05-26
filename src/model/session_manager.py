@@ -12,7 +12,6 @@ import os
 
 from src.model.user_session import UserSession
 
-
 class SessionManager:
     """
     Manages user sessions for the spreadsheet editor

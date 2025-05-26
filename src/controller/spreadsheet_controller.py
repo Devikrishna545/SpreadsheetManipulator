@@ -116,9 +116,16 @@ class SpreadsheetController:
         if not spreadsheet:
             raise ValueError("No spreadsheet data found")
         
-        # Prepare view data
-        data = spreadsheet.get_data().replace({float('nan'): None}).values.tolist()
-        headers = spreadsheet.get_data().columns.tolist()
+        # Prepare view data with datetime handling
+        df_copy = spreadsheet.get_data().copy()
+        
+        # Convert datetime columns to strings for JSON serialization
+        for col in df_copy.columns:
+            if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
+        
+        data = df_copy.replace({float('nan'): None}).values.tolist()
+        headers = df_copy.columns.tolist()
         
         return {
             'data': data,
@@ -182,9 +189,16 @@ class SpreadsheetController:
         # Update session spreadsheet
         session.update_spreadsheet(new_spreadsheet)
         
-        # Prepare view data
-        data = new_df.replace({float('nan'): None}).values.tolist()
-        headers = new_df.columns.tolist()
+        # Prepare view data with datetime handling
+        df_copy = new_df.copy()
+        
+        # Convert datetime columns to strings for JSON serialization
+        for col in df_copy.columns:
+            if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
+        
+        data = df_copy.replace({float('nan'): None}).values.tolist()
+        headers = df_copy.columns.tolist()
         
         return {
             'data': data,
@@ -222,10 +236,17 @@ class SpreadsheetController:
         # Update session
         session.update_spreadsheet(previous_spreadsheet)
         
-        # Prepare view data
+        # Prepare view data with datetime handling
         df = previous_spreadsheet.get_data()
-        data = df.replace({float('nan'): None}).values.tolist()
-        headers = df.columns.tolist()
+        df_copy = df.copy()
+        
+        # Convert datetime columns to strings for JSON serialization
+        for col in df_copy.columns:
+            if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
+        
+        data = df_copy.replace({float('nan'): None}).values.tolist()
+        headers = df_copy.columns.tolist()
         
         return {
             'data': data,
@@ -263,10 +284,17 @@ class SpreadsheetController:
         # Update session
         session.update_spreadsheet(next_spreadsheet)
         
-        # Prepare view data
+        # Prepare view data with datetime handling
         df = next_spreadsheet.get_data()
-        data = df.replace({float('nan'): None}).values.tolist()
-        headers = df.columns.tolist()
+        df_copy = df.copy()
+        
+        # Convert datetime columns to strings for JSON serialization
+        for col in df_copy.columns:
+            if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
+        
+        data = df_copy.replace({float('nan'): None}).values.tolist()
+        headers = df_copy.columns.tolist()
         
         # Since we've already verified history is not None, we can safely call these methods
         return {
@@ -286,7 +314,7 @@ class SpreadsheetController:
             session_id: Session ID
 
         Returns:
-            tuple: (Path to the downloadable file, Original filename)
+            tuple: (Path to the downloadable file, original filename)
         """
         # Get session
         session = self.session_manager.get_session(session_id)
@@ -308,7 +336,7 @@ class SpreadsheetController:
         # Save to download directory
         download_path = spreadsheet.save(self.file_manager.download_dir, format_type)
         
-        # Return both the file path and the original filename
+        # Return both download path and original filename
         return download_path, spreadsheet.original_filename
     
     def cleanup_session(self, session_id: str) -> None:
@@ -325,10 +353,7 @@ class SpreadsheetController:
         # Get spreadsheet for file cleanup
         history = session.get_modification_history()
         spreadsheet = history.get_current_state() if history and hasattr(history, 'get_current_state') else None
-        
-        # Get associated script if available
-        generated_script = session.get_generated_script()
-        
+                
         if spreadsheet:
             # Clean up files
             original_file = spreadsheet.file_path

@@ -21,6 +21,12 @@ const processBtn = document.getElementById('processBtn');
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
 const downloadBtn = document.getElementById('downloadBtn');
+const actionsSection = document.getElementById('actionsSection');
+const sessionInfo = document.getElementById('sessionInfo');
+const statusBadge = document.getElementById('statusBadge');
+const fileName = document.getElementById('fileName');
+const sessionStatus = document.getElementById('sessionStatus');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
 
 // Error modal elements
 const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
@@ -36,7 +42,31 @@ document.addEventListener('DOMContentLoaded', function() {
     undoBtn.addEventListener('click', undoModification);
     redoBtn.addEventListener('click', redoModification);
     downloadBtn.addEventListener('click', downloadSpreadsheet);
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+    
+    // File input change event for better UX
+    fileInput.addEventListener('change', function() {
+        const label = document.querySelector('.file-input-label span');
+        if (this.files.length > 0) {
+            label.textContent = this.files[0].name;
+        } else {
+            label.textContent = 'Choose File';
+        }
+    });
+
+    // Initialize status
+    updateStatus('Ready', 'waiting');
 });
+
+/**
+ * Update application status
+ * @param {string} message - Status message
+ * @param {string} type - Status type (active, waiting, processing, error)
+ */
+function updateStatus(message, type = 'active') {
+    statusBadge.textContent = message;
+    statusBadge.className = `status-badge status-${type}`;
+}
 
 /**
  * Handle file upload
@@ -54,6 +84,7 @@ async function handleFileUpload(event) {
     const formData = new FormData();
     formData.append('file', file);
     
+    updateStatus('Uploading...', 'processing');
     showLoading('Uploading spreadsheet...');
     
     try {
@@ -71,17 +102,32 @@ async function handleFileUpload(event) {
         // Store session ID
         currentSessionId = data.sessionId;
         
+        // Update UI
+        fileName.textContent = file.name;
+        sessionStatus.textContent = 'Active';
+        
         // Load spreadsheet data
         await loadSpreadsheetData();
         
-        // Show spreadsheet and command containers
-        spreadsheetContainer.style.display = 'block';
-        commandContainer.style.display = 'block';
+        // Show relevant sections
+        showMainInterface();
+        updateStatus('Ready', 'active');
     } catch (error) {
+        updateStatus('Error', 'error');
         showError(error.message);
     } finally {
         hideLoading();
     }
+}
+
+/**
+ * Show main interface sections
+ */
+function showMainInterface() {
+    spreadsheetContainer.style.display = 'block';
+    commandContainer.style.display = 'block';
+    actionsSection.style.display = 'block';
+    sessionInfo.style.display = 'block';
 }
 
 /**
@@ -129,7 +175,13 @@ function renderSpreadsheet() {
         readOnly: true,
         contextMenu: false,
         manualColumnResize: true,
-        manualRowResize: true
+        manualRowResize: true,
+        className: 'htDark',
+        // Enhanced styling for dark theme
+        afterRender: function() {
+            // Apply dark theme classes
+            this.rootElement.classList.add('handsontable-dark');
+        }
     };
     
     hotInstance = new Handsontable(spreadsheetData, settings);
@@ -173,6 +225,7 @@ async function processCommand() {
         return;
     }
     
+    updateStatus('Processing...', 'processing');
     showLoading('Processing your command...');
     
     try {
@@ -200,7 +253,12 @@ async function processCommand() {
         
         // Clear command input
         commandInput.value = '';
+        updateStatus('Command Executed', 'active');
+        
+        // Reset status after 3 seconds
+        setTimeout(() => updateStatus('Ready', 'active'), 3000);
     } catch (error) {
+        updateStatus('Error', 'error');
         showError(error.message);
     } finally {
         hideLoading();
@@ -273,6 +331,7 @@ async function redoModification() {
 function downloadSpreadsheet() {
     if (!currentSessionId) return;
     
+    updateStatus('Downloading...', 'processing');
     window.location.href = `/download/${currentSessionId}`;
     
     // Show message that the session will be cleaned up
@@ -294,9 +353,19 @@ function resetApplication() {
         hotInstance = null;
     }
     
+    // Reset UI
     spreadsheetContainer.style.display = 'none';
     commandContainer.style.display = 'none';
+    actionsSection.style.display = 'none';
+    sessionInfo.style.display = 'none';
+    
+    // Reset form and labels
     uploadForm.reset();
+    document.querySelector('.file-input-label span').textContent = 'Choose File';
+    fileName.textContent = '-';
+    sessionStatus.textContent = 'Inactive';
+    
+    updateStatus('Ready', 'waiting');
 }
 
 /**
@@ -315,7 +384,7 @@ function updateUndoRedoButtons() {
  */
 function showLoading(message = 'Loading...') {
     loadingMessage.textContent = message;
-    loadingContainer.style.display = 'block';
+    loadingContainer.style.display = 'flex';
 }
 
 /**
@@ -332,4 +401,33 @@ function hideLoading() {
 function showError(message) {
     errorModalBody.textContent = message;
     errorModal.show();
+}
+
+/**
+ * Toggle fullscreen mode for the spreadsheet
+ */
+function toggleFullscreen() {
+    const spreadsheetCard = spreadsheetContainer.querySelector('.spreadsheet-card');
+    const icon = fullscreenBtn.querySelector('i');
+    
+    if (spreadsheetCard.classList.contains('fullscreen')) {
+        // Exit fullscreen
+        spreadsheetCard.classList.remove('fullscreen');
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+        fullscreenBtn.title = 'Enter Fullscreen';
+    } else {
+        // Enter fullscreen
+        spreadsheetCard.classList.add('fullscreen');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+        fullscreenBtn.title = 'Exit Fullscreen';
+    }
+    
+    // Refresh handsontable after fullscreen toggle
+    if (hotInstance) {
+        setTimeout(() => {
+            hotInstance.render();
+        }, 100);
+    }
 }

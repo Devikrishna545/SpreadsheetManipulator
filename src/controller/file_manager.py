@@ -138,6 +138,13 @@ class FileManager:
             str: Path to the saved JSON file
         """
         import json
+        from datetime import datetime, date
+        
+        class DateTimeEncoder(json.JSONEncoder):
+            def default(self, o):
+                if isinstance(o, (datetime, date)):
+                    return o.isoformat()
+                return super(DateTimeEncoder, self).default(o)
         
         # Ensure filename has .json extension
         if not filename.endswith('.json'):
@@ -146,7 +153,7 @@ class FileManager:
         file_path = os.path.join(self.json_dir, filename)
         
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2)
+            json.dump(data, f, indent=2, cls=DateTimeEncoder)
             
         return file_path
         
@@ -190,16 +197,11 @@ class FileManager:
         max_age_seconds = max_age_hours * 3600
         deleted_count = 0
         
-        # Files to preserve
-        protected_files = ['.gitkeep']
-        
         # Clean up upload directory
         for root, _, files in os.walk(self.upload_dir):
             for filename in files:
-                if filename in protected_files:
-                    continue
                 file_path = os.path.join(root, filename)
-                if os.path.isfile(file_path):
+                if os.path.isfile(file_path) and now - os.path.getmtime(file_path) > max_age_seconds:
                     try:
                         os.remove(file_path)
                         deleted_count += 1
@@ -209,25 +211,24 @@ class FileManager:
         # Clean up download directory
         for root, _, files in os.walk(self.download_dir):
             for filename in files:
-                if filename in protected_files:
-                    continue
                 file_path = os.path.join(root, filename)
-                if os.path.isfile(file_path):
+                if os.path.isfile(file_path) and now - os.path.getmtime(file_path) > max_age_seconds:
                     try:
                         os.remove(file_path)
                         deleted_count += 1
                     except (PermissionError, OSError) as e:
                         print(f"Warning: Could not delete file {file_path}: {e}")
         
-        # Clean up JSON files
+        # Clean up old JSON files (keep some longer)
         for root, _, files in os.walk(self.json_dir):
             for filename in files:
-                # Skip manifest.json and protected files
-                if filename == 'manifest.json' or filename in protected_files:
+                # Skip manifest.json which should be in the favicon directory
+                if filename == 'manifest.json':
                     continue
                     
                 file_path = os.path.join(root, filename)
-                if os.path.isfile(file_path):
+                # Use a longer retention for JSON files (3 days)
+                if os.path.isfile(file_path) and now - os.path.getmtime(file_path) > (max_age_seconds * 3):
                     try:
                         os.remove(file_path)
                         deleted_count += 1

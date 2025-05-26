@@ -10,7 +10,6 @@ import numpy as np
 import json
 from typing import Dict, List, Any, Optional, Tuple
 
-
 class Spreadsheet:
     """
     Represents a spreadsheet with data and operations
@@ -65,54 +64,89 @@ class Spreadsheet:
         """
         return self.metadata
     
-    def to_json(self, save_to_file: bool = False, file_manager = None) -> str:
+    def to_json(self, save_to_file: bool = False, file_manager = None) -> dict:
         """
-        Convert spreadsheet to JSON string
-
+        Convert spreadsheet to JSON format
+        
         Args:
-            save_to_file: Whether to save the JSON to a file in static/json
-            file_manager: FileManager instance to use for saving (if save_to_file is True)
-
+            save_to_file: Whether to save the JSON to a file
+            file_manager: File manager instance for saving
+            
         Returns:
-            str: JSON representation of spreadsheet
+            dict: JSON representation of the spreadsheet
         """
+        import json
+        import pandas as pd
+        
+        # Convert DataFrame to dict, handling datetime objects
         if self.data_df is not None:
-            # Handle NaN values and other non-serializable types
-            df_json = self.data_df.replace({np.nan: None}).to_dict(orient='records')
-            headers = self.data_df.columns.tolist()
+            df_copy = self.data_df.copy()
+            
+            # Convert datetime columns to ISO format strings
+            for col in df_copy.columns:
+                if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                    df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
+            
+            # Replace NaN and pd.NA values with None for JSON serialization
+            # This is more effective now that object columns aren't preemptively stringified.
+            df_dict = df_copy.replace({pd.NA: None, float('nan'): None}).to_dict(orient='records')
+            headers = df_copy.columns.tolist()
         else:
-            df_json = []
+            df_dict = []
             headers = []
         
-        data = {
-            'metadata': self.metadata,
-            'data': df_json,
-            'headers': headers
+        json_data = {
+            'file_id': self.file_id,
+            'original_filename': self.original_filename,
+            'headers': headers,
+            'data': df_dict,
+            'metadata': self.get_metadata()
         }
         
-        json_str = json.dumps(data)
-        
-        # Save to file if requested
-        if save_to_file and file_manager is not None:
-            file_manager.save_json_data(data, f"spreadsheet_{self.file_id}")
-        
-        return json_str
+        if save_to_file and file_manager:
+            file_manager.save_json_data(json_data, f"spreadsheet_{self.file_id}")
+            
+        return json_data
     
     @classmethod
-    def from_json(cls, json_str: str, file_id: str, original_filename: str) -> 'Spreadsheet':
+    def from_json(cls, json_input: Any, file_id: str, original_filename: str) -> 'Spreadsheet':
         """
-        Create a spreadsheet from JSON string
+        Create a spreadsheet from JSON string or dictionary
 
         Args:
-            json_str: JSON string representation of spreadsheet
+            json_input: JSON string representation or dictionary of spreadsheet
             file_id: Unique identifier for the file
             original_filename: Original filename
 
         Returns:
             Spreadsheet: New spreadsheet instance
         """
-        data = json.loads(json_str)
-        df = pd.DataFrame(data['data'])
+        parsed_json_data: Dict[str, Any]
+        if isinstance(json_input, str):
+            parsed_json_data = json.loads(json_input)
+        elif isinstance(json_input, dict):
+            parsed_json_data = json_input
+        else:
+            raise TypeError("json_input must be a JSON string or a dictionary")
+
+        data_list = parsed_json_data.get('data')
+        headers = parsed_json_data.get('headers')
+
+        df: pd.DataFrame
+        if data_list is not None:
+            if headers is not None:
+                # Use headers if provided, for correct column order and handling of empty data lists
+                df = pd.DataFrame(data_list, columns=headers)
+            else:
+                # Let pandas infer columns if headers are not provided
+                df = pd.DataFrame(data_list)
+        elif headers is not None:
+            # No data, but headers are present (e.g., empty spreadsheet with defined columns)
+            df = pd.DataFrame(columns=headers)
+        else:
+            # No data and no headers
+            df = pd.DataFrame()
+            
         return cls(file_id, original_filename, df)
     
     def save(self, save_dir: str, format: str = 'xlsx') -> str:

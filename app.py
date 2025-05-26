@@ -4,6 +4,17 @@ Spreadsheet Auto-Editor Application
 A Flask application that allows accountants to edit spreadsheets using natural language commands.
 """
 
+# TO DO
+# =======
+# Add keyboard shortcuts for common actions
+# Design beautiful modern UI ✅
+# Test app with various spreadsheet formats ✅
+# Test app with real users
+# Add predefined prompts for common tasks
+# Add support for user creating custom prompts and storing them
+# Add support for tagging rows and columns with pop-up suggestions called using the hash-tag
+# Add option to view previous prompts with arrow up/down keys
+
 import os
 from flask import Flask, render_template, request, jsonify, send_file, g
 from dotenv import load_dotenv
@@ -32,12 +43,10 @@ spreadsheet_controller = SpreadsheetController(session_manager)
 for folder in [app.config['UPLOAD_FOLDER'], app.config['DOWNLOAD_FOLDER'], app.config['JSON_FOLDER'], app.config['SCRIPT_FOLDER']]:
     os.makedirs(folder, exist_ok=True)
 
-
 @app.route('/')
 def index():
     """Render the main application page."""
     return render_template('index.html')
-
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -58,7 +67,6 @@ def upload_file():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-
 @app.route('/view/<session_id>')
 def view_spreadsheet(session_id):
     """Get the spreadsheet data for viewing."""
@@ -67,7 +75,6 @@ def view_spreadsheet(session_id):
         return jsonify(spreadsheet_view)
     except Exception as e:
         return jsonify({'error': str(e)}), 404
-
 
 @app.route('/process', methods=['POST'])
 def process_command():
@@ -85,7 +92,6 @@ def process_command():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-
 @app.route('/undo/<session_id>', methods=['POST'])
 def undo_modification(session_id):
     """Undo the last modification."""
@@ -94,7 +100,6 @@ def undo_modification(session_id):
         return jsonify(spreadsheet_view)
     except Exception as e:
         return jsonify({'error': str(e)}), 400
-
 
 @app.route('/redo/<session_id>', methods=['POST'])
 def redo_modification(session_id):
@@ -105,25 +110,22 @@ def redo_modification(session_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-
 @app.route('/download/<session_id>')
 def download_spreadsheet(session_id):
     """Download the modified spreadsheet."""
     try:
+        # Get both file_path and original_filename
         file_path, original_filename = spreadsheet_controller.download_spreadsheet(session_id)
-        
-        # Preserve original file extension
-        original_ext = os.path.splitext(original_filename)[1].lower()
         
         # Schedule cleanup after download
         def cleanup():
             spreadsheet_controller.cleanup_session(session_id)
         
-        # Use Flask's g context to store after_response_funcs per request
         if not hasattr(g, 'after_response_funcs'):
             g.after_response_funcs = []
         g.after_response_funcs.append(cleanup)
         
+        # Use original filename for download
         return send_file(
             file_path,
             as_attachment=True,
@@ -131,7 +133,6 @@ def download_spreadsheet(session_id):
         )
     except Exception as e:
         return jsonify({'error': str(e)}), 400
-
 
 # Register after_response handler
 @app.after_request
@@ -141,31 +142,45 @@ def after_request(response):
     # No need to clear g.after_response_funcs, as g is per-request
     return response
 
+def cleanup_temp_dirs():
+    """
+    Delete all files except .gitkeep from /src/script/, /static/uploads, /static/downloads, /static/json
+    """
+    import glob
+    temp_dirs = [
+        os.path.join('src', 'script'),
+        os.path.join('static', 'uploads'),
+        os.path.join('static', 'downloads'),
+        os.path.join('static', 'json')
+    ]
+    for d in temp_dirs:
+        for f in glob.glob(os.path.join(d, '*')):
+            if os.path.isfile(f) and not f.endswith('.gitkeep'):
+                try:
+                    os.remove(f)
+                except Exception as e:
+                    print(f"Warning: Could not delete temp file {f}: {e}")
 
 if __name__ == '__main__':
+    # Clean up temp dirs at startup
+    cleanup_temp_dirs()
     # Add cleanup of expired sessions and files
     from apscheduler.schedulers.background import BackgroundScheduler
-    from src.controller.script_manager import ScriptManager
-    from src.controller.file_manager import FileManager
-    
+
     def cleanup_expired_resources():
         # Clean up expired sessions
         session_manager.cleanup_expired_sessions()
         
         # Clean up old scripts
+        from src.controller.script_manager import ScriptManager
         script_manager = ScriptManager(os.path.join('src', 'script'))
         script_manager.cleanup_old_scripts(24)  # Keep scripts for 24 hours
-        
-        # Clean up uploaded and downloaded files
-        file_manager = FileManager(
-            upload_dir=app.config['UPLOAD_FOLDER'],
-            download_dir=app.config['DOWNLOAD_FOLDER'],
-            json_dir=app.config['JSON_FOLDER']
-        )
-        file_manager.cleanup_files(24)  # Keep files for 24 hours
-    
+
+        # Clean up temp dirs while server is running
+        cleanup_temp_dirs()
+
     scheduler = BackgroundScheduler()
-    scheduler.add_job(cleanup_expired_resources, 'interval', minutes=30)
+    scheduler.add_job(cleanup_expired_resources, 'interval', hours=24)  # Keep dirs for 24 hours
     scheduler.start()
     
     app.run(debug=True)

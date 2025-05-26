@@ -1,200 +1,566 @@
-/* Main Stylesheet for Spreadsheet Auto-Editor */
+/* Futuristic Dark Theme Stylesheet for Spreadsheet Auto-Editor */
 
-/* Theme Colors */
 :root {
-    --color-primary-dark: #0c134f;
-    --color-primary: #5c469c;
-    --color-accent: #5c469c;
-    --color-bg-light: #f5f5fa;
+    --primary-dark: #0a0a0a;
+    --secondary-dark: #1a1a1a;
+    --accent-dark: #2a2a2a;
+    --border-dark: #3a3a3a;
+    --text-primary: #ffffff;
+    --text-secondary: #b0b0b0;
+    --text-muted: #6c757d;
+    --accent-blue: #00d4ff;
+    --accent-purple: #8b5cf6;
+    --accent-green: #10b981;
+    --accent-orange: #f59e0b;
+    --sidebar-width: 320px;
+    --border-radius: 12px;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Body and background */
-body {
-    background: var(--color-bg-light);
-    color: var(--color-primary-dark);
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-.card {
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    border-radius: 8px;
+body.dark-theme {
+    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--secondary-dark) 100%);
+    color: var(--text-primary);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow-x: hidden;
+}
+
+/* Top Navigation */
+.bg-dark-custom {
+    background: linear-gradient(90deg, #1a1a1a 0%, #2d2d2d 100%) !important;
+    border-bottom: 1px solid var(--border-dark);
+    backdrop-filter: blur(10px);
+}
+
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.5rem;
+    background: linear-gradient(45deg, var(--accent-blue), var(--accent-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.status-badge {
+    padding: 6px 12px;
+    background: linear-gradient(45deg, var(--accent-green), #34d399);
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: white;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* App Container */
+.app-container {
+    display: flex;
+    height: calc(100vh - 60px);
+    position: relative;
+}
+
+/* Sidebar */
+.sidebar {
+    width: var(--sidebar-width);
+    background: linear-gradient(180deg, var(--secondary-dark) 0%, var(--accent-dark) 100%);
+    border-right: 1px solid var(--border-dark);
+    padding: 20px;
+    overflow-y: auto;
+    position: relative;
+}
+
+.sidebar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(0, 212, 255, 0.03), rgba(139, 92, 246, 0.03));
+    pointer-events: none;
+}
+
+.sidebar-content {
+    position: relative;
+    z-index: 1;
+}
+
+.sidebar-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--border-radius);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+}
+
+.sidebar-title {
+    color: var(--accent-blue);
+    font-weight: 600;
+    margin-bottom: 15px;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* File Input Styling */
+.file-input-wrapper {
+    position: relative;
+    margin-bottom: 10px;
+}
+
+.file-input {
+    opacity: 0;
+    position: absolute;
+    z-index: -1;
+}
+
+.file-input-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 15px;
+    background: linear-gradient(45deg, var(--accent-dark), var(--border-dark));
+    border: 2px dashed var(--accent-blue);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: var(--transition);
+    color: var(--text-secondary);
+}
+
+.file-input-label:hover {
+    border-color: var(--accent-purple);
+    background: linear-gradient(45deg, var(--border-dark), var(--accent-dark));
+    transform: translateY(-2px);
+}
+
+.file-input-label i {
+    margin-right: 8px;
+    font-size: 1.2rem;
+}
+
+/* Futuristic Buttons */
+.btn-futuristic {
+    background: linear-gradient(45deg, var(--accent-blue), var(--accent-purple));
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 12px 20px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-futuristic::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.btn-futuristic:hover::before {
+    left: 100%;
+}
+
+.btn-futuristic:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 212, 255, 0.3);
+}
+
+.btn-outline-warning.btn-futuristic {
+    background: transparent;
+    border: 2px solid var(--accent-orange);
+    color: var(--accent-orange);
+}
+
+.btn-outline-info.btn-futuristic {
+    background: transparent;
+    border: 2px solid var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.btn-success.btn-futuristic {
+    background: linear-gradient(45deg, var(--accent-green), #34d399);
+}
+
+/* Session Info */
+.session-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.session-label {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.session-value {
+    color: var(--accent-blue);
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background: var(--primary-dark);
+}
+
+/* Command Section */
+.command-section {
+    margin-bottom: 20px;
+}
+
+.command-card {
+    background: linear-gradient(135deg, var(--secondary-dark), var(--accent-dark));
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-dark);
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+}
+
+.command-header {
+    padding: 20px;
+    background: rgba(0, 212, 255, 0.1);
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.command-header h5 {
+    margin: 0;
+    color: var(--accent-blue);
+    font-weight: 600;
+}
+
+.command-body {
+    padding: 20px;
+}
+
+.command-input-wrapper {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+}
+
+.command-input {
+    flex: 1;
+    background: var(--accent-dark);
+    border: 2px solid var(--border-dark);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    padding: 15px;
+    resize: vertical;
+    font-size: 1rem;
+    transition: var(--transition);
+}
+
+.command-input:focus {
+    border-color: var(--accent-blue);
+    background: var(--secondary-dark);
+    box-shadow: 0 0 0 0.2rem rgba(0, 212, 255, 0.25);
+}
+
+.command-input::placeholder {
+    color: var(--text-muted);
+}
+
+.btn-process {
+    background: linear-gradient(45deg, var(--accent-blue), var(--accent-purple));
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 15px 25px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: var(--transition);
+}
+
+.btn-process:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(139, 92, 246, 0.3);
+}
+
+/* Spreadsheet Section */
+.spreadsheet-card {
+    background: linear-gradient(135deg, var(--secondary-dark), var(--accent-dark));
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-dark);
+    height: calc(100vh - 200px);
+    display: flex;
+    flex-direction: column;
+    transition: var(--transition);
+}
+
+.spreadsheet-card.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9998;
+    border-radius: 0;
     border: none;
 }
 
-.card-header {
-    background: var(--color-primary-dark);
-    color: var(--color-bg-light);
-    border-bottom: none;
-    font-weight: bold;
-    border-radius: 8px 8px 0 0 !important;
+.spreadsheet-header {
+    padding: 20px;
+    background: rgba(139, 92, 246, 0.1);
+    border-bottom: 1px solid var(--border-dark);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.spreadsheet-controls .btn {
+    transition: var(--transition);
+}
+
+.spreadsheet-controls .btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: scale(1.1);
+}
+
+.spreadsheet-body {
+    flex: 1;
+    padding: 20px;
+    overflow: hidden;
 }
 
 #spreadsheetData {
-    height: 400px;
+    height: 100%;
     width: 100%;
-    overflow: auto;
-    background: var(--color-bg-light);
-    border-radius: 4px;
-    padding: 1rem;
-    min-height: 120px;
+    border-radius: var(--border-radius);
+    overflow: hidden;
 }
 
-.navbar {
-    background: var(--color-primary-dark) !important;
-}
-.navbar .navbar-brand {
-    color: var(--color-bg-light) !important;
-}
-
-.sidebar-custom .card,
-#commandContainer .card,
-#uploadContainer .card {
-    background: var(--color-accent);
-    border: none;
-    color: var(--color-bg-light);
+/* Handsontable Dark Theme */
+.handsontable {
+    background: var(--accent-dark) !important;
+    color: var(--text-primary) !important;
 }
 
-#spreadsheetContainer .card,
-#loadingContainer .card {
-    background: var(--color-bg-light);
-    border: 1px solid var(--color-accent);
-    color: var(--color-primary-dark);
-}
-
-.btn-primary {
-    background: var(--color-primary-dark);
-    border-color: var(--color-primary-dark);
-}
-.btn-primary:hover, .btn-primary:focus {
-    background: var(--color-primary);
-    border-color: var(--color-primary);
-}
-.btn-success {
-    background: var(--color-primary);
-    border-color: var(--color-primary);
-}
-.btn-success:hover, .btn-success:focus {
-    background: var(--color-primary-dark);
-    border-color: var(--color-primary-dark);
-    color: var(--color-bg-light);
-}
-.btn-outline-secondary {
-    color: var(--color-primary-dark);
-    border-color: var(--color-primary-dark);
-}
-.btn-outline-secondary:hover, .btn-outline-secondary:focus {
-    background: var(--color-primary-dark);
-    color: var(--color-bg-light);
-}
-
-/* Custom styling for Handsontable headers */
 .handsontable th {
-    background-color: #e9ecef;
-    font-weight: bold;
+    background: linear-gradient(135deg, var(--border-dark), var(--accent-dark)) !important;
+    color: var(--accent-blue) !important;
+    font-weight: 600 !important;
+    border-color: var(--border-dark) !important;
+}
+
+.handsontable td {
+    background: var(--secondary-dark) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-dark) !important;
 }
 
 .handsontable td.modified {
-    background-color: rgba(255, 243, 205, 0.5);
-    transition: background-color 0.5s ease;
+    background: linear-gradient(45deg, rgba(0, 212, 255, 0.2), rgba(139, 92, 246, 0.2)) !important;
+    animation: glow 1s ease-in-out;
 }
 
-/* Status indicators for undo/redo */
-.status-indicator {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
+@keyframes glow {
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: 0 0 15px rgba(0, 212, 255, 0.5); }
+}
+
+/* Loading Overlay */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.loading-content {
+    text-align: center;
+}
+
+.spinner-futuristic {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+}
+
+.spinner-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 3px solid transparent;
     border-radius: 50%;
-    margin-right: 5px;
+    animation: spin 2s linear infinite;
 }
 
-.status-active {
-    background-color: #28a745;
+.spinner-ring:nth-child(1) {
+    border-top-color: var(--accent-blue);
+    animation-delay: 0s;
 }
 
-.status-inactive {
-    background-color: #dc3545;
+.spinner-ring:nth-child(2) {
+    border-right-color: var(--accent-purple);
+    animation-delay: 0.3s;
+    width: 70%;
+    height: 70%;
+    top: 15%;
+    left: 15%;
 }
 
-/* Responsive adjustments */
+.spinner-ring:nth-child(3) {
+    border-bottom-color: var(--accent-green);
+    animation-delay: 0.6s;
+    width: 40%;
+    height: 40%;
+    top: 30%;
+    left: 30%;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading-text {
+    color: var(--accent-blue);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+/* Modal Dark Theme */
+.modal-content {
+    background: linear-gradient(135deg, var(--secondary-dark), var(--accent-dark)) !important;
+    border: 1px solid var(--border-dark) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--border-radius) !important;
+}
+
+.modal-header {
+    border-color: var(--border-dark) !important;
+    background: rgba(0, 212, 255, 0.1) !important;
+}
+
+.modal-title {
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+}
+
+.modal-body {
+    color: var(--text-primary) !important;
+    background: transparent !important;
+}
+
+.modal-footer {
+    border-color: var(--border-dark) !important;
+    background: rgba(0, 0, 0, 0.2) !important;
+}
+
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.8) !important;
+    backdrop-filter: blur(5px) !important;
+}
+
+/* Button styling in modals */
+.modal .btn-close {
+    background: transparent !important;
+    border: none !important;
+    opacity: 0.8 !important;
+    filter: invert(1) !important;
+}
+
+.modal .btn-close:hover {
+    opacity: 1 !important;
+}
+
+.modal .btn-secondary {
+    background: linear-gradient(45deg, var(--accent-dark), var(--border-dark)) !important;
+    border: 1px solid var(--border-dark) !important;
+    color: var(--text-primary) !important;
+}
+
+.modal .btn-secondary:hover {
+    background: linear-gradient(45deg, var(--border-dark), var(--accent-dark)) !important;
+    border-color: var(--accent-blue) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Remove old modal-dark class reference since we're applying globally */
+.modal-dark .modal-content,
+.modal-dark .modal-header,
+.modal-dark .modal-footer {
+    /* Remove these as they're now handled globally */
+}
+
+/* Form Controls */
+.form-control {
+    background: var(--accent-dark);
+    border: 1px solid var(--border-dark);
+    color: var(--text-primary);
+}
+
+.form-control:focus {
+    background: var(--secondary-dark);
+    border-color: var(--accent-blue);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 0.2rem rgba(0, 212, 255, 0.25);
+}
+
+.form-text {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
-    .card-header {
-        flex-direction: column;
-        align-items: flex-start !important;
+    .sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
     }
     
-    .card-header div {
+    .app-container {
+        flex-direction: column;
+        height: auto;
+    }
+    
+    .command-input-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .btn-process {
         margin-top: 10px;
     }
 }
 
-/* Sidebar and main content layout */
-.sidebar-custom {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 70vh;
-    background: rgba(92, 70, 156,0);    
+/* Utility Classes */
+.text-glow {
+    text-shadow: 0 0 10px currentColor;
 }
 
-@media (min-width: 992px) {
-    .sidebar-custom {
-        position: sticky;
-        top: 1rem;
-        height: calc(100vh - 5rem);
-    }
-    #commandContainer {
-        margin-top: auto;
-    }
-}
-
-@media (max-width: 991.98px) {
-    .sidebar-custom {
-        flex-direction: column;
-        position: static;
-        height: auto;
-    }
-    #commandContainer {
-        margin-top: 1.5rem;
-    }
-}
-
-/* Loading container styling */
-#loadingContainer .card {
-    min-height: 250px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Hide spreadsheetContainer when loading, and vice versa (handled by JS) */
-
-/* Responsive tweaks for spreadsheet data */
-#spreadsheetData {
-    overflow-x: auto;
-}
-
-/* Inputs and textarea */
-.form-control, .form-select, textarea {
-    background: var(--color-bg-light);
-    color: var(--color-primary-dark);
-    border: 1px solid var(--color-accent);
-}
-.form-control:focus, .form-select:focus, textarea:focus {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 0.2rem rgba(92, 70, 156, 0.15);
-}
-
-/* Modal */
-.modal-content {
-    background: var(--color-accent);
-    color: var(--color-bg-light);
-}
-
-/* Glassmorphism effect */
-.glass-effect {
-    backdrop-filter: blur(12px) saturate(160%);
-    -webkit-backdrop-filter: blur(12px) saturate(160%);
-    background: rgba(92, 70, 156, 0.5);
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.15);
-    border: 1px solid rgba(255,255,255,0.18);
+.border-glow {
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
 }
