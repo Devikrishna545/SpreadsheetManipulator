@@ -1,0 +1,28 @@
+/* Responsive Design */
+@media (max-width: 768px) {
+    .sidebar { /* This rule is from layout.css, ensure it's here or layout.css */
+        width: 100%;
+        height: auto;
+        position: relative;
+        border-right: none;
+        border-bottom: 1px solid var(--glass-border-color);
+    }
+    
+    .app-container { /* This rule is from layout.css, ensure it's here or layout.css */
+        flex-direction: column;
+        height: auto;
+    }
+    
+    .command-input-wrapper { /* This rule is from components.css */
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .btn-process { /* This rule is from components.css */
+        margin-top: 10px;
+    }
+
+    .spreadsheet-card { /* This rule is from components.css */
+        height: 60vh; 
+    }
+}

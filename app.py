@@ -6,14 +6,17 @@ A Flask application that allows accountants to edit spreadsheets using natural l
 
 # TO DO
 # =======
-# Add keyboard shortcuts for common actions
+# Add keyboard shortcuts for common actions 🔁
 # Design beautiful modern UI ✅
 # Test app with various spreadsheet formats ✅
 # Test app with real users
 # Add predefined prompts for common tasks
+# Add favicon
+# Add light/dark mode toggle (dark mode by default). Modes pessist across page refresh and app restarts 
 # Add support for user creating custom prompts and storing them
 # Add support for tagging rows and columns with pop-up suggestions called using the hash-tag
-# Add option to view previous prompts with arrow up/down keys
+# Remove particle-mouse interaction, when there is an element between the mouse and the particles (if the z-index of the element is lower than z-index of the particles stop the mouse-particle interaction).
+# Add option to view previous prompts with arrow up/down keys 🔁
 
 import os
 from flask import Flask, render_template, request, jsonify, send_file, g
