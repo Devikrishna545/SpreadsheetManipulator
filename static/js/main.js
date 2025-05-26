@@ -56,7 +56,71 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize status
     updateStatus('Ready', 'waiting');
+    setupShortcutKeys();
 });
+
+/**
+ * Setup global keyboard shortcuts for the application
+ */
+function setupShortcutKeys() {
+    document.addEventListener('keydown', function(e) {
+        // Helper to check if focus is inside the command input
+        const isCommandInputActive = document.activeElement === commandInput;
+
+        // Ctrl+Shift+U: Focus/select file input
+        if (e.ctrlKey && e.shiftKey && (e.key === 'u' || e.key === 'U')) {
+            e.preventDefault();
+            fileInput.click();
+            return;
+        }
+
+        // Ctrl+U: Upload file (submit form)
+        if (e.ctrlKey && !e.shiftKey && (e.key === 'u' || e.key === 'U')) {
+            e.preventDefault();
+            uploadForm.requestSubmit();
+            return;
+        }
+
+        // Ctrl+Z: Undo (only if not in command input)
+        if (e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+            if (!isCommandInputActive) {
+                e.preventDefault();
+                undoModification();
+            }
+            return;
+        }
+
+        // Ctrl+Y: Redo (only if not in command input)
+        if (e.ctrlKey && !e.shiftKey && (e.key === 'y' || e.key === 'Y')) {
+            if (!isCommandInputActive) {
+                e.preventDefault();
+                redoModification();
+            }
+            return;
+        }
+
+        // Ctrl+D: Download
+        if (e.ctrlKey && !e.shiftKey && (e.key === 'd' || e.key === 'D')) {
+            e.preventDefault();
+            downloadSpreadsheet();
+            return;
+        }
+
+        // Ctrl+M: Toggle maximize/minimize spreadsheet
+        if (e.ctrlKey && !e.shiftKey && (e.key === 'm' || e.key === 'M')) {
+            e.preventDefault();
+            toggleFullscreen();
+            return;
+        }
+
+        // Enter: Process command if inside command input
+        if (e.key === 'Enter' && isCommandInputActive && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            processCommand();
+            return;
+        }
+    });
+}
 
 /**
  * Update application status
