@@ -55,5 +55,90 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             if(app.processCurrentCommand) app.processCurrentCommand();
             return;
         }
+
+        // Escape: Remove focus from commandInput and highlight it
+        if (e.key === 'Escape' && isCommandInputActive) {
+            e.preventDefault();
+            commandInput.blur();
+            commandInput.classList.add('highlight-escape');
+            setTimeout(() => commandInput.classList.remove('highlight-escape'), 600);
+            return;
+        }
+        
     });
+}
+
+// Prompt history navigation state
+let promptHistoryIndex = null;
+let promptHistoryCache = [];
+
+/**
+ * Handle up/down arrow navigation in command input for prompt history
+ */
+export async function handlePromptHistoryNavigation(e) {
+   
+    if (document.activeElement !== commandInput) return;
+    if (!currentSessionId) return;
+
+    // Only handle up/down arrows
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+
+    e.preventDefault();
+
+    // Initialize index if not set
+    if (promptHistoryIndex === null) {
+        promptHistoryIndex = -1; // Start at -1 to fetch the most recent prompt first
+    }
+
+    // Adjust index based on key
+    if (e.key === 'ArrowUp') {
+        promptHistoryIndex++;
+    } else if (e.key === 'ArrowDown') {
+        promptHistoryIndex--;
+        if (promptHistoryIndex < 0) promptHistoryIndex = 0;
+    }
+
+    // Fetch prompt from cache if available, else from backend
+    if (promptHistoryCache[promptHistoryIndex] !== undefined) {
+        commandInput.value = promptHistoryCache[promptHistoryIndex] || '';
+    } else {
+        const prompt = await fetchPromptFromHistory(promptHistoryIndex);
+        if (prompt !== null) {
+            promptHistoryCache[promptHistoryIndex] = prompt;
+            commandInput.value = prompt;
+        } else {
+            // No more history in this direction
+            if (e.key === 'ArrowUp') {
+                promptHistoryIndex--;
+            } else if (e.key === 'ArrowDown' && promptHistoryIndex > 0) {
+                promptHistoryIndex--;
+            }
+        }
+    }
+}
+
+/**
+ * Fetch a prompt from history for the current session
+ * @param {number} index - The index in the history (0 = most recent)
+ * @returns {Promise<string|null>} - The prompt string or null if not found
+ */
+async function fetchPromptFromHistory(index) {
+    if (!currentSessionId) return null;
+    try {
+        const response = await fetch(`/prompt_history/${currentSessionId}?index=${index}`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        return data.prompt || null;
+    } catch {
+        return null;
+    }
+}
+
+
+/**
+ * Reset prompt history navigation state
+ */
+export function resetPromptHistory() {
+    promptHistoryIndex = null;
+    promptHistoryCache = [];
 }

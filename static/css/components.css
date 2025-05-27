@@ -515,3 +515,9 @@
 .border-glow {
     box-shadow: none;
 }
+
+.highlight-escape {
+    outline: 2px solid var(--accent-blue);
+    box-shadow: 0 0 8px var(--accent-blue);
+    transition: outline 0.2s, box-shadow 0.2s;
+}
