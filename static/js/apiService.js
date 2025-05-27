@@ -61,7 +61,7 @@ export async function processCommand(sessionId, command) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Failed to process command');
         
-        updateStatus('Command Executed', 'active');
+        updateStatus('Command Executed', 'active');        
         setTimeout(() => updateStatus('Ready', 'active'), 3000);
         return data;
     } catch (error) {

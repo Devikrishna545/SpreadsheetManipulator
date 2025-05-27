@@ -70,7 +70,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add window unload handler to clean up particles
     window.addEventListener('beforeunload', cleanUpParticles);
+    // Add keydown listener for prompt history navigation
+    commandInput.addEventListener('keydown', handlePromptHistoryNavigation);
+    commandInput.addEventListener('focus', resetPromptHistory);
 });
+
+// Prompt history navigation state
+let promptHistoryIndex = null;
+let promptHistoryCache = [];
 
 async function onFileUpload(event) {
     const result = await apiHandleFileUpload(event, fileInput);
@@ -94,6 +101,7 @@ async function processCurrentCommand() {
         renderSpreadsheet(currentData);
         updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
         commandInput.value = '';
+        resetPromptHistory(); // Reset prompt history navigation state        
     }
 }
 
@@ -129,10 +137,8 @@ export function resetApplicationState() {
         window.hotInstance = null;
     }
     resetApplicationUI(); // Resets the visual parts of the UI
+    resetPromptHistory(); // Reset prompt history navigation state
 }
-
-// Prompt history navigation state
-
 
 /**
  * Fetch a prompt from history for the current session
