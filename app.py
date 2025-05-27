@@ -20,6 +20,8 @@ from flask import Flask, render_template, request, jsonify, send_file, g
 from dotenv import load_dotenv
 from src.controller.spreadsheet_controller import SpreadsheetController
 from src.model.session_manager import SessionManager
+from src.model.prompt_history import PromptHistory
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -42,6 +44,9 @@ spreadsheet_controller = SpreadsheetController(session_manager)
 # Ensure required directories exist
 for folder in [app.config['UPLOAD_FOLDER'], app.config['DOWNLOAD_FOLDER'], app.config['JSON_FOLDER'], app.config['SCRIPT_FOLDER']]:
     os.makedirs(folder, exist_ok=True)
+
+PROMPT_HISTORY_FOLDER = os.path.join('static', 'json')
+prompt_history = PromptHistory(PROMPT_HISTORY_FOLDER)
 
 @app.route('/')
 def index():
@@ -76,6 +81,20 @@ def view_spreadsheet(session_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 404
 
+@app.route('/prompt_history/<session_id>')
+def prompt_history_route(session_id):
+    """
+    Returns the nth previous prompt for the session.
+    Query param: index (int, 0=most recent)
+    Response: { "prompt": "..." } or { "prompt": null }
+    """
+    try:
+        index = int(request.args.get('index', 0))
+    except Exception:
+        index = 0
+    prompt = prompt_history.get(session_id, index)
+    return jsonify({"prompt": prompt})
+
 @app.route('/process', methods=['POST'])
 def process_command():
     """Process a user command through the LLM."""
@@ -87,6 +106,8 @@ def process_command():
     command = data['command']
     
     try:
+        # Append prompt to history file
+        prompt_history.append(session_id, command)
         spreadsheet_view = spreadsheet_controller.process_command(session_id, command)
         return jsonify(spreadsheet_view)
     except Exception as e:

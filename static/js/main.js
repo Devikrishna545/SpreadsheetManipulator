@@ -32,6 +32,10 @@ const fullscreenBtn = document.getElementById('fullscreenBtn');
 const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
 const errorModalBody = document.getElementById('errorModalBody');
 
+// Prompt history navigation state
+let promptHistoryIndex = null;
+let promptHistoryCache = [];
+
 /**
  * Initialize the application
  */
@@ -53,6 +57,9 @@ document.addEventListener('DOMContentLoaded', function() {
             label.textContent = 'Choose File';
         }
     });
+
+    commandInput.addEventListener('keydown', handlePromptHistoryNavigation);
+    commandInput.addEventListener('focus', resetPromptHistory);
 
     // Initialize status
     updateStatus('Ready', 'waiting');
@@ -317,6 +324,7 @@ async function processCommand() {
         
         // Clear command input
         commandInput.value = '';
+        resetPromptHistory();
         updateStatus('Command Executed', 'active');
         
         // Reset status after 3 seconds
@@ -430,6 +438,7 @@ function resetApplication() {
     sessionStatus.textContent = 'Inactive';
     
     updateStatus('Ready', 'waiting');
+    resetPromptHistory();
 }
 
 /**
@@ -494,4 +503,76 @@ function toggleFullscreen() {
             hotInstance.render();
         }, 100);
     }
+}
+
+// Prompt history navigation state
+
+
+/**
+ * Fetch a prompt from history for the current session
+ * @param {number} index - The index in the history (0 = most recent)
+ * @returns {Promise<string|null>} - The prompt string or null if not found
+ */
+async function fetchPromptFromHistory(index) {
+    if (!currentSessionId) return null;
+    try {
+        const response = await fetch(`/prompt_history/${currentSessionId}?index=${index}`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        return data.prompt || null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Handle up/down arrow navigation in command input for prompt history
+ */
+async function handlePromptHistoryNavigation(e) {
+    if (document.activeElement !== commandInput) return;
+    if (!currentSessionId) return;
+
+    // Only handle up/down arrows
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+
+    e.preventDefault();
+
+    // Initialize index if not set
+    if (promptHistoryIndex === null) {
+        promptHistoryIndex = 0;
+    }
+
+    // Adjust index based on key
+    if (e.key === 'ArrowUp') {
+        promptHistoryIndex++;
+    } else if (e.key === 'ArrowDown') {
+        promptHistoryIndex--;
+        if (promptHistoryIndex < 0) promptHistoryIndex = 0;
+    }
+
+    // Fetch prompt from cache if available, else from backend
+    if (promptHistoryCache[promptHistoryIndex] !== undefined) {
+        commandInput.value = promptHistoryCache[promptHistoryIndex] || '';
+    } else {
+        const prompt = await fetchPromptFromHistory(promptHistoryIndex);
+        if (prompt !== null) {
+            promptHistoryCache[promptHistoryIndex] = prompt;
+            commandInput.value = prompt;
+        } else {
+            // No more history in this direction
+            if (e.key === 'ArrowUp') {
+                promptHistoryIndex--;
+            } else if (e.key === 'ArrowDown' && promptHistoryIndex > 0) {
+                promptHistoryIndex--;
+            }
+        }
+    }
+}
+
+/**
+ * Reset prompt history navigation state
+ */
+function resetPromptHistory() {
+    promptHistoryIndex = null;
+    promptHistoryCache = [];
 }
