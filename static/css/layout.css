@@ -1,0 +1,126 @@
+/* Contains:
+    .app-container
+    .sidebar, .sidebar.collapsed, .sidebar-content, .sidebar-section, .sidebar-title
+    .main-content
+    .bg-dark-custom (Top Navigation background)
+    .navbar-brand (Excluding flicker animation, just layout aspects)
+    .sidebar-toggle-btn
+*/
+
+/* Example structure: */
+.app-container {
+    display: flex;
+    /* Use calc to ensure exact fit, reducing by 2px to avoid potential scrollbar */
+    height: calc(100vh - var(--navbar-height) - 2px); 
+    position: relative;
+    overflow: hidden; /* Prevent scrolling of the page */
+}
+
+.sidebar {
+    width: var(--sidebar-width);
+    background-color: var(--glass-bg-color);
+    backdrop-filter: blur(var(--glass-blur-amount));
+    border-right: 1px solid var(--glass-border-color);
+    padding: 15px;
+    overflow-x: hidden; 
+    overflow-y: auto;
+    transition: width var(--transition-medium), padding var(--transition-medium);
+    flex-shrink: 0; 
+}
+
+.sidebar.collapsed {
+    width: var(--sidebar-collapsed-width);
+    padding: 15px 5px; 
+}
+
+.sidebar.collapsed .sidebar-title,
+.sidebar.collapsed .sidebar-section form,
+.sidebar.collapsed .sidebar-section .session-details,
+.sidebar.collapsed .sidebar-section .action-buttons .btn span, 
+.sidebar.collapsed .file-input-label span,
+.sidebar.collapsed .form-text {
+    display: none; 
+}
+
+.sidebar.collapsed .sidebar-section .action-buttons .btn,
+.sidebar.collapsed .file-input-label {
+    justify-content: center; 
+}
+.sidebar.collapsed .sidebar-section .action-buttons .btn i,
+.sidebar.collapsed .file-input-label i {
+    margin-right: 0; 
+}
+.sidebar.collapsed .sidebar-section {
+    padding: 10px 5px;
+}
+.sidebar.collapsed .sidebar-title i { 
+    display: block;
+    text-align: center;
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+}
+
+.sidebar-content {
+    position: relative;
+    z-index: 1;
+}
+
+.sidebar-section {
+    margin-bottom: 25px;
+    padding: 15px;
+    background-color: rgba(0, 191, 255, 0.05); 
+    border-radius: var(--border-radius);
+    border: 1px solid var(--glass-border-color);
+}
+
+.sidebar-title {
+    color: var(--main-accent);
+    font-weight: 500;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+.main-content {
+    flex: 1;
+    /* Reduce padding to save space */
+    padding: 10px 15px;
+    overflow-y: hidden; /* Change from auto to hidden to prevent scrolling */
+    background-color: transparent;
+    max-height: calc(100vh - var(--navbar-height));
+    display: flex;
+    flex-direction: column;
+}
+
+/* Top Navigation */
+.bg-dark-custom {
+    background-color: rgba(10, 10, 20, 0.5); 
+    border-bottom: 1px solid var(--glass-border-color);
+    backdrop-filter: blur(var(--glass-blur-amount)); 
+}
+
+.navbar-brand {
+    font-weight: 600;
+    font-size: 1.4rem;
+    color: var(--main-accent);
+    /* text-shadow and animation will be in components.css or main.css */
+    display: flex; 
+    align-items: center;
+}
+
+.sidebar-toggle-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    margin-right: 15px;
+    padding: 5px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+.sidebar-toggle-btn:hover {
+    color: var(--main-accent);
+    transform: scale(1.1);
+}
+

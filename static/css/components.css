@@ -1,0 +1,517 @@
+/* Contains:
+    .navbar-brand (flicker animation and text-shadow)
+    @keyframes flicker
+    .status-badge, .status-badge::before, @keyframes scan-line
+    .file-input-wrapper, .file-input, .file-input-label
+    .btn-futuristic and its variants (.btn-outline-warning, etc.)
+    .session-item, .session-label, .session-value
+    .command-section, .command-card, .command-header, .command-body, .command-input-wrapper, .command-input, .btn-process
+    .spreadsheet-section, .spreadsheet-card, .spreadsheet-header, .spreadsheet-controls, .spreadsheet-body, #spreadsheetData
+    .loading-overlay, .loading-content, .futuristic-loader and its children, @keyframes for loader parts
+    .loading-text
+    .modal-content, .modal-header, .modal-title, .modal-body, .modal-footer, .modal-backdrop, .modal .btn-close, .modal .btn-secondary
+    .form-control, .form-text
+    Utility classes like .text-glow, .border-glow (if kept)
+*/
+
+/* Example structure: */
+.navbar-brand { /* Only animation and shadow here, base in layout.css */
+    text-shadow: 0 0 5px var(--main-accent), 0 0 10px var(--main-accent);
+    animation: flicker 3s infinite alternate; 
+}
+
+@keyframes flicker {
+    0%, 18%, 22%, 25%, 53%, 57%, 100% {
+        text-shadow:
+            0 0 4px var(--main-accent),
+            0 0 11px var(--main-accent),
+            0 0 19px var(--main-accent),
+            0 0 40px var(--main-accent),
+            0 0 80px var(--main-accent);
+        opacity: 1;
+    }
+    20%, 24%, 55% {        
+        text-shadow: none;
+        opacity: 0.8;
+    }
+}
+
+.status-badge {
+    padding: 6px 12px; 
+    background-color: transparent; 
+    border: 1px solid var(--main-accent); 
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--main-accent); 
+    transition: var(--transition-fast);
+    position: relative;
+    overflow: hidden; 
+    box-shadow: 0 0 8px rgba(0,191,255,0.3), inset 0 0 5px rgba(0,191,255,0.2);
+}
+
+.status-badge::before { 
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 191, 255, 0.5), transparent); 
+    animation: scan-line 3s linear infinite;
+    box-shadow: 0 0 10px rgba(0, 191, 255, 0.5); 
+}
+
+@keyframes scan-line {
+    0% { left: -100%; opacity: 0.7; } 
+    40% { opacity: 1; } 
+    50% { left: 100%; opacity: 1; }
+    60% { opacity: 0.7; } 
+    100% { left: 100%; opacity: 0; } 
+}
+
+/* File Input Styling */
+.file-input-wrapper {
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.file-input {
+    opacity: 0;
+    position: absolute;
+    z-index: -1;
+}
+
+.file-input-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background-color: rgba(0,0,0,0.1);
+    border: 2px dashed var(--main-accent);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    color: var(--text-secondary);
+}
+
+.file-input-label:hover {
+    border-color: #ffffff;
+    background-color: rgba(0, 191, 255, 0.1);
+    transform: none; 
+}
+
+.file-input-label i {
+    margin-right: 8px;
+    font-size: 1.1rem;
+}
+
+/* Futuristic Buttons (Simplified) */
+.btn-futuristic {
+    background-color: var(--main-accent);
+    border: 1px solid var(--main-accent);
+    color: var(--base-bg); 
+    border-radius: var(--border-radius);
+    padding: 10px 18px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: var(--transition-fast);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-futuristic:hover {
+    background-color: #ffffff; 
+    color: var(--main-accent);
+    border-color: #ffffff;
+    transform: none; 
+    box-shadow: none;
+}
+
+.btn-futuristic:disabled {
+    background-color: var(--text-muted) !important;
+    border-color: var(--text-muted) !important;
+    color: var(--base-bg) !important;
+    opacity: 0.5;
+}
+
+
+.btn-outline-warning.btn-futuristic {
+    background: transparent;
+    border: 1px solid var(--text-muted); 
+    color: var(--text-muted);
+}
+.btn-outline-warning.btn-futuristic:hover {
+    background: var(--text-muted);
+    color: var(--base-bg);
+}
+
+.btn-outline-info.btn-futuristic { 
+    background: transparent;
+    border: 1px solid var(--main-accent);
+    color: var(--main-accent);
+}
+.btn-outline-info.btn-futuristic:hover {
+    background: var(--main-accent);
+    color: var(--base-bg);
+}
+
+.btn-success.btn-futuristic { 
+    background-color: var(--main-accent); 
+    border-color: var(--main-accent);
+    color: var(--base-bg);
+}
+.btn-success.btn-futuristic:hover {
+    background-color: #ffffff;
+    color: var(--main-accent);
+    border-color: #ffffff;
+}
+
+/* Session Info */
+.session-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--glass-border-color);
+}
+
+.session-label {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.session-value {
+    color: var(--main-accent);
+    font-weight: 500;
+    font-size: 0.8rem;
+}
+
+/* Command Section */
+.command-section {
+    margin-bottom: 15px;
+}
+
+.command-card {
+    background-color: var(--glass-bg-color); 
+    backdrop-filter: blur(var(--glass-blur-amount));
+    border-radius: var(--border-radius);
+    border: 1px solid var(--glass-border-color);
+    overflow: hidden;
+}
+
+.command-header {
+    padding: 15px;
+    background-color: rgba(0, 191, 255, 0.05); 
+    border-bottom: 1px solid var(--glass-border-color);
+}
+
+.command-header h5 {
+    margin: 0;
+    color: var(--main-accent);
+    font-weight: 500;
+    font-size: 1.1rem;
+}
+
+.command-body {
+    padding: 15px;
+}
+
+.command-input-wrapper {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.command-input {
+    flex: 1;
+    background-color: rgba(0, 0, 0, 0.2); 
+    border: 1px solid var(--glass-border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-primary);
+    padding: 12px;
+    resize: vertical;
+    font-size: 0.95rem;
+    transition: var(--transition-fast);
+}
+
+.command-input:focus {
+    border-color: var(--main-accent);
+    background-color: rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 0 0.15rem rgba(0, 191, 255, 0.2); 
+}
+
+.command-input::placeholder {
+    color: var(--text-muted);
+}
+
+.btn-process { 
+    padding: 12px 20px;
+}
+
+
+/* Spreadsheet Section */
+.spreadsheet-card {
+    background-color: var(--glass-bg-color); 
+    backdrop-filter: blur(var(--glass-blur-amount));
+    border-radius: var(--border-radius);
+    border: 1px solid var(--glass-border-color);
+    /* Further reduced height calculation to eliminate any page scrolling */
+    height: calc(100vh - var(--command-section-height) - var(--navbar-height) - 45px); 
+    display: flex;
+    flex-direction: column;
+    transition: var(--transition-medium); 
+}
+
+.spreadsheet-card.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9998;
+    border-radius: 0;
+    border: none;
+    background-color: var(--base-bg); 
+    backdrop-filter: none; 
+}
+
+.spreadsheet-header {
+    padding: 15px;
+    background-color: rgba(0, 191, 255, 0.05);
+    border-bottom: 1px solid var(--glass-border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.spreadsheet-header h5 {
+    margin: 0;
+    color: var(--main-accent);
+    font-weight: 500;
+    font-size: 1.1rem;
+}
+
+.spreadsheet-controls .btn {
+    transition: var(--transition-fast);
+    color: var(--text-secondary);
+}
+
+.spreadsheet-controls .btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--main-accent);
+    transform: none; 
+}
+
+.spreadsheet-body {
+    flex: 1;
+    padding: 15px;
+    overflow: hidden;
+}
+
+#spreadsheetData {
+    height: 100%;
+    width: 100%;
+    border-radius: var(--border-radius); 
+    overflow: hidden;
+}
+
+/* Loading Overlay (Futuristic Circuit Loader) */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 10, 20, 0.85); 
+    backdrop-filter: blur(var(--glass-blur-amount));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.loading-content {
+    text-align: center;
+}
+
+.futuristic-loader {
+    width: 100px;
+    height: 100px;
+    position: relative;
+    margin: 0 auto 20px;
+}
+
+.futuristic-loader .loader-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    animation: rotate-loader 2s linear infinite;
+}
+
+.futuristic-loader .loader-ring:nth-child(1) {
+    border-top-color: var(--main-accent);
+    border-left-color: var(--main-accent);
+    animation-delay: 0s;
+}
+
+.futuristic-loader .loader-ring:nth-child(2) {
+    width: 80%;
+    height: 80%;
+    top: 10%;
+    left: 10%;
+    border-bottom-color: var(--main-accent);
+    border-right-color: var(--main-accent);
+    animation-delay: -0.5s;
+}
+
+.futuristic-loader .loader-ring:nth-child(3) {
+    width: 60%;
+    height: 60%;
+    top: 20%;
+    left: 20%;
+    border-top-color: var(--main-accent);
+    border-right-color: var(--main-accent);
+    animation-delay: -1s;
+}
+
+.futuristic-loader .loader-dot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--main-accent);
+    border-radius: 50%;
+    position: absolute;
+    top: calc(50% - 3px);
+    left: calc(50% - 3px);
+    box-shadow: 0 0 5px var(--main-accent), 0 0 10px var(--main-accent);
+    animation: pulse-dot 1s ease-in-out infinite alternate;
+}
+
+.futuristic-loader .signal {
+    position: absolute;
+    width: 3px;
+    height: 8px;
+    background-color: var(--main-accent);
+    border-radius: 2px;
+    opacity: 0;
+    animation: signal-flow 2s linear infinite;
+}
+
+.futuristic-loader .signal:nth-child(4) { 
+    top: 0; left: 50%; transform: translateX(-50%); animation-delay: 0s;
+}
+.futuristic-loader .signal:nth-child(5) {
+    bottom: 0; left: 50%; transform: translateX(-50%) rotate(180deg); animation-delay: -1s;
+}
+.futuristic-loader .signal:nth-child(6) {
+    left: 0; top: 50%; transform: translateY(-50%) rotate(-90deg); animation-delay: -0.5s;
+}
+.futuristic-loader .signal:nth-child(7) {
+    right: 0; top: 50%; transform: translateY(-50%) rotate(90deg); animation-delay: -1.5s;
+}
+
+@keyframes rotate-loader {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-dot {
+    from { transform: scale(0.8); opacity: 0.7; }
+    to { transform: scale(1.2); opacity: 1; }
+}
+
+@keyframes signal-flow {
+    0%, 100% { opacity: 0; transform: translateY(-15px) scaleY(0.5) translateX(-50%); } 
+    20% { opacity: 1; transform: translateY(0px) scaleY(1) translateX(-50%); } 
+    80% { opacity: 1; transform: translateY(30px) scaleY(1) translateX(-50%); } 
+    95% { opacity: 0; transform: translateY(45px) scaleY(0.5) translateX(-50%); } 
+}
+
+.loading-text {
+    color: var(--main-accent);
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+/* Modal Dark Theme (Consistent Glassmorphism) */
+.modal-content {
+    background-color: var(--glass-bg-color) !important;
+    backdrop-filter: blur(var(--glass-blur-amount)) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--border-radius) !important;
+}
+
+.modal-header {
+    border-bottom-color: var(--glass-border-color) !important; 
+    background-color: rgba(0, 191, 255, 0.05) !important;
+}
+
+.modal-title {
+    color: var(--main-accent) !important; 
+    font-weight: 500 !important;
+}
+
+.modal-body {
+    color: var(--text-primary) !important;
+    background: transparent !important;
+}
+
+.modal-footer {
+    border-top-color: var(--glass-border-color) !important; 
+    background-color: rgba(0,0,0,0.1) !important; 
+}
+
+.modal-backdrop {
+    background-color: rgba(10, 10, 20, 0.5) !important; 
+    backdrop-filter: blur(var(--glass-blur-amount)) !important;
+}
+
+.modal .btn-close {
+    filter: invert(80%) sepia(10%) saturate(500%) hue-rotate(180deg) brightness(150%) contrast(80%) !important; 
+}
+
+.modal .btn-secondary {
+    background-color: var(--text-muted) !important;
+    border: 1px solid var(--text-muted) !important;
+    color: var(--base-bg) !important;
+}
+
+.modal .btn-secondary:hover {
+    background-color: var(--text-secondary) !important;
+    border-color: var(--text-secondary) !important;
+    transform: none !important;
+}
+
+/* Form Controls (Simplified) */
+.form-control {
+    background-color: rgba(0,0,0,0.2);
+    border: 1px solid var(--glass-border-color);
+    color: var(--text-primary);
+    border-radius: var(--border-radius);
+}
+
+.form-control:focus {
+    background-color: rgba(0,0,0,0.3);
+    border-color: var(--main-accent);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 0.15rem rgba(0, 191, 255, 0.2);
+}
+
+.form-text {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+/* Utility Classes */
+.text-glow {
+   text-shadow: none;
+}
+
+.border-glow {
+    box-shadow: none;
+}
