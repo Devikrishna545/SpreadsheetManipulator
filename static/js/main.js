@@ -1,20 +1,8 @@
 import { initParticleBackground, cleanUpParticles } from './particleEffects.js';
-import { 
-    toggleSidebar, 
-    toggleFullscreen, 
-    updateStatus, 
-    showMainInterface, 
-    resetApplicationUI, 
-    updateUndoRedoButtons,
-    updateSessionInfo
-} from './uiInteractions.js';
-import { 
-    handleFileUpload as apiHandleFileUpload, 
-    processCommand as apiProcessCommand, 
-    undoModification as apiUndoModification, 
-    redoModification as apiRedoModification, 
-    downloadSpreadsheet as apiDownloadSpreadsheet 
-} from './apiService.js';
+import { toggleSidebar, toggleFullscreen, updateStatus, resetApplicationUI, updateUndoRedoButtons} 
+from './uiInteractions.js';
+import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet }
+from './apiService.js';
 import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData } from './spreadsheetHandler.js';
 import { setupShortcutKeys,handlePromptHistoryNavigation,resetPromptHistory } from './shortcuts.js';
 
@@ -59,6 +47,15 @@ document.addEventListener('DOMContentLoaded', function() {
     updateStatus('Ready', 'waiting');
     initParticleBackground(); 
     
+    // Move these lines to ensure commandInput is available and listeners are attached after DOM is ready
+    commandInput.addEventListener('keydown', function(e) {
+        // Only trigger for ArrowUp/ArrowDown to avoid interfering with other shortcuts
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            handlePromptHistoryNavigation(e);
+        }
+    });
+    commandInput.addEventListener('focus', resetPromptHistory);
+
     // Pass an 'app' object or specific methods to shortcuts
     setupShortcutKeys({
         processCurrentCommand,
@@ -70,15 +67,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Add window unload handler to clean up particles
     window.addEventListener('beforeunload', cleanUpParticles);
-    // Add keydown listener for prompt history navigation
-    commandInput.addEventListener('keydown', handlePromptHistoryNavigation);
-    commandInput.addEventListener('focus', resetPromptHistory);
 });
 
 async function onFileUpload(event) {
     const result = await apiHandleFileUpload(event, fileInput);
     if (result && result.sessionId) {
         currentSessionId = result.sessionId;
+        window.currentSessionId = currentSessionId;
         // Initial data load after upload
         const initialData = await fetchSpreadsheetData(currentSessionId);
         if (initialData) {
@@ -127,6 +122,7 @@ function downloadCurrentSpreadsheet() {
 // Centralized state reset
 export function resetApplicationState() {
     currentSessionId = null;
+    window.currentSessionId = null;
     currentData = null;
     if (window.hotInstance) {
         window.hotInstance.destroy();
@@ -136,4 +132,10 @@ export function resetApplicationState() {
     resetPromptHistory(); // Reset prompt history navigation state
 }
 
-
+// Export for prompts.js to access current prompt
+export function getCurrentPromptText() {
+    return commandInput.value;
+}
+export function setCurrentPromptText(text) {
+    commandInput.value = text;
+}

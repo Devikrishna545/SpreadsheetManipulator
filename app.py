@@ -12,8 +12,15 @@ A Flask application that allows accountants to edit spreadsheets using natural l
 # Test app with real users
 # Add predefined prompts for common tasks
 # Add favicon
+# Add command for entering a new command (CTRL+I) 🔁
+# Add keyboard support for viewing saved prompts (CTRL+SHIFT+P) 🔁
+# Add keyboard shortcuts for saving prompts (CTRL+SHIFT+S) 🔁
+# Add a save button to save current text in input text box within a prompt file (static/assets/prompts/prompts.txt) ✅
+# Add a delete button to remove saved prompts from within the prompt modal (static/assets/prompts/prompts.txt) 🔁
+# Add escape to remove focus from input field ✅
+# Increase input text box height to be above save and view prompts buttons 🔁
+# Increase the background blur percentage of the view prompts modal to 70% 🔁
 # Add light/dark mode toggle (dark mode by default). Modes pessist across page refresh and app restarts 
-# Add support for user creating custom prompts and storing them
 # Add support for tagging rows and columns with pop-up suggestions called using the hash-tag
 # Remove particle-mouse interaction, when there is an element between the mouse and the particles (if the z-index of the element is lower than z-index of the particles stop the mouse-particle interaction).
 # Add option to view previous prompts with arrow up/down keys 🔁
@@ -25,6 +32,7 @@ from src.controller.spreadsheet_controller import SpreadsheetController
 from src.model.session_manager import SessionManager
 from src.model.prompt_history import PromptHistory
 import threading
+from flask import send_from_directory
 
 # Load environment variables
 load_dotenv()
@@ -50,6 +58,8 @@ for folder in [app.config['UPLOAD_FOLDER'], app.config['DOWNLOAD_FOLDER'], app.c
 
 PROMPT_HISTORY_FOLDER = os.path.join('static', 'json')
 prompt_history = PromptHistory(PROMPT_HISTORY_FOLDER)
+
+PROMPT_FILE = os.path.join('static', 'assets', 'prompts', 'prompts.txt')
 
 @app.route('/')
 def index():
@@ -157,6 +167,33 @@ def download_spreadsheet(session_id):
         )
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+
+@app.route('/prompts', methods=['GET', 'POST'])
+def prompts_api():
+    import threading
+    lock = threading.Lock()
+    if request.method == 'POST':
+        data = request.get_json()
+        prompt = (data.get('prompt') or '').strip()
+        if not prompt:
+            return jsonify({'error': 'Prompt is empty'}), 400
+        with lock:
+            os.makedirs(os.path.dirname(PROMPT_FILE), exist_ok=True)
+            # Avoid duplicates, append only if not present
+            prompts = []
+            if os.path.exists(PROMPT_FILE):
+                with open(PROMPT_FILE, 'r', encoding='utf-8') as f:
+                    prompts = [line.strip() for line in f if line.strip()]
+            if prompt not in prompts:
+                with open(PROMPT_FILE, 'a', encoding='utf-8') as f:
+                    f.write(prompt.replace('\n', ' ') + '\n')
+        return jsonify({'success': True})
+    else:
+        prompts = []
+        if os.path.exists(PROMPT_FILE):
+            with open(PROMPT_FILE, 'r', encoding='utf-8') as f:
+                prompts = [line.strip() for line in f if line.strip()]
+        return jsonify(prompts)
 
 # Register after_response handler
 @app.after_request

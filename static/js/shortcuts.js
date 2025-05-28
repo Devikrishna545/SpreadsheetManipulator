@@ -63,20 +63,25 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             commandInput.classList.add('highlight-escape');
             setTimeout(() => commandInput.classList.remove('highlight-escape'), 600);
             return;
-        }
-        
+        }        
     });
 }
-
 // Prompt history navigation state
 let promptHistoryIndex = null;
 let promptHistoryCache = [];
+/**
+ * Helper to always get the latest currentSessionId from main.js/global
+ */
+function getCurrentSessionId() {
+    return window.currentSessionId !== undefined ? window.currentSessionId : null;
+}
 
 /**
  * Handle up/down arrow navigation in command input for prompt history
  */
 export async function handlePromptHistoryNavigation(e) {
-   
+    const commandInput = document.getElementById('commandInput');
+    const currentSessionId = getCurrentSessionId();
     if (document.activeElement !== commandInput) return;
     if (!currentSessionId) return;
 
@@ -123,6 +128,7 @@ export async function handlePromptHistoryNavigation(e) {
  * @returns {Promise<string|null>} - The prompt string or null if not found
  */
 async function fetchPromptFromHistory(index) {
+    const currentSessionId = getCurrentSessionId();
     if (!currentSessionId) return null;
     try {
         const response = await fetch(`/prompt_history/${currentSessionId}?index=${index}`);
@@ -133,7 +139,6 @@ async function fetchPromptFromHistory(index) {
         return null;
     }
 }
-
 
 /**
  * Reset prompt history navigation state

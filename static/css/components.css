@@ -487,6 +487,38 @@
     transform: none !important;
 }
 
+/* Prompt Modal Styles */
+#promptModal .modal-content {
+    background-color: var(--glass-bg-color) !important;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--glass-border-color);
+    color: var(--text-primary);
+}
+#promptModal .modal-header {
+    background: rgba(0,191,255,0.05);
+    border-bottom: 1px solid var(--glass-border-color);
+}
+#promptModal .modal-title {
+    color: var(--main-accent);
+}
+#promptModal .modal-body {
+    background: transparent;
+    padding: 1rem;
+}
+#promptList .list-group-item {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--glass-border-color);
+    margin-bottom: 6px;
+    border-radius: var(--border-radius);
+    transition: background 0.15s;
+}
+#promptList .list-group-item:hover, #promptList .list-group-item.active {
+    background: rgba(0,191,255,0.08);
+    color: var(--main-accent);
+    cursor: pointer;
+}
+
 /* Form Controls (Simplified) */
 .form-control {
     background-color: rgba(0,0,0,0.2);
@@ -520,4 +552,36 @@
     outline: 2px solid var(--accent-blue);
     box-shadow: 0 0 8px var(--accent-blue);
     transition: outline 0.2s, box-shadow 0.2s;
+}
+
+/* Ensure prompt buttons look consistent with process button */
+#savePromptBtn,
+#promptLibraryBtn {
+    min-width: 0;
+    flex: 1 1 0;
+    margin: 0;
+    /* Remove outline-secondary for promptLibraryBtn, use outline-info for both */
+}
+
+#savePromptBtn .fa-save,
+#promptLibraryBtn .fa-book-open {
+    margin-right: 6px;
+}
+
+.icon-btn {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 0 8px 2px #00eaff44, 0 0 0 1.5px #00eaff88 inset;
+    background: linear-gradient(135deg, #232a34 60%, #1a1f24 100%);
+    transition: box-shadow 0.2s, background 0.2s;
+}
+.icon-btn:hover, .icon-btn:focus {
+    box-shadow: 0 0 16px 4px #00eaff99, 0 0 0 2px #00eaffcc inset;
+    background: linear-gradient(135deg, #232a34 40%, #00eaff22 100%);
 }
