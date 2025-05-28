@@ -1,5 +1,4 @@
 import { showLoading, hideLoading, showError, updateStatus, showMainInterface, updateSessionInfo } from './uiInteractions.js';
-import { loadSpreadsheetData as refreshSpreadsheetData } from './spreadsheetHandler.js'; // Renamed to avoid conflict
 import { resetApplicationState } from './main.js'; // Assuming main.js will export this
 
 export async function handleFileUpload(event, fileInput) {

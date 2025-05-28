@@ -15,7 +15,6 @@ const fileNameDisplay = document.getElementById('fileName'); // Renamed to avoid
 const sessionStatusDisplay = document.getElementById('sessionStatus'); // Renamed
 const fullscreenBtn = document.getElementById('fullscreenBtn');
 
-
 export function toggleSidebar() {
     sidebar.classList.toggle('collapsed');
     const icon = sidebarToggleBtn.querySelector('i');
