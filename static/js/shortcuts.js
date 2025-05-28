@@ -1,11 +1,13 @@
 import { toggleFullscreen, toggleSidebar } from './uiInteractions.js';
 // We'll need to import action handlers or pass them if they remain in main.js
 // For now, assume they are callable globally or passed via main.js setup
-
-export function setupShortcutKeys(app) { // app object to access methods like app.processCommand()
-    const commandInput = document.getElementById('commandInput');
+const commandInput = document.getElementById('commandInput');
+export function setupShortcutKeys(app) {    
     const fileInput = document.getElementById('fileInput');
     const uploadForm = document.getElementById('uploadForm');
+    // Add prompt buttons for shortcuts
+    const savePromptBtn = document.getElementById('savePromptBtn');
+    const promptLibraryBtn = document.getElementById('promptLibraryBtn');
 
     document.addEventListener('keydown', function(e) {
         const isCommandInputActive = document.activeElement === commandInput;
@@ -64,11 +66,49 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             setTimeout(() => commandInput.classList.remove('highlight-escape'), 600);
             return;
         }        
+        // Ctrl+Shift+S: Save prompt
+        if (e.ctrlKey && e.shiftKey && isCommandInputActive && (e.key === 's' || e.key === 'S')) {
+            e.preventDefault();
+            if (savePromptBtn) savePromptBtn.click();
+            return;
+        }
+        // Ctrl+Shift+P: View prompts
+        if (e.ctrlKey && e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+            e.preventDefault();
+            if (promptLibraryBtn) promptLibraryBtn.click();
+            return;
+        }
+        // Ctrl+I: Focus command input
+        if (e.ctrlKey && !e.shiftKey && (e.key === 'i' || e.key === 'I')) {
+            e.preventDefault();
+            if (commandInput) commandInput.focus();
+            return;
+        }
     });
 }
+
 // Prompt history navigation state
 let promptHistoryIndex = null;
 let promptHistoryCache = [];
+let promptHistoryActive = false;
+export async function getCurrentSessionPrompts(e){
+    // Only trigger for ArrowUp/ArrowDown to avoid interfering with other shortcuts
+    if (!promptHistoryActive) {
+        if (e.key === 'ArrowUp') {
+            promptHistoryActive = true;
+            handlePromptHistoryNavigation(e);
+        }
+    } else {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            handlePromptHistoryNavigation(e);
+        }
+    }  
+       commandInput.addEventListener('focus', function() {
+            promptHistoryActive = false;           
+            resetPromptHistory();
+        });
+}
+
 /**
  * Helper to always get the latest currentSessionId from main.js/global
  */
@@ -79,8 +119,7 @@ function getCurrentSessionId() {
 /**
  * Handle up/down arrow navigation in command input for prompt history
  */
-export async function handlePromptHistoryNavigation(e) {
-    const commandInput = document.getElementById('commandInput');
+export async function handlePromptHistoryNavigation(e) {    
     const currentSessionId = getCurrentSessionId();
     if (document.activeElement !== commandInput) return;
     if (!currentSessionId) return;
@@ -94,7 +133,6 @@ export async function handlePromptHistoryNavigation(e) {
     if (promptHistoryIndex === null) {
         promptHistoryIndex = -1; // Start at -1 to fetch the most recent prompt first
     }
-
     // Adjust index based on key
     if (e.key === 'ArrowUp') {
         promptHistoryIndex++;
@@ -102,7 +140,6 @@ export async function handlePromptHistoryNavigation(e) {
         promptHistoryIndex--;
         if (promptHistoryIndex < 0) promptHistoryIndex = 0;
     }
-
     // Fetch prompt from cache if available, else from backend
     if (promptHistoryCache[promptHistoryIndex] !== undefined) {
         commandInput.value = promptHistoryCache[promptHistoryIndex] || '';

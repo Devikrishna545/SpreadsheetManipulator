@@ -4,7 +4,7 @@ from './uiInteractions.js';
 import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet }
 from './apiService.js';
 import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData } from './spreadsheetHandler.js';
-import { setupShortcutKeys,handlePromptHistoryNavigation,resetPromptHistory } from './shortcuts.js';
+import { setupShortcutKeys,getCurrentSessionPrompts,resetPromptHistory } from './shortcuts.js';
 
 // Global state specific to main.js orchestration
 let currentSessionId = null;
@@ -43,25 +43,19 @@ document.addEventListener('DOMContentLoaded', function() {
             label.textContent = 'Choose File';
         }
     });
+     commandInput.addEventListener('keyup', function(e) {
+      getCurrentSessionPrompts(e);
+     });   
 
     updateStatus('Ready', 'waiting');
     initParticleBackground(); 
-    
-    // Move these lines to ensure commandInput is available and listeners are attached after DOM is ready
-    commandInput.addEventListener('keydown', function(e) {
-        // Only trigger for ArrowUp/ArrowDown to avoid interfering with other shortcuts
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-            handlePromptHistoryNavigation(e);
-        }
-    });
-    commandInput.addEventListener('focus', resetPromptHistory);
 
     // Pass an 'app' object or specific methods to shortcuts
     setupShortcutKeys({
         processCurrentCommand,
         undoLastModification,
         redoLastModification,
-        downloadCurrentSpreadsheet
+        downloadCurrentSpreadsheet        
         // uploadForm.requestSubmit and fileInput.click are handled directly in shortcuts.js
     });
 

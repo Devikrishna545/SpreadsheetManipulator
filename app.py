@@ -16,8 +16,6 @@ A Flask application that allows accountants to edit spreadsheets using natural l
 # Change the icon of the "Auto Editor" text, to be a circular spinning gear icon, not a spreadsheet icon
 # Centralise the "Auto Editor" text and its icon in the header bar area
 # Add favicon
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 # Add command for entering a new command (CTRL+I) 🔁
 # Add keyboard support for viewing saved prompts (CTRL+SHIFT+P) 🔁
 # Add keyboard shortcuts for saving prompts (CTRL+SHIFT+S) 🔁
@@ -26,16 +24,11 @@ A Flask application that allows accountants to edit spreadsheets using natural l
 # Add escape to remove focus from input field ✅
 # Increase input text box height to be above save and view prompts buttons 🔁
 # Increase the background blur percentage of the view prompts modal to 70% 🔁
-=======
 # Add footer with copyright information
->>>>>>> Stashed changes
-=======
-# Add footer with copyright information
->>>>>>> Stashed changes
 # Add light/dark mode toggle (dark mode by default). Modes pessist across page refresh and app restarts 
 # Add support for tagging rows and columns with pop-up suggestions called using the hash-tag
 # Remove particle-mouse interaction, when there is an element between the mouse and the particles (if the z-index of the element is lower than z-index of the particles stop the mouse-particle interaction).
-# Add option to view previous prompts with arrow up/down keys 🔁
+# Add option to view previous prompts with arrow up/down keys ✅ 
 
 import os
 from flask import Flask, render_template, request, jsonify, send_file, g

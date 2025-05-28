@@ -1,1 +1,3 @@
 add a new row at last
+remove column one
+remove empty rows
