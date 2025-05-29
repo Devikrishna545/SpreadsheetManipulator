@@ -173,7 +173,7 @@ def download_spreadsheet(session_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@app.route('/prompts', methods=['GET', 'POST'])
+@app.route('/prompts', methods=['GET', 'POST', 'DELETE'])
 def prompts_api():
     import threading
     lock = threading.Lock()
@@ -193,6 +193,20 @@ def prompts_api():
                 with open(PROMPT_FILE, 'a', encoding='utf-8') as f:
                     f.write(prompt.replace('\n', ' ') + '\n')
         return jsonify({'success': True})
+    elif request.method == 'DELETE':
+        data = request.get_json()
+        prompt_to_delete = data.get('prompt', '').strip()
+        if not prompt_to_delete:
+            return '', 400
+        if not os.path.exists(PROMPT_FILE):
+            return '', 404
+        with open(PROMPT_FILE, 'r', encoding='utf-8') as f:
+            prompts = [line.strip() for line in f if line.strip()]
+        prompts = [p for p in prompts if p != prompt_to_delete]
+        with open(PROMPT_FILE, 'w', encoding='utf-8') as f:
+            for p in prompts:
+                f.write(p + '\n')
+        return '', 204
     else:
         prompts = []
         if os.path.exists(PROMPT_FILE):

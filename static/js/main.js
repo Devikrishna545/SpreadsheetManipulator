@@ -73,7 +73,7 @@ async function onFileUpload(event) {
         if (initialData) {
             currentData = initialData;
             renderSpreadsheet(currentData);
-            updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
+            updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);           
         }
     }
 }

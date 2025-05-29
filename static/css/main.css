@@ -43,6 +43,53 @@ body.dark-theme {
     position: relative; /* For particle container */
 }
 
+/* Custom scrollbar for dark/futuristic theme */
+/* Hide scrollbar by default, show on hover/scroll for custom-scrollbar containers */
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #00bcd4 #23272b;
+    /* Hide scrollbar for Webkit browsers by default */
+}
+.custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    background: #23272b;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.custom-scrollbar:hover::-webkit-scrollbar,
+.custom-scrollbar:active::-webkit-scrollbar,
+.custom-scrollbar:focus::-webkit-scrollbar {
+    opacity: 1;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #00bcd4;
+    border-radius: 6px;
+    border: 2px solid #23272b;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #26c6da;
+}
+.custom-scrollbar::-webkit-scrollbar-corner {
+    background: #23272b;
+}
+
+/* For Firefox: hide scrollbar until scroll/hover */
+.custom-scrollbar {
+    scrollbar-width: none; /* Hide by default */
+}
+.custom-scrollbar:hover,
+.custom-scrollbar:active,
+.custom-scrollbar:focus {
+    scrollbar-width: thin; /* Show on hover/active/focus */
+}
+
+/* Ensure spreadsheet section scrollbars match shortcutInfo */
+.spreadsheet-body.custom-scrollbar {
+    overflow: auto !important;
+    /* Inherit all custom-scrollbar styles */
+}
+
 /* All other specific CSS rules that were previously here have been removed 
    as they are now imported from their respective files (layout.css, 
    components.css, particles.css, handsontableTheme.css, responsive.css). 

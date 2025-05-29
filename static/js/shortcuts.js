@@ -184,3 +184,23 @@ export function resetPromptHistory() {
     promptHistoryIndex = null;
     promptHistoryCache = [];
 }
+// Show shortcut info when spreadsheet is uploaded/displayed
+export function showShortcutInfoIfSpreadsheetVisible() {
+    const spreadsheetContainer = document.getElementById('spreadsheetContainer');
+    const shortcutInfo = document.getElementById('shortcutInfo');
+    if (spreadsheetContainer && shortcutInfo) {
+        if (spreadsheetContainer.style.display !== 'none') {
+            shortcutInfo.style.display = '';
+        } else {
+            shortcutInfo.style.display = 'none';
+        }
+    }
+}
+
+// Hook into spreadsheet display logic
+const observer = new MutationObserver(showShortcutInfoIfSpreadsheetVisible);
+observer.observe(document.getElementById('spreadsheetContainer'), { attributes: true, attributeFilter: ['style'] });
+
+// Also call once on load in case spreadsheet is already visible
+document.addEventListener('DOMContentLoaded', showShortcutInfoIfSpreadsheetVisible);
+    
