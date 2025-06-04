@@ -37,35 +37,58 @@ class FileManager:
         
         self.allowed_extensions = {'xlsx', 'xls', 'csv'}
     
-    def save_uploaded_file(self, file: FileStorage, file_id: Optional[str] = None) -> str:
+    def save_uploaded_file(self, file, file_id: Optional[str] = None) -> str:
         """
         Save an uploaded file to the upload directory
 
         Args:
-            file: The uploaded file object
+            file: The uploaded file object (FileStorage or UploadFile)
             file_id: Optional file ID, generates a new one if not provided
 
         Returns:
             str: Path to the saved file
         """
+        # Check if file is a FastAPI UploadFile or Flask FileStorage
+        is_fastapi = hasattr(file, 'file') and not hasattr(file, 'content_length')
+        
+        # Get filename
+        filename = getattr(file, 'filename', None)
+        
         # Validate file
-        if file.filename is None or not self.validate_file_type(file.filename):
+        if filename is None or not self.validate_file_type(filename):
             raise ValueError(f"Unsupported file format. Supported formats: {', '.join(self.allowed_extensions)}")
         
-        # Validate file size
-        if file.content_length and file.content_length > self.max_file_size:
+        # We skip file size validation for FastAPI since it's hard to get the size without reading the file
+        if not is_fastapi and hasattr(file, 'content_length') and file.content_length and file.content_length > self.max_file_size:
             raise ValueError(f"File too large. Maximum size: {self.max_file_size / (1024 * 1024)}MB")
         
         # Secure filename and add unique ID
         if file_id is None:
             file_id = str(uuid.uuid4())
             
-        file_ext = os.path.splitext(secure_filename(file.filename))[1]
-        filename = f"{file_id}{file_ext}"
+        file_ext = os.path.splitext(secure_filename(filename))[1]
+        output_filename = f"{file_id}{file_ext}"
         
         # Save file
-        file_path = os.path.join(self.upload_dir, filename)
-        file.save(file_path)  # type: ignore[misc]
+        file_path = os.path.join(self.upload_dir, output_filename)
+        
+        if is_fastapi:
+            # FastAPI UploadFile - needs special handling
+            try:
+                # Save the file
+                with open(file_path, "wb") as buffer:
+                    # Move to the beginning of the file
+                    file.file.seek(0)
+                    # Write the file
+                    buffer.write(file.file.read())
+            except Exception as e:
+                raise ValueError(f"Failed to save file: {str(e)}")
+        else:
+            # Flask FileStorage
+            try:
+                file.save(file_path)
+            except Exception as e:
+                raise ValueError(f"Failed to save file: {str(e)}")
         
         return file_path
     

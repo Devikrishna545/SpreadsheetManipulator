@@ -19,7 +19,7 @@ class LLMService:
     """
     def __init__(self):
         self.api_key = os.getenv('GEMINI_API_KEY')
-        self.model = os.getenv('GEMINI_MODEL', 'gemini-pro')  # Default to gemini-pro if not set
+        self.model = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')  # Default to gemini-2.0-flash if not set
         
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
@@ -38,19 +38,19 @@ class LLMService:
         self.safety_settings = [
             {
                 "category": "HARM_CATEGORY_HARASSMENT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                "threshold": "BLOCK_NONE"
             },
             {
                 "category": "HARM_CATEGORY_HATE_SPEECH",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                "threshold": "BLOCK_NONE"
             },
             {
                 "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                "threshold": "BLOCK_NONE"
             },
             {
                 "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                "threshold": "BLOCK_NONE"
             }
         ]
 
@@ -67,12 +67,65 @@ class LLMService:
             # If data_obj['data'] was a list of lists, it would need conversion.
             # Based on Spreadsheet.to_json, data_obj['data'] is already a list of dicts.
 
-            prompt = self._create_prompt(headers, metadata, data_sample, command)
+            # Process the command to handle cell references if present
+            processed_command = self._process_cell_references(command)
+            
+            prompt = self._create_prompt(headers, metadata, data_sample, processed_command)
             response = self._call_gemini_api(prompt)
+            # If the response is a Gemini safety block message, return as error script
+            if response.startswith("Content was blocked due to safety concerns:"):
+                return self.handle_api_error(Exception(response))
             script = self._extract_script(response)
             return script
         except Exception as e:
-            raise RuntimeError(f"Failed to generate script: {str(e)}")
+            return self.handle_api_error(e)
+
+    def _process_cell_references(self, command: str) -> str:
+        """Process any cell references in the command to make them clearer for the LLM"""
+        # First, handle complex patterns with multiple references and ranges
+        # Process patterns like "#A1:#B2, #C3:#D4" or "#A:#B, #1:#2"
+        def replace_complex_refs(match):
+            refs = match.group(1).split(',')
+            processed_refs = []
+            
+            for ref in refs:
+                ref = ref.strip()
+                if ':' in ref:  # It's a range
+                    start, end = ref.split(':')
+                    start = start.strip()
+                    end = end.strip()
+                    processed_refs.append(f"range from {start} to {end}")
+                else:
+                    # Single reference - will be handled by other patterns
+                    processed_refs.append(ref)
+            
+            return "cells in " + ", ".join(processed_refs)
+        
+        # Handle complex ranges with comma-separated values
+        pattern = r'#((?:[A-Z]+[0-9]*:[A-Z]+[0-9]*|[A-Z]+:[A-Z]+|[0-9]+:[0-9]+)(?:\s*,\s*(?:[A-Z]+[0-9]*:[A-Z]+[0-9]*|[A-Z]+:[A-Z]+|[0-9]+:[0-9]+))*)'
+        processed = re.sub(pattern, replace_complex_refs, command)
+        
+        # Now handle individual patterns
+        
+        # Single cell references (e.g., #A1)
+        processed = re.sub(r'#([A-Z]+)([0-9]+)', r'cell \1\2', processed)
+        
+        # Cell range references (e.g., #A1:#B2)
+        processed = re.sub(r'#([A-Z]+[0-9]+):#([A-Z]+[0-9]+)', r'range from \1 to \2', processed)
+        
+        # Column references (e.g., #A)
+        processed = re.sub(r'#([A-Z]+)(?!\d|:)', r'column \1', processed)
+        
+        # Row references (e.g., #1)
+        processed = re.sub(r'#([0-9]+)(?!:)', r'row \1', processed)
+        
+        # Column range references (e.g., #A:#C)
+        processed = re.sub(r'#([A-Z]+):#([A-Z]+)', r'columns from \1 to \2', processed)
+        
+        # Row range references (e.g., #1:#5)
+        processed = re.sub(r'#([0-9]+):#([0-9]+)', r'rows from \1 to \2', processed)
+        
+        return processed
 
     def _create_prompt(self, headers: list, metadata: Dict[str, Any], data_sample: list, command: str) -> str:
         prompt = f"""You are an expert Python programmer tasked with modifying a spreadsheet based on user instructions.
@@ -81,14 +134,17 @@ Headers: {headers}
 Row count: {metadata.get('rows', 'unknown')}
 Sample data (first few rows): {json.dumps(data_sample)}
 </spreadsheet_context>
+
 <user_command>
 {command}
 </user_command>
+
 <task>
 Write a Python script that modifies the Pandas DataFrame named 'df' according to the user's command.
 The script should handle edge cases and error conditions gracefully.
 DO NOT import modules other than pandas and numpy, which are already imported.
 </task>
+
 <instructions>
 1. The DataFrame is already loaded and available as 'df'
 2. Your modifications should be made directly to 'df'
@@ -97,7 +153,28 @@ DO NOT import modules other than pandas and numpy, which are already imported.
 5. Do not attempt to write to files or perform any I/O operations
 6. Output ONLY the Python code - no other text
 7. Ensure your code handles potential errors gracefully
+
+Important notes on cell references:
+- When the user references specific cells with # notation, they're using Excel-style references
+- For a single cell (like A1), use df.iloc[0, 0] (zero-indexed)
+- For a column (like column A), use df.iloc[:, 0]
+- For a row (like row 1), use df.iloc[0, :]
+- For cell ranges (like A1:C3), use df.iloc[0:3, 0:3]
+- For column ranges (like A:C), use df.iloc[:, 0:3]
+- For row ranges (like 1:3), use df.iloc[0:3, :]
+- Remember that Excel-style references use 1-based indexing for rows but df.iloc uses 0-based indexing
+- Multiple selections may be indicated with commas (like A1, B2, C3)
+
+Cell reference conversion examples:
+- A1 = df.iloc[0, 0]
+- B2 = df.iloc[1, 1] 
+- Column A = df.iloc[:, 0]
+- Row 5 = df.iloc[4, :]
+- A1:C3 = df.iloc[0:3, 0:3]
+- A:C = df.iloc[:, 0:3]
+- 1:5 = df.iloc[0:5, :]
 </instructions>
+
 Provide only the Python code needed to execute the requested modification:"""
         return prompt
 
@@ -114,15 +191,31 @@ Provide only the Python code needed to execute the requested modification:"""
             # Generate content
             response = model.generate_content(prompt)
             
-            # Extract and return the text
-            if hasattr(response, 'text'):
+            # Robustly extract and return the text or error
+            # 1. If response.text exists and is not empty, return it
+            if hasattr(response, 'text') and response.text and response.text.strip():
                 return response.text
-            else:
-                # For some versions of the API, response might be handled differently
-                return response.candidates[0].content.parts[0].text
+
+            # 2. If candidates exist, check for content or safety block
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                # If content exists
+                if hasattr(candidate, 'content') and getattr(candidate.content, 'parts', None):
+                    parts = candidate.content.parts
+                    if parts and hasattr(parts[0], 'text') and parts[0].text.strip():
+                        return parts[0].text
+                # If blocked by safety
+                if hasattr(candidate, 'safety_ratings') and candidate.safety_ratings:
+                    safety_issues = [getattr(rating, 'category', str(rating)) for rating in candidate.safety_ratings]
+                    return f"Content was blocked due to safety concerns: {', '.join(safety_issues)}"
+                # No valid content
+                return "No valid response was generated. The model may have encountered an issue processing the request."
+            # 3. Fallback: empty response
+            return "Empty response received from Gemini API."
                 
         except Exception as e:
-            raise RuntimeError(f"Gemini API request failed: {str(e)}")
+            # Always return a string so the frontend can display a user-friendly error
+            return f"Gemini API request failed: {str(e)}"
 
     def _extract_script(self, response: str) -> str:
         code_block_pattern = r'```(?:python)?\s*([\s\S]*?)\s*```'
@@ -137,6 +230,6 @@ Provide only the Python code needed to execute the requested modification:"""
 # Error occurred in LLM API: {error_message}
 # Returning original DataFrame without modifications
 # Add error column to inform user
-df['ERROR'] = "Failed to process command: LLM service error"
+df['ERROR'] = "Failed to process command: {error_message}"
 """
         return script.strip()

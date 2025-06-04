@@ -43,6 +43,39 @@ body.dark-theme {
     position: relative; /* For particle container */
 }
 
+/* Schema management buttons */
+.schema-buttons {
+    display: flex;
+    gap: 5px;
+    margin-right: 5px;
+}
+
+/* Split view styling */
+.split-view-container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    gap: 10px;
+}
+
+.split-view-container > div {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.split-view-container .split-view-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 0 0 4px 0;
+    font-size: 11px;
+    z-index: 10;
+}
+
 /* All other specific CSS rules that were previously here have been removed 
    as they are now imported from their respective files (layout.css, 
    components.css, particles.css, handsontableTheme.css, responsive.css). 

@@ -21,10 +21,13 @@ export async function handleFileUpload(event, fileInput) {
             method: 'POST',
             body: formData
         });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to upload file');
+        }
+        
         const data = await response.json();
-        
-        if (!response.ok) throw new Error(data.error || 'Failed to upload file');
-        
         updateSessionInfo(file.name, 'Active');
         showMainInterface();
         updateStatus('Ready', 'active');
@@ -57,9 +60,13 @@ export async function processCommand(sessionId, command) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sessionId, command })
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to process command');
         
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to process command');
+        }
+        
+        const data = await response.json();
         updateStatus('Command Executed', 'active');        
         setTimeout(() => updateStatus('Ready', 'active'), 3000);
         return data;

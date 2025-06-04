@@ -1,0 +1,75 @@
+.cell-tagging-popup {
+    position: absolute;
+    z-index: 1000;
+    background: rgba(20, 22, 28, 0.95);
+    border: 1px solid var(--main-accent);
+    border-radius: 6px;
+    box-shadow: 0 0 15px rgba(0, 191, 255, 0.5);
+    max-height: 300px;
+    overflow-y: auto;
+    width: 350px;
+    backdrop-filter: blur(10px);
+}
+
+.suggestion-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: background 0.15s;
+    border-bottom: 1px solid rgba(0, 191, 255, 0.15);
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover, .suggestion-item.selected {
+    background: rgba(0, 191, 255, 0.2);
+}
+
+.suggestion-item i {
+    color: var(--main-accent);
+    margin-right: 8px;
+    font-size: 0.9rem;
+    width: 20px;
+    text-align: center;
+}
+
+.suggestion-text {
+    font-weight: bold;
+    color: var(--main-accent);
+    margin-right: 10px;
+    white-space: nowrap;
+}
+
+.suggestion-description {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.suggestion-column i {
+    color: #ff7e5f;
+}
+
+.suggestion-row i {
+    color: #feb47b;
+}
+
+.suggestion-cell i {
+    color: #00bfff;
+}
+
+.suggestion-range i {
+    color: #7ee8fa;
+}

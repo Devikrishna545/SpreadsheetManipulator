@@ -1,3 +1,4 @@
 add a new row at last
-remove column one
-remove empty rows
+delete all empty columns
+Delete all empty rows
+delete all empty rows
