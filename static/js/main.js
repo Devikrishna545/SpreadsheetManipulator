@@ -6,7 +6,7 @@ import {
 import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet }
 from './apiService.js';
 import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView } from './spreadsheetHandler.js';
-import { setupShortcutKeys,handlePromptHistoryNavigation,resetPromptHistory } from './shortcuts.js';
+import { setupShortcutKeys,getCurrentSessionPrompts,resetPromptHistory } from './shortcuts.js';
 import { initCellSelector, clearCellSelector } from './cell-selector.js';
 import { initCellTagger, scanAndHighlightTags } from './cell-tagger.js';
 
@@ -61,14 +61,9 @@ document.addEventListener('DOMContentLoaded', function() {
     initCellSelector(); // Initialize cell selector
     initCellTagger(commandInput); // Initialize cell tagger with command input element
     
-    // Move these lines to ensure commandInput is available and listeners are attached after DOM is ready
-    commandInput.addEventListener('keydown', function(e) {
-        // Only trigger for ArrowUp/ArrowDown to avoid interfering with other shortcuts
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-            handlePromptHistoryNavigation(e);
-        }
-    });
-    commandInput.addEventListener('focus', resetPromptHistory);
+  commandInput.addEventListener('keyup', function(e) {
+      getCurrentSessionPrompts(e);
+     });   
 
     // Pass an 'app' object or specific methods to shortcuts
     setupShortcutKeys({

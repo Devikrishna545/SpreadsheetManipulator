@@ -6,6 +6,9 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
     const commandInput = document.getElementById('commandInput');
     const fileInput = document.getElementById('fileInput');
     const uploadForm = document.getElementById('uploadForm');
+       
+    const savePromptBtn = document.getElementById('savePromptBtn'); // Add prompt buttons for shortcuts
+    const promptLibraryBtn = document.getElementById('promptLibraryBtn');
     const cellSelectorDisplay = document.getElementById('cellSelectorDisplay');
 
     document.addEventListener('keydown', function(e) {
@@ -31,14 +34,14 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             else fileInput.click(); // Open file dialog if no file selected
             return;
         }
-        if (e.altKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+        if (e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
             if (!isCommandInputActive && !isCellSelectorActive) {
                 e.preventDefault();
                 if(app.undoLastModification) app.undoLastModification();
             }
             return;
         }
-        if (e.altKey && !e.shiftKey && (e.key === 'y' || e.key === 'Y')) {
+        if (e.ctrlKey && !e.shiftKey && (e.key === 'y' || e.key === 'Y')) {
             if (!isCommandInputActive && !isCellSelectorActive) {
                 e.preventDefault();
                 if(app.redoLastModification) app.redoLastModification();
@@ -74,6 +77,25 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             setTimeout(() => commandInput.classList.remove('highlight-escape'), 600);
             return;
         }
+
+         // Alt+Shift+S: Save prompt
+        if (e.altKey && e.shiftKey && isCommandInputActive && (e.key === 's' || e.key === 'S')) {
+            e.preventDefault();
+            if (savePromptBtn) savePromptBtn.click();
+            return;
+        }
+        // Alt+Shift+P: View prompts
+        if (e.altKey && e.shiftKey && (e.key === 'p' || e.key === 'P')) {
+            e.preventDefault();
+            if (promptLibraryBtn) promptLibraryBtn.click();
+            return;
+        }
+        // Alt+I: Focus command input
+        if (e.altKey && !e.shiftKey && (e.key === 'i' || e.key === 'I')) {
+            e.preventDefault();
+            if (commandInput) commandInput.focus();
+            return;
+        }
         
         // Escape: Remove focus from cellSelectorDisplay and highlight it
         if (e.key === 'Escape' && isCellSelectorActive) {
@@ -83,11 +105,38 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             setTimeout(() => cellSelectorDisplay.classList.remove('highlight-escape'), 600);
             return;
         }
+        // add shortcut for split scree
+        if (e.altKey && e.shiftKey && !isCommandInputActive && (e.key === 's' || e.key === 'S')) {
+            e.preventDefault();
+            //add code
+            return;
+        }
     });
 }
 // Prompt history navigation state
 let promptHistoryIndex = null;
 let promptHistoryCache = [];
+
+let promptHistoryActive = false;
+
+export async function getCurrentSessionPrompts(e){
+    // Only trigger for ArrowUp/ArrowDown to avoid interfering with other shortcuts
+    if (!promptHistoryActive) {
+        if (e.key === 'ArrowUp') {
+            promptHistoryActive = true;
+            handlePromptHistoryNavigation(e);
+        }
+    } else {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            handlePromptHistoryNavigation(e);
+        }
+    }  
+       commandInput.addEventListener('focus', function() {
+            promptHistoryActive = false;           
+            resetPromptHistory();
+        });
+}
+
 /**
  * Helper to always get the latest currentSessionId from main.js/global
  */
