@@ -4,12 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Auto Editor</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/favicon/favicon.ico') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', path='assets/favicon/favicon.ico') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/cell-tagger.css') }}">
 </head>
 <body class="dark-theme">
     <div class="particle-background" id="particleBackground"></div> <!-- Added for particles -->
@@ -94,12 +95,20 @@
                     </h6>
                     <div class="session-details custom-scrollbar" style="max-height: 220px; overflow-y: auto;">
                         <div class="session-item">
+                            <span class="session-label">Item Tagger</span>
+                            <span class="session-value">#</span>
+                        </div>
+                        <div class ="session-item">
+                            <span class="session-label">Split</span>
+                            <span class="session-value">Alt+Shft+S</span>
+                        </div>
+                        <div class="session-item">
                             <span class="session-label">Select</span>
-                            <span class="session-value">Ctrl+Shft+U</span>
+                            <span class="session-value">Alt+Shft+U</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Upload</span>
-                            <span class="session-value">Ctrl+U</span>
+                            <span class="session-value">Alt+U</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Execute</span>
@@ -107,35 +116,39 @@
                         </div>
                         <div class="session-item">
                             <span class="session-label">Undo</span>
-                            <span class="session-value">Ctrl+Z</span>
+                            <span class="session-value">Alt+Z</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Redo</span>
-                            <span class="session-value">Ctrl+Y</span>
+                            <span class="session-value">Alt+Y</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Download</span>
-                            <span class="session-value">Ctrl+D</span>
+                            <span class="session-value">Alt+D</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Min-Max Spreadsheet</span>
-                            <span class="session-value">Ctrl+M</span>
+                            <span class="session-value">Alt+M</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Activate Textbox</span>
-                            <span class="session-value">Ctrl+I</span>
+                            <span class="session-value">Alt+I</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Save Prompt</span>
-                            <span class="session-value">Ctrl+Shft+S</span>
+                            <span class="session-value">Alt+Shft+S</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">View Prompts</span>
-                            <span class="session-value">Ctrl+P</span>
+                            <span class="session-value">Alt+P</span>
                         </div>
-                         <div class="session-item">
+                        <div class="session-item">
                             <span class="session-label">Escape</span>
                             <span class="session-value">Esc</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Cell Selector</span>
+                            <span class="session-value">Alt+Shft+X</span>
                         </div>
                     </div>
                 </div>
@@ -178,6 +191,22 @@
                     <div class="spreadsheet-header">
                         <h5><i class="fas fa-table me-2"></i>Spreadsheet Data</h5>
                         <div class="spreadsheet-controls">
+                            <div class="cell-selector-bar" id="cellSelectorBar">
+                                <i class="fas fa-crosshairs me-2"></i>
+                                <input type="text" class="form-control form-control-sm cell-selector-input" id="cellSelectorDisplay" placeholder="-">
+                            </div>
+                            <!-- Schema Management Buttons -->
+                            <div class="schema-buttons">
+                                <button class="btn btn-sm btn-outline-light" id="updateSchemaBtn" title="Update Schema">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-light" id="transformSchemaBtn" title="Transform to Schema">
+                                    <i class="fas fa-magic"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-light" id="splitViewBtn" title="Split View">
+                                    <i class="fas fa-columns"></i>
+                                </button>
+                            </div>
                             <button class="btn btn-sm btn-outline-light" id="fullscreenBtn">
                                 <i class="fas fa-expand"></i>
                             </button>
@@ -245,9 +274,13 @@
         </div>
     </div>
 
+    <!-- Add Bootstrap JavaScript before your custom scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Add Handsontable JavaScript library -->
     <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
-    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script type="module" src="{{ url_for('static', filename='js/prompts.js') }}"></script>   
+    <!-- Your custom scripts -->
+    <script type="module" src="{{ url_for('static', path='js/main.js') }}"></script>
+    <script type="module" src="{{ url_for('static', path='js/prompts.js') }}"></script>   
 </body>
 </html>

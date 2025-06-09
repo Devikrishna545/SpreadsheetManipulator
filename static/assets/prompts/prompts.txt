@@ -1,1 +1,10 @@
-remove first row
+add a new row at last
+delete all empty columns
+Delete all empty rows
+delete all empty rows
+Remove all blank rows
+Remove all blank columns
+Keep all the "transactions" rows only (transactions are rows containing values of [date], [journal], [])Keep all the "transactions" rows only (transactions are rows containing values similar to [2023-01-01T00:00:00], [327-049224])
+remove columns #O, #P and #Q
+Keep all the "transactions" rows only (transactions are rows containing values similar to [2023-01-01T00:00:00], [327-049224], [013000], [Other intangible assets])
+For all values similar to "2023-01-01T00:00:00" change them to date format [2023-01-01]

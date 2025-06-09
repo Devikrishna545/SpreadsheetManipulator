@@ -295,6 +295,12 @@
     font-size: 1.1rem;
 }
 
+.spreadsheet-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .spreadsheet-controls .btn {
     transition: var(--transition-fast);
     color: var(--text-secondary);
@@ -304,6 +310,48 @@
     background: rgba(255, 255, 255, 0.05);
     color: var(--main-accent);
     transform: none; 
+}
+
+/* Cell Selector Bar */
+.cell-selector-bar {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--glass-border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-family: 'Courier New', monospace;
+    min-width: 80px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.cell-selector-bar:hover {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: var(--main-accent);
+}
+
+.cell-selector-bar.active {
+    color: var(--main-accent);
+    border-color: var(--main-accent);
+    background: rgba(0, 191, 255, 0.1);
+    box-shadow: 0 0 8px rgba(0, 191, 255, 0.2);
+}
+
+.cell-selector-bar i {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.cell-selector-bar.active i {
+    color: var(--main-accent);
+}
+
+#cellSelectorDisplay {
+    font-weight: 500;
+    letter-spacing: 0.5px;
 }
 
 .spreadsheet-body {

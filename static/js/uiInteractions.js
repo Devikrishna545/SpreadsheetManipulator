@@ -8,8 +8,21 @@ const sessionInfo = document.getElementById('sessionInfo');
 const statusBadge = document.getElementById('statusBadge');
 const loadingContainer = document.getElementById('loadingContainer');
 const loadingMessage = document.getElementById('loadingMessage');
-const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
-const errorModalBody = document.getElementById('errorModalBody');
+
+// Add safety check for Bootstrap
+let errorModal;
+let errorModalBody;
+try {
+    // Only initialize if Bootstrap is available and the element exists
+    const errorModalElement = document.getElementById('errorModal');
+    if (window.bootstrap && errorModalElement) {
+        errorModal = new bootstrap.Modal(errorModalElement);
+        errorModalBody = document.getElementById('errorModalBody');
+    }
+} catch (e) {
+    console.warn('Bootstrap Modal initialization failed:', e);
+}
+
 const uploadForm = document.getElementById('uploadForm');
 const fileNameDisplay = document.getElementById('fileName'); // Renamed to avoid conflict
 const sessionStatusDisplay = document.getElementById('sessionStatus'); // Renamed
@@ -52,9 +65,17 @@ export function toggleFullscreen() {
         fullscreenBtn.title = 'Exit Fullscreen';
     }
     
+    // Check for both main instance and editable instance
     if (window.hotInstance) {
         setTimeout(() => {
             window.hotInstance.render();
+        }, 100);
+    }
+    
+    // Also update the editable instance if it exists
+    if (window.editableHotInstance) {
+        setTimeout(() => {
+            window.editableHotInstance.render();
         }, 100);
     }
 }
@@ -74,8 +95,14 @@ export function hideLoading() {
 }
 
 export function showError(message) {
-    errorModalBody.textContent = message;
-    errorModal.show();
+    if (errorModal && errorModalBody) {
+        errorModalBody.textContent = message;
+        errorModal.show();
+    } else {
+        // Fallback if modal isn't available
+        console.error('UI Error:', message);
+        alert(message);
+    }
 }
 
 export function showMainInterface() {

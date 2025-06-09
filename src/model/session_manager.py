@@ -6,7 +6,7 @@ Handles user sessions and manages session data
 
 import uuid
 import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import time
 import os
 
@@ -26,6 +26,7 @@ class SessionManager:
         """
         self.sessions: Dict[str, UserSession] = {}
         self.session_timeout = session_timeout
+        self.session_data: Dict[str, Dict[str, Any]] = {}  # Store additional data for sessions
     
     def create_session(self) -> str:
         """
@@ -64,6 +65,55 @@ class SessionManager:
         
         return session
     
+    def session_exists(self, session_id: str) -> bool:
+        """
+        Check if a session with the given ID exists
+        
+        Args:
+            session_id: The session ID to check
+            
+        Returns:
+            bool: True if the session exists, False otherwise
+        """
+        return session_id in self.sessions
+    
+    def update_session_data(self, session_id: str, data: Dict[str, Any]) -> bool:
+        """
+        Store additional data for a session
+        
+        Args:
+            session_id: The session ID to update
+            data: Dictionary containing data to store
+            
+        Returns:
+            bool: True if the data was updated, False if session doesn't exist
+        """
+        if not self.session_exists(session_id):
+            return False
+            
+        # Initialize data dictionary for this session if it doesn't exist
+        if session_id not in self.session_data:
+            self.session_data[session_id] = {}
+            
+        # Update with new data
+        self.session_data[session_id].update(data)
+        return True
+    
+    def get_session_data(self, session_id: str) -> Dict[str, Any]:
+        """
+        Retrieve additional data stored for a session
+        
+        Args:
+            session_id: The session ID to retrieve data for
+            
+        Returns:
+            Dict[str, Any]: The stored data, or empty dict if none exists
+        """
+        if not self.session_exists(session_id):
+            return {}
+            
+        return self.session_data.get(session_id, {})
+    
     def remove_session(self, session_id: str) -> bool:
         """
         Remove a user session
@@ -77,6 +127,10 @@ class SessionManager:
         if session_id in self.sessions:
             # Clean up resources
             session = self.sessions[session_id]
+            
+            # Remove session data if exists
+            if session_id in self.session_data:
+                del self.session_data[session_id]
             
             # Remove session from dict
             del self.sessions[session_id]
