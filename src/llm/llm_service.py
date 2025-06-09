@@ -32,7 +32,7 @@ class LLMService:
             "temperature": 0.2,
             "top_p": 1,
             "top_k": 32,
-            "max_output_tokens": 2048,
+            "max_output_tokens": 10240,
         }
         
         self.safety_settings = [

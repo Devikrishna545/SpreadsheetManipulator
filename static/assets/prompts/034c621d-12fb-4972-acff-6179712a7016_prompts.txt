@@ -1,0 +1,2 @@
+delete all empty rows and columns
+delete row #1 and row #2

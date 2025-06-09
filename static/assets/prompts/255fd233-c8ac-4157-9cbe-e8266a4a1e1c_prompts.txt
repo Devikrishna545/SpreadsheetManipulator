@@ -1,0 +1,3 @@
+remove all empty rows and columns
+remove all rows coantaining the "Date" text except row #5
+delete rows #1 to #3

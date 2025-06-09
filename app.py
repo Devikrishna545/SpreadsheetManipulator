@@ -18,7 +18,7 @@ Initializes controllers and launches the FastAPI application using Uvicorn
 # Add favicon ✅
 # Add column and row header highlighting to form a cell, when handsonTable selection is over that call.
 # Enter button should use an enter icon, not a pencil icon
-# Create another HTML page with a well formated usermanual of the app, with gifs. (The new HTML page should use same design as the index.html page)
+# Create another HTML page with a well formated usermanual of the app, with gifs. (The new HTML page should use same design as the index.html page). Add all error messages, and how to resolve them (from a user perspective)
 # Add command for entering a new command (CTRL+I) 🔁
 # Add keyboard support for viewing saved prompts (CTRL+SHIFT+P) 🔁
 # Add keyboard shortcuts for saving prompts (CTRL+SHIFT+S) 🔁

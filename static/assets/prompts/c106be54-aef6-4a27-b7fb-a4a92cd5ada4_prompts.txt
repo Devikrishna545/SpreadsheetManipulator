@@ -1,0 +1,10 @@
+Keep all the "transactions" rows only (transactions are rows containing values similar to [Date], [Journal number])
+Keep all the "transactions" rows only (transactions are rows containing values similar to [2023-01-01T00:00:00], [327-049224])
+remove columns #O, #P, #Q and row #1
+remove columns #O, #P, #Q
+remove columns #O, #P, #Q
+insert 2 columns to the left
+Keep all the "transactions" rows only (transactions are rows containing values similar to [2023-01-01T00:00:00], [327-049224])
+Keep all the "transactions" rows only (transactions are rows containing values similar to [2023-01-01T00:00:00], [327-049224])
+Keep all the "transactions" rows only (transactions are rows containing values similar to [2023-01-01T00:00:00], [327-049224], [013000], [Other intangible assets])
+For all values similar to "2023-01-01T00:00:00" change them to datetime format

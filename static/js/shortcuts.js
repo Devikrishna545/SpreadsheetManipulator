@@ -12,50 +12,50 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
         const isCommandInputActive = document.activeElement === commandInput;
         const isCellSelectorActive = document.activeElement === cellSelectorDisplay;
 
-        // CTRL+SHIFT+X to focus the cell selector
-        if (e.ctrlKey && e.shiftKey && (e.key === 'x' || e.key === 'X')) {
+        // ALT+SHIFT+X to focus the cell selector
+        if (e.altKey && e.shiftKey && (e.key === 'x' || e.key === 'X')) {
             e.preventDefault();
             cellSelectorDisplay.focus();
             cellSelectorDisplay.select();
             return;
         }
 
-        if (e.ctrlKey && e.shiftKey && (e.key === 'u' || e.key === 'U')) {
+        if (e.altKey && e.shiftKey && (e.key === 'u' || e.key === 'U')) {
             e.preventDefault();
             fileInput.click();
             return;
         }
-        if (e.ctrlKey && !e.shiftKey && (e.key === 'u' || e.key === 'U')) {
+        if (e.altKey && !e.shiftKey && (e.key === 'u' || e.key === 'U')) {
             e.preventDefault();
             if (fileInput.files.length > 0) uploadForm.requestSubmit(); // Only submit if file selected
             else fileInput.click(); // Open file dialog if no file selected
             return;
         }
-        if (e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+        if (e.altKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
             if (!isCommandInputActive && !isCellSelectorActive) {
                 e.preventDefault();
                 if(app.undoLastModification) app.undoLastModification();
             }
             return;
         }
-        if (e.ctrlKey && !e.shiftKey && (e.key === 'y' || e.key === 'Y')) {
+        if (e.altKey && !e.shiftKey && (e.key === 'y' || e.key === 'Y')) {
             if (!isCommandInputActive && !isCellSelectorActive) {
                 e.preventDefault();
                 if(app.redoLastModification) app.redoLastModification();
             }
             return;
         }
-        if (e.ctrlKey && !e.shiftKey && (e.key === 'd' || e.key === 'D')) {
+        if (e.altKey && !e.shiftKey && (e.key === 'd' || e.key === 'D')) {
             e.preventDefault();
             if(app.downloadCurrentSpreadsheet) app.downloadCurrentSpreadsheet();
             return;
         }
-        if (e.ctrlKey && e.shiftKey && (e.key === 'm' || e.key === 'M')) {
+        if (e.altKey && e.shiftKey && (e.key === 'm' || e.key === 'M')) {
             e.preventDefault();
             toggleFullscreen();
             return;
         }
-        if (e.ctrlKey && !e.shiftKey && (e.key === 'm' || e.key === 'M')) {
+        if (e.altKey && !e.shiftKey && (e.key === 'm' || e.key === 'M')) {
             e.preventDefault();
             toggleSidebar();
             return;
@@ -166,3 +166,22 @@ export function resetPromptHistory() {
     promptHistoryIndex = null;
     promptHistoryCache = [];
 }
+// Show shortcut info when spreadsheet is uploaded/displayed
+export function showShortcutInfoIfSpreadsheetVisible() {
+    const spreadsheetContainer = document.getElementById('spreadsheetContainer');
+    const shortcutInfo = document.getElementById('shortcutInfo');
+    if (spreadsheetContainer && shortcutInfo) {
+        if (spreadsheetContainer.style.display !== 'none') {
+            shortcutInfo.style.display = '';
+        } else {
+            shortcutInfo.style.display = 'none';
+        }
+    }
+}
+
+// Hook into spreadsheet display logic
+const observer = new MutationObserver(showShortcutInfoIfSpreadsheetVisible);
+observer.observe(document.getElementById('spreadsheetContainer'), { attributes: true, attributeFilter: ['style'] });
+
+// Also call once on load in case spreadsheet is already visible
+document.addEventListener('DOMContentLoaded', showShortcutInfoIfSpreadsheetVisible);

@@ -31,7 +31,7 @@
 
     <div class="app-container">
         <!-- Left Sidebar -->
-        <div class="sidebar" id="sidebar">
+        <div class="sidebar custom-scrollbar" id="sidebar">
             <div class="sidebar-content">
                 <!-- Upload Section -->
                 <div class="sidebar-section">
@@ -87,6 +87,71 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Shortcut Keys Section -->
+                <div class="sidebar-section" id="shortcutInfo" style="display: none;">
+                    <h6 class="sidebar-title">
+                        <i class="fas fa-keyboard me-2"></i>Shortcuts
+                    </h6>
+                    <div class="session-details custom-scrollbar" style="max-height: 220px; overflow-y: auto;">
+                        <div class="session-item">
+                            <span class="session-label">Item Tagger</span>
+                            <span class="session-value">#</span>
+                        </div>
+                        <div class ="session-item">
+                            <span class="session-label">Split</span>
+                            <span class="session-value">Alt+Shft+S</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Select</span>
+                            <span class="session-value">Alt+Shft+U</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Upload</span>
+                            <span class="session-value">Alt+U</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Execute</span>
+                            <span class="session-value">Enter</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Undo</span>
+                            <span class="session-value">Alt+Z</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Redo</span>
+                            <span class="session-value">Alt+Y</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Download</span>
+                            <span class="session-value">Alt+D</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Min-Max Spreadsheet</span>
+                            <span class="session-value">Alt+M</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Activate Textbox</span>
+                            <span class="session-value">Alt+I</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Save Prompt</span>
+                            <span class="session-value">Alt+Shft+S</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">View Prompts</span>
+                            <span class="session-value">Alt+P</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Escape</span>
+                            <span class="session-value">Esc</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Cell Selector</span>
+                            <span class="session-value">Alt+Shft+X</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -98,7 +163,7 @@
                     <div class="command-header">
                         <h5><i class="fas fa-terminal me-2"></i>AI Command Interface</h5>
                     </div>
-                    <div class="command-body">
+                    <div class="command-body custom-scrollbar">
                         <div class="command-input-wrapper">
                             <textarea class="form-control command-input" id="commandInput" rows="3" 
                                 placeholder="Describe what you want to do with your spreadsheet...&#10;Example: Add a column named 'Total' that sums columns A and B"></textarea>
@@ -138,16 +203,16 @@
                                 <button class="btn btn-sm btn-outline-light" id="transformSchemaBtn" title="Transform to Schema">
                                     <i class="fas fa-magic"></i>
                                 </button>
+                                <button class="btn btn-sm btn-outline-light" id="splitViewBtn" title="Split View">
+                                    <i class="fas fa-columns"></i>
+                                </button>
                             </div>
                             <button class="btn btn-sm btn-outline-light" id="fullscreenBtn">
                                 <i class="fas fa-expand"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-light" id="splitViewBtn" title="Split View">
-                                <i class="fas fa-columns"></i>
-                            </button>
                         </div>
                     </div>
-                    <div class="spreadsheet-body">
+                    <div class="spreadsheet-body custom-scrollbar">
                         <div id="spreadsheetData"></div>
                     </div>
                 </div>
@@ -202,7 +267,7 @@
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="closePromptModalBtn"></button>
                 </div>
-                <div class="modal-body" style="max-height: 300px; overflow-y: auto;">
+                <div class="modal-body custom-scrollbar" style="max-height: 300px; overflow-y: auto;">
                     <ul class="list-group" id="promptList"></ul>
                 </div>
             </div>
@@ -214,9 +279,8 @@
     
     <!-- Add Handsontable JavaScript library -->
     <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
-    
     <!-- Your custom scripts -->
     <script type="module" src="{{ url_for('static', path='js/main.js') }}"></script>
-    <script type="module" src="{{ url_for('static', path='js/prompts.js') }}"></script>
+    <script type="module" src="{{ url_for('static', path='js/prompts.js') }}"></script>   
 </body>
 </html>
