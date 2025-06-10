@@ -114,15 +114,46 @@ export async function redoModification(sessionId) {
 export function downloadSpreadsheet(sessionId) {
     if (!sessionId) return;
     updateStatus('Downloading...', 'processing');
-    window.location.href = `/download/${sessionId}`;
-    
-    setTimeout(() => {
-        if (confirm('Your session has been completed. The spreadsheet and all related data have been cleaned up. Click OK to return to the start page.')) {
-            // Refresh the page after user confirms
-            window.location.reload();
-        } else {
-            // Still reset the application state even if they cancel
-            resetApplicationState();
-        }
-    }, 2000);
+    // Use fetch to trigger download and handle errors
+    fetch(`/download/${sessionId}`)
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.detail || 'Failed to download file');
+                });
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            // Create a temporary link to trigger download
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            // Try to extract filename from Content-Disposition header if present
+            fetch(`/download/${sessionId}`, { method: 'HEAD' })
+                .then(headResp => {
+                    let filename = 'spreadsheet.xlsx';
+                    const disposition = headResp.headers.get('Content-Disposition');
+                    if (disposition && disposition.indexOf('filename=') !== -1) {
+                        filename = disposition.split('filename=')[1].replace(/["']/g, '');
+                    }
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                        // Show session cleanup dialog after download
+                        if (confirm('Your session has been completed. The spreadsheet and all related data have been cleaned up. Click OK to return to the start page.')) {
+                            window.location.reload();
+                        } else {
+                            resetApplicationState();
+                        }
+                    }, 30000);
+                });
+        })
+        .catch(error => {
+            updateStatus('Error', 'error');
+            showError(error.message);
+        });
 }
