@@ -13,7 +13,7 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
     const updateSchemaBtn = document.getElementById('updateSchemaBtn');
     const transformSchemaBtn = document.getElementById('transformSchemaBtn');
     const splitViewBtn = document.getElementById('splitViewBtn');
-
+    
 
     document.addEventListener('keydown', function(e) {
         const isCommandInputActive = document.activeElement === commandInput;
@@ -115,22 +115,22 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             if (fullscreenBtn) fullscreenBtn.click();
             return;       
         }
+        // Alt+Shift+S: Split View
+        if (e.altKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
+            e.preventDefault();
+            if (splitViewBtn && !splitViewBtn.disabled) splitViewBtn.click();
+            return;
+        }
         // Alt+Shift+U: Update Schema
         if (e.altKey && (e.key === 's' || e.key === 'S')) {
             e.preventDefault();
-            if (updateSchemaBtn) updateSchemaBtn.click();
+            if (updateSchemaBtn && !updateSchemaBtn.disabled) updateSchemaBtn.click();
             return;
         }
         // Alt+Shift+T: Transform to Schema
         if (e.altKey && e.shiftKey && (e.key === 't' || e.key === 'T')) {
             e.preventDefault();
-            if (transformSchemaBtn) transformSchemaBtn.click();
-            return;
-        }
-        // Alt+Shift+S: Split View
-        if (e.altKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
-            e.preventDefault();
-            if (splitViewBtn) splitViewBtn.click();
+            if (transformSchemaBtn && !transformSchemaBtn.disabled) transformSchemaBtn.click();
             return;
         }
     });
