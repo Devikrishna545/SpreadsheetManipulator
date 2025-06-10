@@ -47,7 +47,8 @@
                             </label>
                         </div>
                         <small class="form-text text-muted">Excel (.xlsx, .xls), CSV (.csv)</small>
-                        <button type="submit" class="btn btn-primary btn-futuristic w-100 mt-2">
+                        <button type="submit" class="btn btn-primary btn-futuristic w-100 mt-2"
+                            title="Upload (Alt+U)">
                             <i class="fas fa-upload me-2"></i>Upload
                         </button>
                     </form>
@@ -59,13 +60,16 @@
                         <i class="fas fa-cogs me-2"></i>Actions
                     </h6>
                     <div class="action-buttons">
-                        <button id="undoBtn" class="btn btn-outline-warning btn-futuristic w-100 mb-2" disabled  tooltip="Cntrl+Z">
+                        <button id="undoBtn" class="btn btn-outline-warning btn-futuristic w-100 mb-2" disabled
+                            title="Undo (Ctrl+Z)">
                             <i class="fas fa-undo me-2"></i>Undo
                         </button>
-                        <button id="redoBtn" class="btn btn-outline-info btn-futuristic w-100 mb-2" disabled tooltip="Cntrl+Y">
+                        <button id="redoBtn" class="btn btn-outline-info btn-futuristic w-100 mb-2" disabled
+                            title="Redo (Ctrl+Y)">
                             <i class="fas fa-redo me-2"></i>Redo
                         </button>
-                        <button id="downloadBtn" class="btn btn-success btn-futuristic w-100" disabled tooltip="Alt+D">
+                        <button id="downloadBtn" class="btn btn-success btn-futuristic w-100" disabled
+                            title="Download (Alt+D)">
                             <i class="fas fa-download me-2"></i>Download
                         </button>
                     </div>
@@ -102,6 +106,18 @@
                             <span class="session-label">Split</span>
                             <span class="session-value">Alt+Shft+S</span>
                         </div>
+                         <div class ="session-item">
+                            <span class="session-label">Fullscreen</span>
+                            <span class="session-value">Alt+F</span>
+                        </div>
+                           <div class="session-item">
+                            <span class="session-label"> Update Schema</span>
+                            <span class="session-value">Alt+Shift+U</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Transform Schema</span>
+                            <span class="session-value">Alt+Shift+T</span>
+                        </div> 
                         <div class="session-item">
                             <span class="session-label">Select</span>
                             <span class="session-value">Alt+Shft+U</span>
@@ -153,7 +169,7 @@
                         <div class="session-item">
                             <span class="session-label">Cell Selector</span>
                             <span class="session-value">Alt+Shft+X</span>
-                        </div>
+                        </div>                                            
                     </div>
                 </div>
             </div>
@@ -201,17 +217,17 @@
                             </div>
                             <!-- Schema Management Buttons -->
                             <div class="schema-buttons">
-                                <button class="btn btn-sm btn-outline-light" id="updateSchemaBtn" title="Update Schema">
+                                <button class="btn btn-sm btn-outline-light" id="updateSchemaBtn" title="Update Schema (Alt+Shift+U)">
                                     <i class="fas fa-sync-alt"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-light" id="transformSchemaBtn" title="Transform to Schema">
+                                <button class="btn btn-sm btn-outline-light" id="transformSchemaBtn" title="Transform to Schema (Alt+Shift+T)">
                                     <i class="fas fa-magic"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-light" id="splitViewBtn" title="Split View">
+                                <button class="btn btn-sm btn-outline-light" id="splitViewBtn" title="Split View (Alt+Shift+S)">
                                     <i class="fas fa-columns"></i>
                                 </button>
                             </div>
-                            <button class="btn btn-sm btn-outline-light" id="fullscreenBtn">
+                            <button class="btn btn-sm btn-outline-light" id="fullscreenBtn" tooltip="Toggle Fullscreen" title="Fullscreen(Alt+F)">
                                 <i class="fas fa-expand"></i>
                             </button>
                         </div>
