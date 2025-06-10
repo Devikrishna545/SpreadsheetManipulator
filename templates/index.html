@@ -59,13 +59,13 @@
                         <i class="fas fa-cogs me-2"></i>Actions
                     </h6>
                     <div class="action-buttons">
-                        <button id="undoBtn" class="btn btn-outline-warning btn-futuristic w-100 mb-2" disabled>
+                        <button id="undoBtn" class="btn btn-outline-warning btn-futuristic w-100 mb-2" disabled  tooltip="Cntrl+Z">
                             <i class="fas fa-undo me-2"></i>Undo
                         </button>
-                        <button id="redoBtn" class="btn btn-outline-info btn-futuristic w-100 mb-2" disabled>
+                        <button id="redoBtn" class="btn btn-outline-info btn-futuristic w-100 mb-2" disabled tooltip="Cntrl+Y">
                             <i class="fas fa-redo me-2"></i>Redo
                         </button>
-                        <button id="downloadBtn" class="btn btn-success btn-futuristic w-100">
+                        <button id="downloadBtn" class="btn btn-success btn-futuristic w-100" disabled tooltip="Alt+D">
                             <i class="fas fa-download me-2"></i>Download
                         </button>
                     </div>
@@ -116,19 +116,23 @@
                         </div>
                         <div class="session-item">
                             <span class="session-label">Undo</span>
-                            <span class="session-value">Alt+Z</span>
+                            <span class="session-value">Ctrl+Z</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Redo</span>
-                            <span class="session-value">Alt+Y</span>
+                            <span class="session-value">Ctrl+Y</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Download</span>
                             <span class="session-value">Alt+D</span>
                         </div>
                         <div class="session-item">
-                            <span class="session-label">Min-Max Spreadsheet</span>
+                            <span class="session-label">Menu</span>
                             <span class="session-value">Alt+M</span>
+                        </div>
+                          <div class="session-item">
+                            <span class="session-label">Min-Max Spreadsheet</span>
+                            <span class="session-value">Alt+Shft+M</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Activate Textbox</span>

@@ -1,3 +1,0 @@
-Delete column #A
-delete all empty rows and columns
-delete row #1

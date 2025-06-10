@@ -245,6 +245,40 @@ def save_prompt(request: PromptRequest):
                 f.write(prompt.replace('\n', ' ') + '\n')
     return {"success": True}
 
+
+from fastapi import Request as FastAPIRequest
+
+@app.delete("/prompts")
+async def delete_prompt(request: FastAPIRequest):
+    """
+    Delete a prompt from the prompts file.
+    Expects JSON: { "prompt": "..." }
+    """
+    data = await request.json()
+    prompt_to_delete = data.get("prompt", "").strip()
+    if not prompt_to_delete:
+        raise HTTPException(status_code=400, detail="Prompt is empty")
+    # Do not allow deleting predefined prompts
+    predefined = {"Remove row", "Remove column", "Add row", "Add column"}
+    if prompt_to_delete in predefined:
+        raise HTTPException(status_code=403, detail="Cannot delete predefined prompt")
+    lock = threading.Lock()
+    with lock:
+        if not os.path.exists(controllers.PROMPT_FILE):
+            return {"success": False, "error": "Prompt file not found"}
+        with open(controllers.PROMPT_FILE, 'r', encoding='utf-8') as f:
+            prompts = [line.strip() for line in f if line.strip()]
+        # Remove only the first occurrence
+        try:
+            prompts.remove(prompt_to_delete)
+        except ValueError:
+            pass
+        with open(controllers.PROMPT_FILE, 'w', encoding='utf-8') as f:
+            for p in prompts:
+                f.write(p + '\n')
+    return {"success": True}
+
+
 # Add this new endpoint after your existing endpoints
 @app.post("/table_changes")
 def process_table_changes(request: TableChangesRequest):

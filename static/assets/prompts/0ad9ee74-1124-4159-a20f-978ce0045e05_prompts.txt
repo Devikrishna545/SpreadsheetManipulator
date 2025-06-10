@@ -1,4 +1,0 @@
-delete rows #1 to #5
-delete all empty rows
-delete all empty columns
-delete column #R
