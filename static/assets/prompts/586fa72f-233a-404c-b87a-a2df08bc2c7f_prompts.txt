@@ -1,0 +1,2 @@
+delete all empty rows and columns delete all rows containing "Totals" and "Net difference" delete rows #1 and #2 delete rows #1 create 2 new columns on the left
+delete all empty rows and columns delete all rows containing "Totals" and "Net difference" delete rows #1 and #2 create 2 new columns on the left

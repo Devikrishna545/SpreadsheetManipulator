@@ -116,7 +116,7 @@
                             <span class="session-value">Alt+Shift+U</span>
                         </div>
                         <div class="session-item">
-                            <span class="session-label">Transform Schema</span>
+                            <span class="session-label">Transform to Schema</span>
                             <span class="session-value">Alt+Shift+T</span>
                         </div> 
                         <div class="session-item">
@@ -170,7 +170,11 @@
                         <div class="session-item">
                             <span class="session-label">Cell Selector</span>
                             <span class="session-value">Alt+Shft+X</span>
-                        </div>                                            
+                        </div> 
+                        <div class="session-item">
+                            <span class="session-label">Upload Commands</span>
+                            <span class="session-value">Alt+C</span>
+                        </div>                                           
                     </div>
                 </div>
             </div>
@@ -218,6 +222,9 @@
                             </div>
                             <!-- Schema Management Buttons -->
                             <div class="schema-buttons">
+                                <button class="btn btn-sm btn-outline-light" id="uploadCommandsBtn" title="Upload Commands (Alt+C)">
+                                    <i class="fas fa-file-upload"></i>
+                                </button>
                                 <button class="btn btn-sm btn-outline-light" id="updateSchemaBtn" title="Update Schema (Alt+Shift+U)">
                                     <i class="fas fa-sync-alt"></i>
                                 </button>
@@ -228,6 +235,8 @@
                                     <i class="fas fa-columns"></i>
                                 </button>
                             </div>
+                            <!-- Hidden file input for text commands -->
+                            <input type="file" id="commandFileInput" accept=".txt" style="display: none;" />
                             <button class="btn btn-sm btn-outline-light" id="fullscreenBtn" tooltip="Toggle Fullscreen" title="Fullscreen (Alt+F)">
                                 <i class="fas fa-expand"></i>
                             </button>

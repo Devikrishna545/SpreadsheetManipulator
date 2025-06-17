@@ -111,6 +111,12 @@ export function showMainInterface() {
     actionsSection.style.display = 'block';
     sessionInfo.style.display = 'block';
     
+    // Show shortcut info when spreadsheet is visible
+    const shortcutInfo = document.getElementById('shortcutInfo');
+    if (shortcutInfo) {
+        shortcutInfo.style.display = 'block';
+    }
+    
     // Calculate and set the command section height for spreadsheet sizing
     setTimeout(() => {
         const commandSectionHeight = commandContainer.offsetHeight;

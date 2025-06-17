@@ -28,6 +28,8 @@ const sidebarToggleBtn = document.getElementById('sidebarToggleBtn'); // Same as
 const splitViewBtn = document.getElementById('splitViewBtn'); // Add this line
 const updateSchemaBtn = document.getElementById('updateSchemaBtn'); // Add this for schema button
 const transformSchemaBtn = document.getElementById('transformSchemaBtn'); // Add this for transform button
+const uploadCommandsBtn = document.getElementById('uploadCommandsBtn'); // Add this for upload commands button
+const commandFileInput = document.getElementById('commandFileInput'); // Add this for command file input
 
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize UI elements and listeners
@@ -46,6 +48,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add event listeners for schema management buttons
     updateSchemaBtn.addEventListener('click', updateSchema);
     transformSchemaBtn.addEventListener('click', transformToSchema);
+    
+    // Add event listener for uploading command files
+    uploadCommandsBtn.addEventListener('click', () => commandFileInput.click());
+    commandFileInput.addEventListener('change', uploadCommandFile);
 
     fileInput.addEventListener('change', function() {
         const label = document.querySelector('.file-input-label span');
@@ -340,23 +346,16 @@ async function transformToSchema() {
         return response.json();
     })
     .then(data => {
-        // The backend returns the transformed spreadsheet view directly (with 'data', etc.)
-        // So we just pass 'data' to updateLeftSpreadsheet
         if (data.success === false) {
             throw new Error(data.error || 'Unknown error occurred');
         }
-        // Defensive: if data.transformedData exists, use it; else use data.data
-        if (data.transformedData) {
-            updateLeftSpreadsheet(data.transformedData);
-        } else if (data.data) {
-            updateLeftSpreadsheet({ data: data.data, headers: data.headers || null });
-        } else {
-            throw new Error('No transformed data returned from server.');
+        
+        // Update the current data and render the left spreadsheet with the transformed data
+        if (data.data) {
+            currentData = data;
+            renderSpreadsheet(currentData);
+            updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
         }
-
-        // Update the current data for undo/redo tracking
-        currentData = data;
-        updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
 
         updateStatus('Transformation complete', 'success');
         setTimeout(() => updateStatus('Ready', 'waiting'), 2000);
@@ -458,4 +457,97 @@ function showErrorModal(message) {
     const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
     document.getElementById('errorModalBody').textContent = message;
     errorModal.show();
+}
+
+// Add this new function to handle command file uploads
+async function uploadCommandFile(event) {
+    if (!event.target.files || event.target.files.length === 0) {
+        return;
+    }
+    
+    const file = event.target.files[0];
+    if (!file || !file.name.endsWith('.txt')) {
+        showErrorModal('Please select a text (.txt) file.');
+        return;
+    }
+    
+    if (!currentSessionId) {
+        showErrorModal('Please upload a spreadsheet first before running commands.');
+        return;
+    }
+    
+    updateStatus('Uploading commands...', 'processing');
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('sessionId', currentSessionId);
+    
+    try {
+        const response = await fetch('/upload_commands', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to upload command file');
+        }
+        
+        const result = await response.json();
+        
+        if (result.commands && result.commands.length > 0) {
+            updateStatus('Processing commands...', 'processing');
+            await processCommandsSequentially(result.commands);
+        } else {
+            updateStatus('No commands found in file', 'warning');
+            setTimeout(() => updateStatus('Ready', 'active'), 2000);
+        }
+    } catch (error) {
+        showErrorModal(error.message);
+        updateStatus('Error', 'error');
+    } finally {
+        // Reset the file input so the same file can be selected again
+        event.target.value = '';
+    }
+}
+
+// Function to process commands one by one
+async function processCommandsSequentially(commands) {
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (let i = 0; i < commands.length; i++) {
+        const command = commands[i].trim();
+        if (!command) continue;
+        
+        updateStatus(`Processing command ${i+1}/${commands.length}...`, 'processing');
+        
+        // Set the command in the input field
+        commandInput.value = command;
+        
+        try {
+            // Wait a moment for UI to update
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Process the command
+            await processCurrentCommand();
+            successCount++;
+            
+            // Wait between commands to allow for visual feedback
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+            console.error('Error processing command:', error);
+            failCount++;
+            
+            // Continue with next command despite errors
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+    
+    // Show final status
+    updateStatus(`Completed ${successCount}/${commands.length} commands`, 
+                 failCount > 0 ? 'warning' : 'success');
+    
+    // Reset after a delay
+    setTimeout(() => updateStatus('Ready', 'active'), 3000);
 }

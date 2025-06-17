@@ -16,7 +16,6 @@ from src.llm.llm_service import LLMService
 from src.controller.script_executor import ScriptExecutor
 from src.controller.file_manager import FileManager
 
-
 class SpreadsheetController:
     """
     Controller for spreadsheet operations
@@ -139,13 +138,14 @@ class SpreadsheetController:
             'modified_cells': []  # No cells modified in view operation
         }
     
-    def process_command(self, session_id: str, command: str) -> Dict[str, Any]:
+    def process_command(self, session_id: str, command: str, use_advanced_processing: bool = False) -> Dict[str, Any]:
         """
         Process a user command through LLM
 
         Args:
             session_id: Session ID
             command: User command text
+            use_advanced_processing: Whether to use thinking and code execution tools
 
         Returns:
             Dict[str, Any]: Updated spreadsheet view data
@@ -167,8 +167,8 @@ class SpreadsheetController:
         # Convert spreadsheet to JSON format for LLM and save a copy to static/json
         spreadsheet_json = current_spreadsheet.to_json(save_to_file=True, file_manager=self.file_manager)
         
-        # Generate script using LLM
-        script = self.llm_service.generate_script(spreadsheet_json, command)
+        # Generate script using LLM with appropriate processing mode
+        script = self.llm_service.generate_script(spreadsheet_json, command, use_advanced_processing)
         
         # Store generated script
         session.set_generated_script(script)

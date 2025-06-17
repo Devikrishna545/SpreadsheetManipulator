@@ -173,8 +173,9 @@ def process_command(request: CommandRequest):
     try:
         # Append prompt to history file
         controllers.prompt_history.append(request.sessionId, request.command)
+        # Use simple processing for regular AI commands (no advanced processing)
         spreadsheet_view = controllers.spreadsheet_controller.process_command(
-            request.sessionId, request.command
+            request.sessionId, request.command, use_advanced_processing=False
         )
         return spreadsheet_view
     except Exception as e:
@@ -362,19 +363,68 @@ def transform_to_schema(session_id: str):
             left_df, right_df
         )
         
-        # Process the transformation command
+        # Process the transformation command with ADVANCED PROCESSING
+        # This will return the proper spreadsheet view data with 'data', 'metadata', etc.
         spreadsheet_view = controllers.spreadsheet_controller.process_command(
-            session_id, transformation_prompt
+            session_id, transformation_prompt, use_advanced_processing=True
         )
         
-        # Ensure the response includes a success key
-        if isinstance(spreadsheet_view, dict) and 'error' not in spreadsheet_view:
+        # The spreadsheet_view should already contain all necessary data for the frontend
+        # Just ensure it has a success flag
+        if isinstance(spreadsheet_view, dict):
             spreadsheet_view['success'] = True
-        
-        return spreadsheet_view
+            return spreadsheet_view
+        else:
+            return {"success": False, "error": "Invalid response from command processing"}
     
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Error in transform_to_schema: {str(e)}\n{error_details}")
         return {"success": False, "error": str(e), "details": error_details}
+
+@app.post("/upload_commands")
+async def upload_command_file(
+    file: UploadFile = File(...), 
+    sessionId: str = None,
+    request: FastAPIRequest = None
+):
+    """
+    Upload a text file containing commands to execute sequentially.
+    Each line in the file will be treated as a separate command.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file selected")
+        
+    if not file.filename.lower().endswith('.txt'):
+        raise HTTPException(status_code=400, detail="Only .txt files are supported")
+    
+    # Get sessionId from form data if not provided as a parameter
+    if not sessionId:
+        form = await request.form()
+        sessionId = form.get("sessionId")
+        
+    if not sessionId:
+        raise HTTPException(status_code=400, detail="No session ID provided")
+    
+    # Check if session exists
+    if not controllers.session_manager.session_exists(sessionId):
+        raise HTTPException(status_code=404, detail=f"Session {sessionId} not found or expired")
+    
+    try:
+        # Read all lines from the file
+        content = await file.read()
+        text_content = content.decode('utf-8')
+        
+        # Split by newlines and filter out empty lines
+        commands = [line.strip() for line in text_content.split('\n') if line.strip()]
+        
+        return {
+            "success": True,
+            "commands": commands,
+            "count": len(commands)
+        }
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File encoding not supported. Please use UTF-8 encoded text files.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")

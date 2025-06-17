@@ -10,8 +10,20 @@ from typing import Dict, Any
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+def _serialize_for_json(obj):
+    """
+    Recursively convert datetime, pd.Timestamp, and similar objects to strings for JSON serialization.
+    """
+    import datetime
+    import pandas as pd
+    if isinstance(obj, dict):
+        return {k: _serialize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_serialize_for_json(v) for v in obj]
+    elif isinstance(obj, (datetime.datetime, datetime.date, pd.Timestamp)):
+        return obj.isoformat()
+    else:
+        return obj
 
 class LLMService:
     """
@@ -19,7 +31,7 @@ class LLMService:
     """
     def __init__(self):
         self.api_key = os.getenv('GEMINI_API_KEY')
-        self.model = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')  # Default to gemini-2.0-flash if not set
+        self.model = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash-thinking-exp')  # Use thinking model
         
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
@@ -27,12 +39,12 @@ class LLMService:
         # Configure the Gemini API
         genai.configure(api_key=self.api_key)
         
-        # Set up the model
+        # Set up the model configuration for thinking and code execution
         self.generation_config = {
-            "temperature": 0.2,
-            "top_p": 1,
+            "temperature": 0.1,  # Lower temperature for more consistent code generation
+            "top_p": 0.95,
             "top_k": 32,
-            "max_output_tokens": 10240,
+            "max_output_tokens": 8192,
         }
         
         self.safety_settings = [
@@ -54,81 +66,136 @@ class LLMService:
             }
         ]
 
-    def generate_script(self, spreadsheet_data: Dict[str, Any], command: str) -> str:
-        try:
-            # The input 'spreadsheet_data' is already a dictionary.
-            # No need to call json.loads()
-            data_obj = spreadsheet_data 
-            headers = data_obj.get('headers', [])
-            metadata = data_obj.get('metadata', {})
-            data_sample = data_obj.get('data', [])[:5] # Ensure data_sample is a list of dicts
+    def generate_script(self, spreadsheet_data: Dict[str, Any], command: str, use_advanced_processing: bool = False) -> str:
+        """
+        Generate script using appropriate processing mode based on complexity
+        
+        Args:
+            spreadsheet_data: Spreadsheet data dictionary
+            command: User command text
+            use_advanced_processing: Whether to use thinking and code execution tools
             
-            # If data_sample itself is a dict (e.g. from to_dict('records')), it's fine.
-            # If data_obj['data'] was a list of lists, it would need conversion.
-            # Based on Spreadsheet.to_json, data_obj['data'] is already a list of dicts.
+        Returns:
+            str: Generated Python script
+        """
+        if use_advanced_processing:
+            return self._generate_complex_script(spreadsheet_data, command)
+        else:
+            return self._generate_simple_script(spreadsheet_data, command)
+    
+    def _generate_simple_script(self, spreadsheet_data: Dict[str, Any], command: str) -> str:
+        """Generate script using regular Gemini model for simple commands"""
+        max_attempts = 3
+        last_error_msg = None
+        for attempt in range(max_attempts):
+            try:
+                print(f"\n{'='*60}")
+                print(f"GEMINI SIMPLE SCRIPT GENERATION - ATTEMPT {attempt + 1}")
+                print(f"{'='*60}")
+                
+                # Extract data from spreadsheet_data
+                data_obj = spreadsheet_data 
+                headers = data_obj.get('headers', [])
+                metadata = data_obj.get('metadata', {})
+                data_sample = data_obj.get('data', [])[:5]
+                # Serialize all data for JSON
+                headers_serialized = _serialize_for_json(headers)
+                metadata_serialized = _serialize_for_json(metadata)
+                data_sample_serialized = _serialize_for_json(data_sample)
+                
+                # Process the command to handle cell references if present
+                processed_command = self._process_cell_references(command)
+                
+                # Pass error message to prompt if previous attempt failed
+                code_prompt = self._create_simple_prompt(
+                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command,
+                    last_error_msg
+                )
+                final_script = self._call_gemini_simple_api(code_prompt)
+                
+                print("--- SIMPLE GENERATED SCRIPT ---")
+                print(final_script)
+                print("--- END SCRIPT ---\n")
+                
+                return final_script
+                
+            except Exception as e:
+                error_msg = str(e)
+                last_error_msg = error_msg
+                print(f"\nSIMPLE ATTEMPT {attempt + 1} FAILED: {error_msg}")
+                
+                if attempt == max_attempts - 1:
+                    print(f"\nALL {max_attempts} SIMPLE ATTEMPTS FAILED")
+                    return self.handle_api_error(Exception(f"Failed to generate working script after {max_attempts} attempts. Last error: {error_msg}"))
+                
+                print(f"RETRYING... ({attempt + 2}/{max_attempts})")
+        
+        return self.handle_api_error(Exception("Unexpected error in simple script generation"))
 
-            # Process the command to handle cell references if present
-            processed_command = self._process_cell_references(command)
-            
-            prompt = self._create_prompt(headers, metadata, data_sample, processed_command)
-            response = self._call_gemini_api(prompt)
-            # If the response is a Gemini safety block message, return as error script
-            if response.startswith("Content was blocked due to safety concerns:"):
-                return self.handle_api_error(Exception(response))
-            script = self._extract_script(response)
-            return script
-        except Exception as e:
-            return self.handle_api_error(e)
+    def _generate_complex_script(self, spreadsheet_data: Dict[str, Any], command: str) -> str:
+        """Generate script using thinking and code execution for complex transformations"""
+        max_attempts = 3
+        last_error_msg = None
+        for attempt in range(max_attempts):
+            try:
+                print(f"\n{'='*60}")
+                print(f"GEMINI COMPLEX SCRIPT GENERATION - ATTEMPT {attempt + 1}")
+                print(f"{'='*60}")
+                
+                # Extract data from spreadsheet_data
+                data_obj = spreadsheet_data 
+                headers = data_obj.get('headers', [])
+                metadata = data_obj.get('metadata', {})
+                data_sample = data_obj.get('data', [])[:5]
+                # Serialize all data for JSON
+                headers_serialized = _serialize_for_json(headers)
+                metadata_serialized = _serialize_for_json(metadata)
+                data_sample_serialized = _serialize_for_json(data_sample)
+                
+                # Process the command to handle cell references if present
+                processed_command = self._process_cell_references(command)
+                
+                # Step 1: Use thinking mode to analyze and plan
+                thinking_prompt = self._create_thinking_prompt(
+                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command,
+                    last_error_msg
+                )
+                thinking_response = self._call_gemini_thinking_api(thinking_prompt)
+                
+                print("\n--- GEMINI THINKING PROCESS ---")
+                print(thinking_response)
+                print("--- END THINKING PROCESS ---\n")
+                
+                # Step 2: Generate code with execution
+                code_prompt = self._create_code_generation_prompt(
+                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command, thinking_response,
+                    last_error_msg
+                )
+                final_script = self._call_gemini_code_execution_api(code_prompt, headers_serialized, data_sample_serialized)
+                
+                print("--- COMPLEX GENERATED SCRIPT ---")
+                print(final_script)
+                print("--- END SCRIPT ---\n")
+                
+                return final_script
+                
+            except Exception as e:
+                error_msg = str(e)
+                last_error_msg = error_msg
+                print(f"\nCOMPLEX ATTEMPT {attempt + 1} FAILED: {error_msg}")
+                
+                if attempt == max_attempts - 1:
+                    print(f"\nALL {max_attempts} COMPLEX ATTEMPTS FAILED")
+                    return self.handle_api_error(Exception(f"Failed to generate working script after {max_attempts} attempts. Last error: {error_msg}"))
+                
+                print(f"RETRYING... ({attempt + 2}/{max_attempts})")
+        
+        return self.handle_api_error(Exception("Unexpected error in complex script generation"))
 
-    def _process_cell_references(self, command: str) -> str:
-        """Process any cell references in the command to make them clearer for the LLM"""
-        # First, handle complex patterns with multiple references and ranges
-        # Process patterns like "#A1:#B2, #C3:#D4" or "#A:#B, #1:#2"
-        def replace_complex_refs(match):
-            refs = match.group(1).split(',')
-            processed_refs = []
-            
-            for ref in refs:
-                ref = ref.strip()
-                if ':' in ref:  # It's a range
-                    start, end = ref.split(':')
-                    start = start.strip()
-                    end = end.strip()
-                    processed_refs.append(f"range from {start} to {end}")
-                else:
-                    # Single reference - will be handled by other patterns
-                    processed_refs.append(ref)
-            
-            return "cells in " + ", ".join(processed_refs)
-        
-        # Handle complex ranges with comma-separated values
-        pattern = r'#((?:[A-Z]+[0-9]*:[A-Z]+[0-9]*|[A-Z]+:[A-Z]+|[0-9]+:[0-9]+)(?:\s*,\s*(?:[A-Z]+[0-9]*:[A-Z]+[0-9]*|[A-Z]+:[A-Z]+|[0-9]+:[0-9]+))*)'
-        processed = re.sub(pattern, replace_complex_refs, command)
-        
-        # Now handle individual patterns
-        
-        # Single cell references (e.g., #A1)
-        processed = re.sub(r'#([A-Z]+)([0-9]+)', r'cell \1\2', processed)
-        
-        # Cell range references (e.g., #A1:#B2)
-        processed = re.sub(r'#([A-Z]+[0-9]+):#([A-Z]+[0-9]+)', r'range from \1 to \2', processed)
-        
-        # Column references (e.g., #A)
-        processed = re.sub(r'#([A-Z]+)(?!\d|:)', r'column \1', processed)
-        
-        # Row references (e.g., #1)
-        processed = re.sub(r'#([0-9]+)(?!:)', r'row \1', processed)
-        
-        # Column range references (e.g., #A:#C)
-        processed = re.sub(r'#([A-Z]+):#([A-Z]+)', r'columns from \1 to \2', processed)
-        
-        # Row range references (e.g., #1:#5)
-        processed = re.sub(r'#([0-9]+):#([0-9]+)', r'rows from \1 to \2', processed)
-        
-        return processed
-
-    def _create_prompt(self, headers: list, metadata: Dict[str, Any], data_sample: list, command: str) -> str:
+    def _create_simple_prompt(self, headers: list, metadata: Dict[str, Any], data_sample: list, command: str, last_error_msg: str = None) -> str:
+        """Create a simple prompt for regular commands"""
         prompt = f"""You are an expert Python programmer tasked with modifying a spreadsheet based on user instructions.
+
 <spreadsheet_context>
 Headers: {headers}
 Row count: {metadata.get('rows', 'unknown')}
@@ -138,13 +205,15 @@ Sample data (first few rows): {json.dumps(data_sample)}
 <user_command>
 {command}
 </user_command>
-
+"""
+        if last_error_msg:
+            prompt += f"\n<previous_error>\nThe previous attempt failed with this error:\n{last_error_msg}\n</previous_error>\n"
+        prompt += """
 <task>
 Write a Python script that modifies the Pandas DataFrame named 'df' according to the user's command.
 The script should handle edge cases and error conditions gracefully.
 DO NOT import modules other than pandas and numpy, which are already imported.
 </task>
-
 <instructions>
 1. The DataFrame is already loaded and available as 'df'
 2. Your modifications should be made directly to 'df'
@@ -178,58 +247,267 @@ Cell reference conversion examples:
 Provide only the Python code needed to execute the requested modification:"""
         return prompt
 
-    def _call_gemini_api(self, prompt: str) -> str:
+    def _create_thinking_prompt(self, headers: list, metadata: Dict[str, Any], data_sample: list, command: str, last_error_msg: str = None) -> str:
+        """Create a thinking prompt for complex commands"""
+        prompt = f"""<task>
+You need to analyze a spreadsheet modification request and think through the solution step by step.
+
+<spreadsheet_context>
+Headers: {headers}
+Row count: {metadata.get('rows', 'unknown')}
+Sample data (first few rows): {json.dumps(data_sample)}
+</spreadsheet_context>
+
+<user_command>
+{command}
+</user_command>
+"""
+        if last_error_msg:
+            prompt += f"\n<previous_error>\nThe previous attempt failed with this error:\n{last_error_msg}\n</previous_error>\n"
+        prompt += """
+Think through this problem step by step:
+
+1. **Understanding the Request**: What exactly is the user asking for?
+2. **Data Analysis**: What is the current structure and content of the data?
+3. **Solution Planning**: What pandas operations are needed?
+4. **Edge Cases**: What potential issues should be handled?
+5. **Implementation Strategy**: What is the best approach to implement this?
+
+Please think through each step carefully and provide a detailed analysis.
+</task>"""
+        return prompt
+
+    def _create_code_generation_prompt(self, headers: list, metadata: Dict[str, Any], data_sample: list, command: str, thinking_response: str, last_error_msg: str = None) -> str:
+        prompt = f"""Based on the previous analysis, generate Python code to modify the spreadsheet.
+
+<spreadsheet_context>
+Headers: {headers}
+Row count: {metadata.get('rows', 'unknown')}
+Sample data: {json.dumps(data_sample)}
+</spreadsheet_context>
+
+<user_command>
+{command}
+</user_command>
+
+<previous_analysis>
+{thinking_response}
+</previous_analysis>
+"""
+        if last_error_msg:
+            prompt += f"\n<previous_error>\nThe previous attempt failed with this error:\n{last_error_msg}\n</previous_error>\n"
+        prompt += """
+<requirements>
+1. Write Python code that modifies the Pandas DataFrame named 'df'
+2. Only use pandas and numpy (already imported as pd and np)
+3. Handle edge cases and errors gracefully
+4. Do not import additional modules
+5. Do not perform I/O operations
+6. Test your code logic thoroughly
+</requirements>
+
+<cell_reference_guide>
+When handling cell references with # notation:
+- Single cell (A1): df.iloc[0, 0] (remember 0-based indexing)
+- Column (A): df.iloc[:, 0] 
+- Row (1): df.iloc[0, :]
+- Range (A1:C3): df.iloc[0:3, 0:3]
+- Column range (A:C): df.iloc[:, 0:3]
+- Row range (1:3): df.iloc[0:3, :]
+</cell_reference_guide>
+
+Generate ONLY the Python code - no explanations or markdown formatting:"""
+        return prompt
+
+    def _call_gemini_simple_api(self, prompt: str) -> str:
+        """Call the simple Gemini API for code generation"""
         try:
-            # Initialize the Gemini model
-            generation_config = genai.types.GenerationConfig(**self.generation_config)
+            # Use regular model for simple code generation
             model = genai.GenerativeModel(
-                model_name=self.model,
-                generation_config=generation_config,
+                model_name="gemini-2.0-flash-exp",
+                generation_config=genai.types.GenerationConfig(**self.generation_config),
                 safety_settings=self.safety_settings
             )
             
-            # Generate content
             response = model.generate_content(prompt)
             
-            # Robustly extract and return the text or error
-            # 1. If response.text exists and is not empty, return it
             if hasattr(response, 'text') and response.text and response.text.strip():
-                return response.text
-
-            # 2. If candidates exist, check for content or safety block
-            if hasattr(response, 'candidates') and response.candidates:
+                return self._extract_script(response.text)
+            elif hasattr(response, 'candidates') and response.candidates:
                 candidate = response.candidates[0]
-                # If content exists
                 if hasattr(candidate, 'content') and getattr(candidate.content, 'parts', None):
                     parts = candidate.content.parts
                     if parts and hasattr(parts[0], 'text') and parts[0].text.strip():
-                        return parts[0].text
-                # If blocked by safety
-                if hasattr(candidate, 'safety_ratings') and candidate.safety_ratings:
-                    safety_issues = [getattr(rating, 'category', str(rating)) for rating in candidate.safety_ratings]
-                    return f"Content was blocked due to safety concerns: {', '.join(safety_issues)}"
-                # No valid content
-                return "No valid response was generated. The model may have encountered an issue processing the request."
-            # 3. Fallback: empty response
-            return "Empty response received from Gemini API."
+                        return self._extract_script(parts[0].text)
+            
+            raise Exception("No valid response generated from simple API")
                 
         except Exception as e:
-            # Always return a string so the frontend can display a user-friendly error
-            return f"Gemini API request failed: {str(e)}"
+            error_msg = str(e)
+            print(f"Simple API Error: {error_msg}")
+            raise Exception(f"Gemini simple API failed: {error_msg}")
+
+    def _process_cell_references(self, command: str) -> str:
+        """
+        Process cell references in the command text
+        
+        Args:
+            command: The original command text
+            
+        Returns:
+            str: Processed command with cell references handled
+        """
+        # For now, just return the command as-is
+        # This method can be enhanced later to handle specific cell reference processing
+        return command
+
+    def _call_gemini_thinking_api(self, prompt: str) -> str:
+        try:
+            # Use thinking model for analysis
+            model = genai.GenerativeModel(
+                model_name="gemini-2.0-flash-thinking-exp",
+                generation_config=genai.types.GenerationConfig(**self.generation_config),
+                safety_settings=self.safety_settings
+            )
+            
+            response = model.generate_content(prompt)
+
+            # Try to get .text if available and non-empty
+            if hasattr(response, 'text') and response.text and response.text.strip():
+                return response.text
+
+            # If .text is missing or empty, check candidates and their finish_reason
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                # finish_reason == 2 means STOP (see docs)
+                finish_reason = getattr(candidate, 'finish_reason', None)
+                # Try to extract text from candidate parts
+                if hasattr(candidate, 'content') and getattr(candidate.content, 'parts', None):
+                    parts = candidate.content.parts
+                    # Concatenate all text parts if present
+                    text_parts = [getattr(part, 'text', '') for part in parts if hasattr(part, 'text')]
+                    combined = "\n".join([t for t in text_parts if t.strip()])
+                    if combined.strip():
+                        return combined.strip()
+                # If finish_reason is 2 (STOP) and no text, return a safe message
+                if finish_reason == 2:
+                    return "(No thinking response generated: Gemini returned STOP with no content.)"
+                # Otherwise, return a generic message
+                return "(No thinking response generated: Gemini returned no usable content.)"
+
+            return "(No thinking response generated: Gemini returned no candidates.)"
+                
+        except Exception as e:
+            print(f"Thinking API Error: {str(e)}")
+            return f"Thinking process failed: {str(e)}"
+
+    def _call_gemini_code_execution_api(self, prompt: str, headers: list, data_sample: list) -> str:
+        try:
+            # Create model with code execution enabled
+            model = genai.GenerativeModel(
+                model_name="gemini-2.0-flash-exp",
+                generation_config=genai.types.GenerationConfig(**self.generation_config),
+                safety_settings=self.safety_settings,
+                tools=[genai.protos.Tool(code_execution={})]  # Correct tool declaration
+            )
+            
+            # Enhanced prompt for code execution
+            execution_prompt = f"""{prompt}
+
+Before providing the final code, please:
+1. Create a test DataFrame with the provided structure
+2. Test your code to ensure it works correctly
+3. Handle any errors that occur during testing
+4. Provide the final working code
+
+Test data structure:
+Headers: {headers}
+Sample data: {json.dumps(data_sample)}
+
+Use code execution to verify your solution works before providing the final answer."""
+            
+            response = model.generate_content(execution_prompt)
+            
+            print("\n--- GEMINI CODE EXECUTION RESULTS ---")
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'content') and getattr(candidate.content, 'parts', None):
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'executable_code'):
+                            print(f"CODE EXECUTED: {part.executable_code.code}")
+                        if hasattr(part, 'code_execution_result'):
+                            print(f"EXECUTION RESULT: {part.code_execution_result.output}")
+                        if hasattr(part, 'text'):
+                            print(f"TEXT OUTPUT: {part.text}")
+            print("--- END CODE EXECUTION RESULTS ---")
+            
+            # Extract the final script
+            if hasattr(response, 'text') and response.text and response.text.strip():
+                script = self._extract_script(response.text)
+                return script
+            elif hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'content') and getattr(candidate.content, 'parts', None):
+                    # Look for text parts that contain the final code
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'text') and part.text.strip():
+                            script = self._extract_script(part.text)
+                            if script and 'df' in script:  # Basic validation
+                                return script
+            
+            raise Exception("No valid code generated from code execution API")
+                
+        except Exception as e:
+            error_msg = str(e)
+            print(f"Code Execution API Error: {error_msg}")
+            raise Exception(f"Gemini code execution API failed: {error_msg}")
 
     def _extract_script(self, response: str) -> str:
+        # Look for code blocks first
         code_block_pattern = r'```(?:python)?\s*([\s\S]*?)\s*```'
         matches = re.findall(code_block_pattern, response)
         if matches:
-            return matches[0].strip()
+            # Return the last code block (most likely the final solution)
+            return matches[-1].strip()
+        
+        # If no code blocks, look for lines that seem like Python code
+        lines = response.split('\n')
+        code_lines = []
+        in_code_section = False
+        
+        for line in lines:
+            stripped = line.strip()
+            # Start collecting if we see DataFrame operations
+            if any(keyword in stripped for keyword in ['df[', 'df.', 'pd.', 'np.']):
+                in_code_section = True
+            
+            if in_code_section:
+                # Stop if we hit explanatory text
+                if stripped and not (
+                    stripped.startswith('#') or 
+                    any(keyword in stripped for keyword in ['df', 'pd', 'np', '=', 'import', 'print']) or
+                    stripped.startswith(('if', 'for', 'while', 'try', 'except', 'with'))
+                ):
+                    break
+                code_lines.append(line)
+        
+        if code_lines:
+            return '\n'.join(code_lines).strip()
+        
         return response.strip()
 
     def handle_api_error(self, error: Exception) -> str:
         error_message = str(error)
-        script = f"""
-# Error occurred in LLM API: {error_message}
+        print(f"\n--- FINAL ERROR ---")
+        print(f"Error: {error_message}")
+        print("--- END ERROR ---\n")
+        
+        # Escape quotes and special characters in error message to prevent syntax errors
+        safe_error_msg = error_message.replace('"', '\\"').replace("'", "\\'").replace('\n', '\\n')
+        
+        script = f"""# Error occurred in LLM API: {safe_error_msg}
 # Returning original DataFrame without modifications
 # Add error column to inform user
-df['ERROR'] = "Failed to process command: {error_message}"
+df['LLM_ERROR'] = "Script generation failed. Please try a different command."
 """
         return script.strip()

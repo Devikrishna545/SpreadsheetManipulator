@@ -1,0 +1,16 @@
+Delete all empty rows and columns.
+Delete all rows containing "Totals" and "Net difference".
+Delete rows #1 and #2.
+Create 2 new columns on the left.
+Move the "Main account" string to the first cell of column #A.
+Move the "Name" string to the first cell of column #B.
+Except for column #A and column #B, delete all other instances of "Main account" and "Name" strings.
+Move the account number to be in a cell directly under the "Main Account" cell. Examples of account numbers are "013015", "013000" etc.
+Move the account name to be in a cell directly under the "Name" cell. Examples of account names are "Other intangible assets" and "Acc. depreciation leasehold right".
+Move the contents from cells #C3 - #N3 into cells #C1 - #N1.
+Move the contents from cells #C4 - #P5 into cells #C2 - #P3.
+Delete all duplicate instances of the following strings "Date", "Journal number", "Voucher", "Posting type", "Ledger account", "Description", "Amount in transaction currency",	"Amount in accounting currency" and "Amount in reporting currency" (leave only first instace).
+Apart from row #2, delete all other rows containing the following strings "Debit" and "Credit".
+Delete all empty rows.
+If there are empty cells below any cell containing an account number, copy that account number into all the empty cells below it. Examples of account numbers are "013015", "013000" etc.
+If there are empty cells below any cell containing an account name, copy that account name into all the empty cells below it. Examples of account names are "Other intangible assets" and "Acc. depreciation leasehold right" etc.

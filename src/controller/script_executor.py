@@ -43,10 +43,22 @@ class ScriptExecutor:
         Returns:
             Tuple[pd.DataFrame, List[List[int]]]: Modified DataFrame and list of modified cells
         """
+        print(f"\n{'='*60}")
+        print("SCRIPT EXECUTION STARTING")
+        print(f"{'='*60}")
+        print("Script to execute:")
+        print(script)
+        print("-" * 60)
+        
         # Validate script for security
         if not self.security_manager.validate_script(script):
-            raise ValueError(f"Script validation failed due to security concerns. See server logs for details.")
-              # Create a unique ID for this script
+            error_msg = "Script validation failed due to security concerns. See server logs for details."
+            print(f"SECURITY VALIDATION FAILED: {error_msg}")
+            raise ValueError(error_msg)
+        
+        print("SECURITY VALIDATION: PASSED")
+        
+        # Create a unique ID for this script
         import uuid
         script_id = str(uuid.uuid4())[:8]
         
@@ -57,6 +69,8 @@ class ScriptExecutor:
         with open(script_path, 'w', encoding='utf-8') as f:
             f.write(script)
             
+        print(f"SCRIPT SAVED: {script_path}")
+            
         # Save script metadata to json directory for reference if file_manager is provided
         if file_manager:
             file_manager.save_json_data({
@@ -66,23 +80,31 @@ class ScriptExecutor:
                 'columns': spreadsheet_df.columns.tolist(),
                 'rows': len(spreadsheet_df)
             }, f"script_{script_id}")
+            print(f"SCRIPT METADATA SAVED: script_{script_id}.json")
         
         # Track original data for determining modifications
         orig_columns = set(spreadsheet_df.columns)
-        # Ensure keys are str for type compatibility
         filled_df: pd.DataFrame = spreadsheet_df.copy().fillna(value=np.nan)
         data_dict: Dict[Hashable, Any] = filled_df.to_dict()
         orig_values = {str(k): v for k, v in data_dict.items()}
+        
+        print(f"ORIGINAL DATA SHAPE: {spreadsheet_df.shape}")
+        print(f"ORIGINAL COLUMNS: {list(spreadsheet_df.columns)}")
         
         # Create a sandbox environment
         sandbox_globals = self._create_sandbox(spreadsheet_df)
         
         try:
+            print("EXECUTING SCRIPT...")
             # Execute script
             exec(script, sandbox_globals)
             
             # Get the modified dataframe
             modified_df = sandbox_globals.get('df', spreadsheet_df)
+            
+            print(f"EXECUTION SUCCESSFUL")
+            print(f"MODIFIED DATA SHAPE: {modified_df.shape}")
+            print(f"MODIFIED COLUMNS: {list(modified_df.columns)}")
             
             # IMPORTANT: Reset the index to ensure consistent row numbering
             # This ensures that after deletions, row indices start from 0 again
@@ -96,10 +118,20 @@ class ScriptExecutor:
                 new_df=modified_df
             )
             
+            print(f"MODIFIED CELLS COUNT: {len(modified_cells)}")
+            print(f"{'='*60}")
+            print("SCRIPT EXECUTION COMPLETED SUCCESSFULLY")
+            print(f"{'='*60}\n")
+            
             return modified_df, modified_cells
         except Exception as e:
-            # Instead of a generic error, include the actual error message
-            raise RuntimeError(f"{str(e)}")
+            error_msg = str(e)
+            print(f"EXECUTION FAILED: {error_msg}")
+            print(f"{'='*60}")
+            print("SCRIPT EXECUTION FAILED")
+            print(f"{'='*60}\n")
+            # Return the original DataFrame without modifications instead of adding error column
+            raise RuntimeError(f"Script execution failed: {error_msg}")
     
     def validate_script_safety(self, script: str) -> bool:
         """

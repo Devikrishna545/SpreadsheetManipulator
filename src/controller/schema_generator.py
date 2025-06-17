@@ -7,6 +7,20 @@ Generates JSON schema from spreadsheet data and vice versa
 import pandas as pd
 import json
 from typing import Dict, Any, List, Optional
+import datetime
+
+def _serialize_datetimes(obj):
+    """
+    Recursively convert datetime objects in dicts/lists to ISO format strings.
+    """
+    if isinstance(obj, dict):
+        return {k: _serialize_datetimes(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_serialize_datetimes(v) for v in obj]
+    elif isinstance(obj, (datetime.datetime, pd.Timestamp)):
+        return obj.isoformat()
+    else:
+        return obj
 
 class SchemaGenerator:
     """
@@ -47,19 +61,25 @@ class SchemaGenerator:
             else:
                 dtype = "string"
             
-            # Get sample values (up to 3)
-            sample_values = df[col_name].dropna().head(3).tolist()
-            
+            # Get sample values (up to 3), convert datetimes to string
+            sample_values = [
+                v.isoformat() if isinstance(v, (datetime.datetime, pd.Timestamp)) else v
+                for v in df[col_name].dropna().head(3).tolist()
+            ]
             columns.append({
                 "name": str(col_name),
                 "type": dtype,
                 "sample_values": sample_values
             })
         
-        # Get sample rows (up to 5)
+        # Get sample rows (up to 5), convert datetimes to string
         sample_data = []
         for _, row in df.head(5).iterrows():
-            sample_data.append(row.to_dict())
+            row_dict = row.to_dict()
+            for k, v in row_dict.items():
+                if isinstance(v, (datetime.datetime, pd.Timestamp)):
+                    row_dict[k] = v.isoformat()
+            sample_data.append(row_dict)
         
         schema = {
             "columns": columns,
@@ -83,6 +103,9 @@ class SchemaGenerator:
             str: A prompt for the LLM
         """
         source_schema = self.generate_schema(source_df)
+        # Serialize datetimes in both schemas before dumping to JSON
+        source_schema_serialized = _serialize_datetimes(source_schema)
+        target_schema_serialized = _serialize_datetimes(target_schema)
         
         prompt = """
         I need to transform a source spreadsheet to match a target schema.
@@ -111,8 +134,8 @@ class SchemaGenerator:
         
         Return only the Python code without explanations.
         """.format(
-            source_schema=json.dumps(source_schema, indent=2),
-            target_schema=json.dumps(target_schema, indent=2)
+            source_schema=json.dumps(source_schema_serialized, indent=2),
+            target_schema=json.dumps(target_schema_serialized, indent=2)
         )
         
         return prompt

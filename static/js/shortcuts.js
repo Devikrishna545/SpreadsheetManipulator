@@ -13,6 +13,8 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
     const updateSchemaBtn = document.getElementById('updateSchemaBtn');
     const transformSchemaBtn = document.getElementById('transformSchemaBtn');
     const splitViewBtn = document.getElementById('splitViewBtn');
+    const uploadCommandsBtn = document.getElementById('uploadCommandsBtn');
+    const commandFileInput = document.getElementById('commandFileInput');
     
 
     document.addEventListener('keydown', function(e) {
@@ -133,6 +135,12 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             if (transformSchemaBtn && !transformSchemaBtn.disabled) transformSchemaBtn.click();
             return;
         }
+        // Alt+C: Upload Commands File
+        if (e.altKey && !e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+            e.preventDefault();
+            if (uploadCommandsBtn) commandFileInput.click();
+            return;
+        }
     });
 }
 // Prompt history navigation state
@@ -243,7 +251,7 @@ export function showShortcutInfoIfSpreadsheetVisible() {
     const shortcutInfo = document.getElementById('shortcutInfo');
     if (spreadsheetContainer && shortcutInfo) {
         if (spreadsheetContainer.style.display !== 'none') {
-            shortcutInfo.style.display = '';
+            shortcutInfo.style.display = 'block';
         } else {
             shortcutInfo.style.display = 'none';
         }
@@ -252,7 +260,10 @@ export function showShortcutInfoIfSpreadsheetVisible() {
 
 // Hook into spreadsheet display logic
 const observer = new MutationObserver(showShortcutInfoIfSpreadsheetVisible);
-observer.observe(document.getElementById('spreadsheetContainer'), { attributes: true, attributeFilter: ['style'] });
+const spreadsheetContainer = document.getElementById('spreadsheetContainer');
+if (spreadsheetContainer) {
+    observer.observe(spreadsheetContainer, { attributes: true, attributeFilter: ['style'] });
+}
 
 // Also call once on load in case spreadsheet is already visible
 document.addEventListener('DOMContentLoaded', showShortcutInfoIfSpreadsheetVisible);
