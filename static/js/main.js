@@ -5,7 +5,7 @@ import {
 } from './uiInteractions.js';
 import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet }
 from './apiService.js';
-import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView } from './spreadsheetHandler.js';
+import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView, generateActionPlanLog } from './spreadsheetHandler.js';
 import { setupShortcutKeys,getCurrentSessionPrompts,resetPromptHistory } from './shortcuts.js';
 import { initCellSelector, clearCellSelector } from './cell-selector.js';
 import { initCellTagger, scanAndHighlightTags } from './cell-tagger.js';
@@ -29,6 +29,13 @@ const splitViewBtn = document.getElementById('splitViewBtn'); // Add this line
 const updateSchemaBtn = document.getElementById('updateSchemaBtn'); // Add this for schema button
 const transformSchemaBtn = document.getElementById('transformSchemaBtn'); // Add this for transform button
 const uploadCommandsBtn = document.getElementById('uploadCommandsBtn'); // Add this for upload commands button
+const generateActionPlanBtn = document.createElement('button');
+generateActionPlanBtn.className = 'btn btn-sm btn-outline-light';
+generateActionPlanBtn.id = 'generateActionPlanBtn';
+generateActionPlanBtn.title = 'Generate Action Plan';
+generateActionPlanBtn.innerHTML = '<i class="fas fa-list-check"></i>';
+// Insert after uploadCommandsBtn
+uploadCommandsBtn.parentNode.insertBefore(generateActionPlanBtn, uploadCommandsBtn.nextSibling);
 const commandFileInput = document.getElementById('commandFileInput'); // Add this for command file input
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -551,3 +558,26 @@ async function processCommandsSequentially(commands) {
     // Reset after a delay
     setTimeout(() => updateStatus('Ready', 'active'), 3000);
 }
+
+// Add event listener for the new "Generate Action Plan" button
+generateActionPlanBtn.addEventListener('click', function() {
+    // Get left and right spreadsheet data
+    const leftHot = window.hotInstance;
+    const rightContainer = document.getElementById('rightSpreadsheet');
+    const rightHot = rightContainer && rightContainer.hotInstance ? rightContainer.hotInstance : null;
+    if (!leftHot || !rightHot) {
+        showErrorModal('Both spreadsheets must be visible to generate an action plan.');
+        return;
+    }
+    const leftData = leftHot.getData();
+    const rightData = rightHot.getData();
+    const log = generateActionPlanLog(leftData, rightData);
+    // Download as actionplan.txt
+    const blob = new Blob([log], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'actionplan.txt';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+});

@@ -352,22 +352,21 @@ export function toggleSplitView() {
         // Move the original spreadsheet container to the left pane
         leftPane.appendChild(spreadsheetDataContainer);
         
-        // Create a new Handsontable instance for the right pane
-        const currentData = window.hotInstance.getData();
-        const columnCount = currentData[0] ? currentData[0].length : 0;
-        const rowCount = currentData.length;
-        
-        // Create blank data with same dimensions
-        const blankData = Array(rowCount).fill(0).map(() => Array(columnCount).fill(null));
-        
-        // Generate Excel-style column headers
-        const alphabeticHeaders = generateExcelColHeaders(columnCount);
-        
+        // Instead of blankData, clone the original spreadsheet data
+        // const currentData = window.hotInstance.getData();
+        // const clonedData = clone2DArray(currentData);
+
+        // Use blank data for the right spreadsheet as before
+        const leftData = window.hotInstance.getData();
+        const rowCount = leftData.length;
+        const colCount = leftData[0] ? leftData[0].length : 0;
+        const blankData = Array.from({ length: rowCount }, () => Array(colCount).fill(''));
+
         // Create settings for the editable spreadsheet
         const editableSettings = {
             data: blankData,
             rowHeaders: true,
-            colHeaders: alphabeticHeaders,
+            colHeaders: generateExcelColHeaders(colCount),
             licenseKey: 'non-commercial-and-evaluation',
             stretchH: 'all',
             readOnly: false, // Make this editable
@@ -385,7 +384,6 @@ export function toggleSplitView() {
             rightContent,
             editableSettings
         );
-        // Assign the instance to the DOM for main.js access
         rightContent.hotInstance = editableHotInstance;
         
         // Update button icon and status
@@ -403,6 +401,33 @@ export function toggleSplitView() {
         updateStatus('Split view enabled', 'active');
         setTimeout(() => updateStatus('Ready', 'active'), 2000);
     }
+}
+
+// Helper to deep clone a 2D array
+function clone2DArray(arr) {
+    return arr.map(row => Array.isArray(row) ? [...row] : []);
+}
+
+// Compare two 2D arrays and generate a simple English log of cell changes
+export function generateActionPlanLog(leftData, rightData) {
+    let actions = [];
+    const rowCount = Math.max(leftData.length, rightData.length);
+    const colCount = Math.max(
+        leftData[0] ? leftData[0].length : 0,
+        rightData[0] ? rightData[0].length : 0
+    );
+    for (let i = 0; i < rowCount; i++) {
+        const leftRow = leftData[i] || [];
+        const rightRow = rightData[i] || [];
+        for (let j = 0; j < colCount; j++) {
+            const leftCell = leftRow[j] ?? '';
+            const rightCell = rightRow[j] ?? '';
+            if (leftCell !== rightCell) {
+                actions.push(`Cell (${i + 1}, ${String.fromCharCode(65 + j)}) changed from "${leftCell}" to "${rightCell}".`);
+            }
+        }
+    }
+    return actions.length ? actions.join('\n') : 'No changes detected.';
 }
 
 // Add getter for split view state
