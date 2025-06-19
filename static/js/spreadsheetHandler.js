@@ -417,13 +417,16 @@ export function generateActionPlanLog(leftData, rightData) {
         rightData[0] ? rightData[0].length : 0
     );
     for (let i = 0; i < rowCount; i++) {
-        const leftRow = leftData[i] || [];
         const rightRow = rightData[i] || [];
-        for (let j = 0; j < colCount; j++) {
-            const leftCell = leftRow[j] ?? '';
-            const rightCell = rightRow[j] ?? '';
-            if (leftCell !== rightCell) {
-                actions.push(`Cell (${i + 1}, ${String.fromCharCode(65 + j)}) changed from "${leftCell}" to "${rightCell}".`);
+        // Only compare if the right spreadsheet row has at least one non-empty value
+        if (rightRow.some(cell => cell !== null && cell !== undefined && cell !== '')) {
+            const leftRow = leftData[i] || [];
+            for (let j = 0; j < colCount; j++) {
+                const leftCell = leftRow[j] ?? '';
+                const rightCell = rightRow[j] ?? '';
+                if (leftCell !== rightCell) {
+                    actions.push(`Cell (${String.fromCharCode(65 + j)},${i + 1}) changed from "${leftCell}" to "${rightCell}".`);
+                }
             }
         }
     }
