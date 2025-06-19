@@ -90,6 +90,11 @@ export function showLoading(message = 'Loading...') {
     loadingContainer.style.display = 'flex';
 }
 
+export function showAlgorithmLoading(message = 'Generating algorithm...') {
+    loadingMessage.textContent = message;
+    loadingContainer.style.display = 'flex';
+}
+
 export function hideLoading() {
     loadingContainer.style.display = 'none';
 }

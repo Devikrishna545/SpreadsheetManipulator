@@ -216,15 +216,20 @@
                     <div class="spreadsheet-header">
                         <h5><i class="fas fa-table me-2"></i>Spreadsheet Data</h5>
                         <div class="spreadsheet-controls">
-                            <div class="cell-selector-bar" id="cellSelectorBar">
-                                <i class="fas fa-crosshairs me-2"></i>
-                                <input type="text" class="form-control form-control-sm cell-selector-input" id="cellSelectorDisplay" placeholder="-">
+                            <!-- Batch Actions -->
+                            <div class="batch-actions">
+                                <button class="btn btn-sm btn-outline-light" id="uploadCommandsBtn" title="Upload Commands (Alt+C)">
+                                    <i class="fas fa-file-upload"></i>
+                                </button>
+                                <!-- Hidden file input for text commands -->
+                                <input type="file" id="commandFileInput" accept=".txt" style="display: none;" />
+                                <!-- Action Plan Button -->
+                                <button class="btn btn-sm btn-outline-light" id="generateActionPlanBtn" title="Generate & Execute Algorithm">
+                                    <i class="fas fa-robot"></i>
+                                </button>
                             </div>
                             <!-- Schema Management Buttons -->
                             <div class="schema-buttons">
-                                <button class="btn btn-sm btn-outline-light" id="uploadCommandsBtn" title="Upload Commands (Alt+C)">
-                                    <i class="fas fa-file-upload"></i>
-                                </button>                              
                                 <button class="btn btn-sm btn-outline-light" id="updateSchemaBtn" title="Update Schema (Alt+Shift+U)">
                                     <i class="fas fa-sync-alt"></i>
                                 </button>
@@ -235,11 +240,15 @@
                                     <i class="fas fa-columns"></i>
                                 </button>
                             </div>
-                            <!-- Hidden file input for text commands -->
-                            <input type="file" id="commandFileInput" accept=".txt" style="display: none;" />
+                            <!-- Fullscreen Button -->
                             <button class="btn btn-sm btn-outline-light" id="fullscreenBtn" tooltip="Toggle Fullscreen" title="Fullscreen (Alt+F)">
                                 <i class="fas fa-expand"></i>
                             </button>
+                            <!-- Cell Selector Bar -->
+                            <div class="cell-selector-bar" id="cellSelectorBar">
+                                <i class="fas fa-crosshairs me-2"></i>
+                                <input type="text" class="form-control form-control-sm cell-selector-input" id="cellSelectorDisplay" placeholder="-">
+                            </div>
                         </div>
                     </div>
                     <div class="spreadsheet-body custom-scrollbar">

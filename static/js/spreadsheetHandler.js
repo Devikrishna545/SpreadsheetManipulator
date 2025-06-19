@@ -1,4 +1,4 @@
-import { showLoading, hideLoading, showError } from './uiInteractions.js';
+import { showLoading, hideLoading, showError, showAlgorithmLoading } from './uiInteractions.js';
 import { updateUndoRedoButtons, updateStatus } from './uiInteractions.js';
 import { updateCellSelector, clearCellSelector } from './cell-selector.js';
 
@@ -418,7 +418,6 @@ export function generateActionPlanLog(leftData, rightData) {
     );
     for (let i = 0; i < rowCount; i++) {
         const rightRow = rightData[i] || [];
-        // Only compare if the right spreadsheet row has at least one non-empty value
         if (rightRow.some(cell => cell !== null && cell !== undefined && cell !== '')) {
             const leftRow = leftData[i] || [];
             for (let j = 0; j < colCount; j++) {

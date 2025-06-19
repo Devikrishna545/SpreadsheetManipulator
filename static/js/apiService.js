@@ -1,4 +1,4 @@
-import { showLoading, hideLoading, showError, updateStatus, showMainInterface, updateSessionInfo } from './uiInteractions.js';
+import { showLoading, hideLoading, showError, updateStatus, showMainInterface, updateSessionInfo, showAlgorithmLoading } from './uiInteractions.js';
 import { resetApplicationState } from './main.js'; // Assuming main.js will export this
 
 export async function handleFileUpload(event, fileInput) {
@@ -156,4 +156,43 @@ export function downloadSpreadsheet(sessionId) {
             updateStatus('Error', 'error');
             showError(error.message);
         });
+}
+
+export async function generateAndExecuteAlgorithm(sessionId, actionPlan, leftData, rightData) {
+    if (!sessionId) {
+        showError('No active session. Please upload a spreadsheet first.');
+        return null;
+    }
+    
+    updateStatus('Generating algorithm...', 'processing');
+    showAlgorithmLoading('Analyzing action plan and generating universal algorithm...');
+    
+    try {
+        const response = await fetch('/generate_algorithm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                sessionId, 
+                actionPlan,
+                leftSpreadsheetData: leftData,
+                rightSpreadsheetData: rightData
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to generate algorithm');
+        }
+        
+        const data = await response.json();
+        updateStatus('Algorithm executed successfully', 'success');        
+        setTimeout(() => updateStatus('Ready', 'active'), 3000);
+        return data;
+    } catch (error) {
+        updateStatus('Error', 'error');
+        showError(error.message);
+        return null;
+    } finally {
+        hideLoading();
+    }
 }

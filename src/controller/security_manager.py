@@ -25,7 +25,7 @@ class SecurityManager:
             'datetime',
             'collections',
             'os',      # <--- add if needed
-            'sys'      # <--- add if needed
+            'sys',      # <--- add if needed   
         }
         
         # Functions/attributes that are forbidden

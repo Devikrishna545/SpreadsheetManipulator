@@ -1,3 +1,0 @@
-delete all empty rows and columns
-delete all rows with "Totals" and "Net difference"
-delete row #1 and #2

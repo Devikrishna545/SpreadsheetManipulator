@@ -3,7 +3,7 @@ import {
     toggleSidebar, toggleFullscreen, updateStatus, resetApplicationUI, 
     updateUndoRedoButtons, showMainInterface, updateSessionInfo 
 } from './uiInteractions.js';
-import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet }
+import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet, generateAndExecuteAlgorithm as apiGenerateAndExecuteAlgorithm }
 from './apiService.js';
 import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView, generateActionPlanLog } from './spreadsheetHandler.js';
 import { setupShortcutKeys,getCurrentSessionPrompts,resetPromptHistory } from './shortcuts.js';
@@ -29,13 +29,7 @@ const splitViewBtn = document.getElementById('splitViewBtn'); // Add this line
 const updateSchemaBtn = document.getElementById('updateSchemaBtn'); // Add this for schema button
 const transformSchemaBtn = document.getElementById('transformSchemaBtn'); // Add this for transform button
 const uploadCommandsBtn = document.getElementById('uploadCommandsBtn'); // Add this for upload commands button
-const generateActionPlanBtn = document.createElement('button');
-generateActionPlanBtn.className = 'btn btn-sm btn-outline-light';
-generateActionPlanBtn.id = 'generateActionPlanBtn';
-generateActionPlanBtn.title = 'Generate Action Plan';
-generateActionPlanBtn.innerHTML = '<i class="fas fa-list-check"></i>';
-// Insert after uploadCommandsBtn
-uploadCommandsBtn.parentNode.insertBefore(generateActionPlanBtn, uploadCommandsBtn.nextSibling);
+const generateActionPlanBtn = document.getElementById('generateActionPlanBtn');
 const commandFileInput = document.getElementById('commandFileInput'); // Add this for command file input
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -560,24 +554,44 @@ async function processCommandsSequentially(commands) {
 }
 
 // Add event listener for the new "Generate Action Plan" button
-generateActionPlanBtn.addEventListener('click', function() {
+generateActionPlanBtn.addEventListener('click', async function() {
     // Get left and right spreadsheet data
     const leftHot = window.hotInstance;
     const rightContainer = document.getElementById('rightSpreadsheet');
     const rightHot = rightContainer && rightContainer.hotInstance ? rightContainer.hotInstance : null;
+    
     if (!leftHot || !rightHot) {
         showErrorModal('Both spreadsheets must be visible to generate an action plan.');
         return;
     }
+    
     const leftData = leftHot.getData();
     const rightData = rightHot.getData();
-    const log = generateActionPlanLog(leftData, rightData);
-    // Download as actionplan.txt
-    const blob = new Blob([log], { type: 'text/plain' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'actionplan.txt';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    
+    // Generate the action plan
+    const actionPlan = generateActionPlanLog(leftData, rightData);
+    
+    if (actionPlan === 'No changes detected.') {
+        showErrorModal('No changes detected in the right spreadsheet. Please make some modifications first.');
+        return;
+    }
+    
+    // Send to Gemini for algorithm generation and execution
+    try {
+        const result = await apiGenerateAndExecuteAlgorithm(currentSessionId, actionPlan, leftData, rightData);
+        
+        if (result) {
+            // Update the current data and render the spreadsheet with the new changes
+            currentData = result;
+            renderSpreadsheet(currentData);
+            updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
+            
+            // Show success message
+            updateStatus('Universal algorithm applied successfully', 'success');
+            setTimeout(() => updateStatus('Ready', 'active'), 3000);
+        }
+    } catch (error) {
+        console.error('Error generating algorithm:', error);
+        showErrorModal(`Error generating algorithm: ${error.message}`);
+    }
 });
