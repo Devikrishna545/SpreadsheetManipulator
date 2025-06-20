@@ -428,3 +428,28 @@ async def upload_command_file(
         raise HTTPException(status_code=400, detail="File encoding not supported. Please use UTF-8 encoded text files.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+
+@app.post("/generate_algorithm")
+async def generate_algorithm(request: Request):
+    """Generate and execute a universal algorithm from an action plan"""
+    try:
+        data = await request.json()
+        session_id = data.get('sessionId')
+        action_plan = data.get('actionPlan')
+        left_spreadsheet_data = data.get('leftSpreadsheetData')
+        right_spreadsheet_data = data.get('rightSpreadsheetData')
+        
+        if not all([session_id, action_plan, left_spreadsheet_data, right_spreadsheet_data]):
+            raise HTTPException(status_code=400, detail="Missing required parameters")
+        
+        # Generate and execute the universal algorithm
+        result = controllers.spreadsheet_controller.generate_and_execute_algorithm(
+            session_id, action_plan, left_spreadsheet_data, right_spreadsheet_data
+        )
+        
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

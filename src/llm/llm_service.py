@@ -511,3 +511,130 @@ Use code execution to verify your solution works before providing the final answ
 df['LLM_ERROR'] = "Script generation failed. Please try a different command."
 """
         return script.strip()
+
+    def generate_universal_algorithm(self, action_plan: str, left_data: list, right_data: list) -> str:
+        """
+        Generate a universal algorithm from an action plan using thinking mode
+        
+        Args:
+            action_plan: The action plan describing changes made
+            left_data: The left spreadsheet data
+            right_data: The right spreadsheet data
+            
+        Returns:
+            str: Generated Python script implementing the universal algorithm
+        """
+        max_attempts = 3
+        last_error_msg = None
+        
+        for attempt in range(max_attempts):
+            try:
+                print(f"\n{'='*60}")
+                print(f"GEMINI UNIVERSAL ALGORITHM GENERATION - ATTEMPT {attempt + 1}")
+                print(f"{'='*60}")
+                
+                # Step 1: Use thinking mode to analyze the action plan
+                thinking_prompt = self._create_algorithm_thinking_prompt(action_plan, left_data, right_data, last_error_msg)
+                thinking_response = self._call_gemini_thinking_api(thinking_prompt)
+                
+                print("\n--- GEMINI ALGORITHM THINKING PROCESS ---")
+                print(thinking_response)
+                print("--- END ALGORITHM THINKING PROCESS ---\n")
+                
+                # Step 2: Generate the universal algorithm
+                algorithm_prompt = self._create_algorithm_generation_prompt(action_plan, left_data, right_data, thinking_response, last_error_msg)
+                final_script = self._call_gemini_simple_api(algorithm_prompt)
+                
+                print("--- UNIVERSAL ALGORITHM GENERATED ---")
+                print(final_script)
+                print("--- END ALGORITHM ---\n")
+                
+                return final_script
+                
+            except Exception as e:
+                error_msg = str(e)
+                last_error_msg = error_msg
+                print(f"\nALGORITHM GENERATION ATTEMPT {attempt + 1} FAILED: {error_msg}")
+                
+                if attempt == max_attempts - 1:
+                    print(f"\nALL {max_attempts} ALGORITHM GENERATION ATTEMPTS FAILED")
+                    return self.handle_api_error(Exception(f"Failed to generate universal algorithm after {max_attempts} attempts. Last error: {error_msg}"))
+                
+                print(f"RETRYING... ({attempt + 2}/{max_attempts})")
+        
+        return self.handle_api_error(Exception("Unexpected error in universal algorithm generation"))
+
+    def _create_algorithm_thinking_prompt(self, action_plan: str, left_data: list, right_data: list, last_error_msg: str = None) -> str:
+        """Create a thinking prompt for universal algorithm generation"""
+        prompt = f"""<task>
+You need to analyze an action plan that describes changes made to a sample of data, and develop a universal algorithm that can apply similar changes to a much larger dataset.
+
+<action_plan>
+{action_plan}
+</action_plan>
+
+<sample_data_context>
+Left spreadsheet sample (first 5 rows): {json.dumps(left_data[:5])}
+Right spreadsheet sample (first 5 rows): {json.dumps(right_data[:5])}
+</sample_data_context>
+"""
+        if last_error_msg:
+            prompt += f"\n<previous_error>\nThe previous attempt failed with this error:\n{last_error_msg}\n</previous_error>\n"
+        
+        prompt += """
+Think through this problem step by step:
+
+1. **Pattern Analysis**: What patterns can you identify in the changes described in the action plan?
+2. **Data Structure Understanding**: What is the structure of the left spreadsheet data?
+3. **Transformation Logic**: What are the core transformation rules that need to be applied?
+4. **Universal Application**: How can these rules be applied to the entire left spreadsheet, not just the sample?
+5. **Edge Cases**: What potential issues should be handled when applying to the full dataset?
+6. **Implementation Strategy**: What is the best pandas-based approach to implement this universally?
+
+The goal is to create a universal algorithm that will normalize and organize the entire left spreadsheet based on the pattern of changes shown in the action plan.
+</task>"""
+        return prompt
+
+    def _create_algorithm_generation_prompt(self, action_plan: str, left_data: list, right_data: list, thinking_response: str, last_error_msg: str = None) -> str:
+        """Create a prompt for generating the universal algorithm"""
+        prompt = f"""Based on the previous analysis, generate a Python script that implements a universal algorithm to transform the entire left spreadsheet.
+
+<action_plan>
+{action_plan}
+</action_plan>
+
+<data_context>
+Left spreadsheet sample: {json.dumps(left_data[:5])}
+Right spreadsheet sample: {json.dumps(right_data[:5])}
+</data_context>
+
+<previous_analysis>
+{thinking_response}
+</previous_analysis>
+"""
+        if last_error_msg:
+            prompt += f"\n<previous_error>\nThe previous attempt failed with this error:\n{last_error_msg}\n</previous_error>\n"
+        
+        prompt += """
+<requirements>
+1. Write Python code that modifies the entire pandas DataFrame named 'df' (the left spreadsheet)
+2. Only use pandas and numpy (already imported as pd and np)
+3. The algorithm should be universal - it should work on the entire dataset, not just the sample
+4. Handle edge cases and errors gracefully
+5. Focus on data normalization and organization
+6. Remove or transform irrelevant data to keep only useful information
+7. Apply the transformation pattern consistently across all similar data in the spreadsheet
+8. Do not import additional modules
+9. Do not perform I/O operations
+</requirements>
+
+<key_objectives>
+- Normalize the data structure
+- Remove irrelevant or duplicate information
+- Organize data for better usability
+- Apply consistent formatting and structure
+- Handle various data patterns that might exist in the full spreadsheet
+</key_objectives>
+
+Generate ONLY the Python code - no explanations or markdown formatting:"""
+        return prompt

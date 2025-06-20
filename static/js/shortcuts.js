@@ -124,7 +124,7 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             return;
         }
         // Alt+Shift+U: Update Schema
-        if (e.altKey && (e.key === 's' || e.key === 'S')) {
+        if (e.altKey && e.shiftKey && (e.key === 'u' || e.key === 'U')) {
             e.preventDefault();
             if (updateSchemaBtn && !updateSchemaBtn.disabled) updateSchemaBtn.click();
             return;

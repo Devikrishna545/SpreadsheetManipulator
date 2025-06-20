@@ -561,7 +561,7 @@ generateActionPlanBtn.addEventListener('click', async function() {
     const rightHot = rightContainer && rightContainer.hotInstance ? rightContainer.hotInstance : null;
     
     if (!leftHot || !rightHot) {
-        showErrorModal('Both spreadsheets must be visible to generate an action plan.');
+        showErrorModal('Both spreadsheets must be visible to generate an action plan. Please enable split view first.');
         return;
     }
     
@@ -572,7 +572,12 @@ generateActionPlanBtn.addEventListener('click', async function() {
     const actionPlan = generateActionPlanLog(leftData, rightData);
     
     if (actionPlan === 'No changes detected.') {
-        showErrorModal('No changes detected in the right spreadsheet. Please make some modifications first.');
+        showErrorModal('No changes detected in the right spreadsheet. Please make some modifications first to show the system what changes you want applied to the entire left spreadsheet.');
+        return;
+    }
+    
+    // Confirm with user before proceeding
+    if (!confirm(`The system will generate a universal algorithm based on your sample changes and apply it to the entire left spreadsheet. This action cannot be undone except through the undo button.\n\nAction Plan:\n${actionPlan}\n\nDo you want to proceed?`)) {
         return;
     }
     
@@ -585,7 +590,7 @@ generateActionPlanBtn.addEventListener('click', async function() {
             currentData = result;
             renderSpreadsheet(currentData);
             updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
-            
+
             // Show success message
             updateStatus('Universal algorithm applied successfully', 'success');
             setTimeout(() => updateStatus('Ready', 'active'), 3000);

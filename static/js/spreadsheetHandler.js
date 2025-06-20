@@ -416,20 +416,65 @@ export function generateActionPlanLog(leftData, rightData) {
         leftData[0] ? leftData[0].length : 0,
         rightData[0] ? rightData[0].length : 0
     );
+    
+    // Track patterns of changes
+    let columnChanges = {};
+    let rowPatterns = [];
+    
     for (let i = 0; i < rowCount; i++) {
         const rightRow = rightData[i] || [];
         if (rightRow.some(cell => cell !== null && cell !== undefined && cell !== '')) {
             const leftRow = leftData[i] || [];
+            let rowChanges = [];
+            
             for (let j = 0; j < colCount; j++) {
                 const leftCell = leftRow[j] ?? '';
                 const rightCell = rightRow[j] ?? '';
                 if (leftCell !== rightCell) {
-                    actions.push(`Cell (${String.fromCharCode(65 + j)},${i + 1}) changed from "${leftCell}" to "${rightCell}".`);
+                    const colLetter = String.fromCharCode(65 + j);
+                    const change = `Cell ${colLetter}${i + 1}: "${leftCell}" → "${rightCell}"`;
+                    actions.push(change);
+                    rowChanges.push({col: j, from: leftCell, to: rightCell});
+                    
+                    // Track column-level patterns
+                    if (!columnChanges[j]) columnChanges[j] = [];
+                    columnChanges[j].push({row: i, from: leftCell, to: rightCell});
                 }
+            }
+            
+            if (rowChanges.length > 0) {
+                rowPatterns.push({row: i, changes: rowChanges});
             }
         }
     }
-    return actions.length ? actions.join('\n') : 'No changes detected.';
+    
+    // Add pattern analysis to the action plan
+    if (actions.length > 0) {
+        let patternSummary = "\n\nPattern Analysis:";
+        
+        // Analyze column patterns
+        for (let colIndex in columnChanges) {
+            const colLetter = String.fromCharCode(65 + parseInt(colIndex));
+            const changes = columnChanges[colIndex];
+            if (changes.length > 1) {
+                patternSummary += `\nColumn ${colLetter}: ${changes.length} changes detected`;
+                
+                // Check for common transformation patterns
+                const allEmpty = changes.every(c => c.to === '');
+                const allSame = changes.every(c => c.to === changes[0].to);
+                
+                if (allEmpty) {
+                    patternSummary += " (clearing column)";
+                } else if (allSame) {
+                    patternSummary += ` (setting all to "${changes[0].to}")`;
+                }
+            }
+        }
+        
+        return actions.join('\n') + patternSummary;
+    }
+    
+    return 'No changes detected.';
 }
 
 // Add getter for split view state

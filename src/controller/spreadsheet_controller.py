@@ -541,3 +541,107 @@ class SpreadsheetController:
             raise ValueError("No spreadsheet data found")
         
         return spreadsheet.get_data()
+
+    def execute_commands(self, session_id: str, commands: List[str]) -> None:
+        """
+        Execute a series of commands in order
+
+        Args:
+            session_id: Session ID
+            commands: List of command strings to execute
+        """
+        # Get session
+        session = self.session_manager.get_session(session_id)
+        if not session:
+            raise ValueError("Session not found or expired")
+        
+        # Execute each command
+        for command in commands:
+            self.process_command(session_id, command)
+    
+    def generate_and_execute_algorithm(self, session_id: str, action_plan: str, left_data: list, right_data: list) -> Dict[str, Any]:
+        """
+        Generate and execute a universal algorithm based on an action plan
+        
+        Args:
+            session_id: The session identifier
+            action_plan: Description of changes made to sample data
+            left_data: The left spreadsheet data
+            right_data: The right spreadsheet data
+            
+        Returns:
+            Dict containing the updated spreadsheet data and metadata
+        """
+        if not self.session_manager.session_exists(session_id):
+            raise ValueError("Session not found")
+        
+        try:
+            print(f"\n{'='*50}")
+            print("GENERATING UNIVERSAL ALGORITHM")
+            print(f"{'='*50}")
+            print(f"Action Plan: {action_plan}")
+            print(f"Left data rows: {len(left_data)}")
+            print(f"Right data rows: {len(right_data)}")
+            print("-" * 50)
+            
+            # Get current spreadsheet data
+            current_df = self.get_spreadsheet_df(session_id)
+            if current_df is None:
+                raise ValueError("No spreadsheet data found for session")
+            
+            # Generate universal algorithm using LLM
+            algorithm_script = self.llm_service.generate_universal_algorithm(action_plan, left_data, right_data)
+            
+            print(f"Generated algorithm script length: {len(algorithm_script)} characters")
+            
+            # Execute the universal algorithm
+            modified_df, modified_cells = self.script_executor.execute_universal_algorithm(
+                algorithm_script, 
+                current_df.copy(),
+                self.file_manager
+            )
+            
+            # Save the modified data and create history entry
+            # self.session_manager.save_modification(session_id, modified_df)
+            session = self.session_manager.get_session(session_id)
+            if not session:
+                raise ValueError("Session not found or expired")
+            history = session.get_modification_history()
+            if not history:
+                raise ValueError("Modification history not found for this session")
+            current_spreadsheet = history.get_current_state()
+            if not current_spreadsheet:
+                raise ValueError("No spreadsheet data found")
+            new_spreadsheet = Spreadsheet(
+                current_spreadsheet.file_id,
+                current_spreadsheet.original_filename,
+                modified_df
+            )
+            history.add_state(new_spreadsheet)
+            session.update_spreadsheet(new_spreadsheet)
+            
+            print(f"Algorithm execution completed. Modified cells: {len(modified_cells)}")
+            print(f"{'='*50}")
+            print("UNIVERSAL ALGORITHM EXECUTION COMPLETED")
+            print(f"{'='*50}\n")
+            
+            # Return the response in the same format as process_command
+            return {
+                "sessionId": session_id,
+                "data": modified_df.values.tolist(),
+                "headers": modified_df.columns.tolist(),
+                "can_undo": self.session_manager.can_undo(session_id),
+                "can_redo": self.session_manager.can_redo(session_id),
+                "modified_cells": modified_cells,
+                "metadata": {
+                    "rows": len(modified_df),
+                    "columns": len(modified_df.columns),
+                    "operation": "universal_algorithm",
+                    "action_plan": action_plan
+                }
+            }
+            
+        except Exception as e:
+            error_msg = f"Universal algorithm generation/execution failed: {str(e)}"
+            print(f"ERROR: {error_msg}")
+            raise RuntimeError(error_msg)
