@@ -31,7 +31,7 @@ class LLMService:
     """
     def __init__(self):
         self.api_key = os.getenv('GEMINI_API_KEY')
-        self.model = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash-thinking-exp')  # Use thinking model
+        self.model = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash-thinking-exp-01-21')  # Use thinking model
         
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
@@ -44,7 +44,7 @@ class LLMService:
             "temperature": 0.1,  # Lower temperature for more consistent code generation
             "top_p": 0.95,
             "top_k": 32,
-            "max_output_tokens": 8192,
+            "max_output_tokens": 64000,
         }
         
         self.safety_settings = [
@@ -324,10 +324,15 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
         try:
             # Use regular model for simple code generation
             model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash-exp",
+                model_name="gemini-2.5-flash-lite-preview-06-17",
                 generation_config=genai.types.GenerationConfig(**self.generation_config),
                 safety_settings=self.safety_settings
             )
+            
+            token_count = model.count_tokens(prompt).total_tokens
+            print(f"\n--- SIMPLE API PROMPT (Tokens: {token_count}) ---")
+            print(prompt)
+            print("--- END SIMPLE API PROMPT ---\n")
             
             response = model.generate_content(prompt)
             
@@ -365,10 +370,15 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
         try:
             # Use thinking model for analysis
             model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash-thinking-exp",
+                model_name="gemini-2.5-flash-lite-preview-06-17",
                 generation_config=genai.types.GenerationConfig(**self.generation_config),
                 safety_settings=self.safety_settings
             )
+            
+            token_count = model.count_tokens(prompt).total_tokens
+            print(f"\n--- THINKING API PROMPT (Tokens: {token_count}) ---")
+            print(prompt)
+            print("--- END THINKING API PROMPT ---\n")
             
             response = model.generate_content(prompt)
 
@@ -403,12 +413,11 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
 
     def _call_gemini_code_execution_api(self, prompt: str, headers: list, data_sample: list) -> str:
         try:
-            # Create model with code execution enabled
+            # Create model WITHOUT explicit tools parameter (let Gemini auto-enable code execution)
             model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash-exp",
+                model_name="gemini-2.5-flash-lite-preview-06-17",
                 generation_config=genai.types.GenerationConfig(**self.generation_config),
-                safety_settings=self.safety_settings,
-                tools=[genai.protos.Tool(code_execution={})]  # Correct tool declaration
+                safety_settings=self.safety_settings
             )
             
             # Enhanced prompt for code execution
@@ -425,6 +434,11 @@ Headers: {headers}
 Sample data: {json.dumps(data_sample)}
 
 Use code execution to verify your solution works before providing the final answer."""
+            
+            token_count = model.count_tokens(execution_prompt).total_tokens
+            print(f"\n--- CODE EXECUTION API PROMPT (Tokens: {token_count}) ---")
+            print(execution_prompt)
+            print("--- END CODE EXECUTION API PROMPT ---\n")
             
             response = model.generate_content(execution_prompt)
             
@@ -526,6 +540,19 @@ df['LLM_ERROR'] = "Script generation failed. Please try a different command."
         """
         max_attempts = 3
         last_error_msg = None
+
+        # Limit sample size to avoid exceeding token limits
+        MAX_SAMPLE_ROWS = 20
+        n_rows = min(len(right_data), MAX_SAMPLE_ROWS)
+        left_sample = left_data[:n_rows] if n_rows > 0 else []
+        right_sample = right_data[:n_rows] if n_rows > 0 else []
+
+        # Extract headers and data for code execution
+        headers = left_data[0] if left_data and len(left_data) > 0 else []
+        data_rows = left_data[1:n_rows] if left_data and len(left_data) > 1 else []
+        
+        # Convert data to list of dicts for code execution API
+        data_sample_for_exec = [dict(zip(headers, row)) for row in data_rows]
         
         for attempt in range(max_attempts):
             try:
@@ -534,7 +561,9 @@ df['LLM_ERROR'] = "Script generation failed. Please try a different command."
                 print(f"{'='*60}")
                 
                 # Step 1: Use thinking mode to analyze the action plan
-                thinking_prompt = self._create_algorithm_thinking_prompt(action_plan, left_data, right_data, last_error_msg)
+                thinking_prompt = self._create_algorithm_thinking_prompt(
+                    action_plan, left_sample, right_sample, last_error_msg
+                )
                 thinking_response = self._call_gemini_thinking_api(thinking_prompt)
                 
                 print("\n--- GEMINI ALGORITHM THINKING PROCESS ---")
@@ -542,8 +571,10 @@ df['LLM_ERROR'] = "Script generation failed. Please try a different command."
                 print("--- END ALGORITHM THINKING PROCESS ---\n")
                 
                 # Step 2: Generate the universal algorithm
-                algorithm_prompt = self._create_algorithm_generation_prompt(action_plan, left_data, right_data, thinking_response, last_error_msg)
-                final_script = self._call_gemini_simple_api(algorithm_prompt)
+                algorithm_prompt = self._create_algorithm_generation_prompt(
+                    action_plan, left_sample, right_sample, thinking_response, last_error_msg
+                )
+                final_script = self._call_gemini_code_execution_api(algorithm_prompt, headers, data_sample_for_exec)
                 
                 print("--- UNIVERSAL ALGORITHM GENERATED ---")
                 print(final_script)
@@ -574,8 +605,8 @@ You need to analyze an action plan that describes changes made to a sample of da
 </action_plan>
 
 <sample_data_context>
-Left spreadsheet sample (first 5 rows): {json.dumps(left_data[:5])}
-Right spreadsheet sample (first 5 rows): {json.dumps(right_data[:5])}
+Left spreadsheet sample (first {len(left_data)} rows): {json.dumps(left_data)}
+Right spreadsheet sample (first {len(right_data)} rows): {json.dumps(right_data)}
 </sample_data_context>
 """
         if last_error_msg:
@@ -604,8 +635,8 @@ The goal is to create a universal algorithm that will normalize and organize the
 </action_plan>
 
 <data_context>
-Left spreadsheet sample: {json.dumps(left_data[:5])}
-Right spreadsheet sample: {json.dumps(right_data[:5])}
+Left spreadsheet sample (first {len(left_data)} rows): {json.dumps(left_data)}
+Right spreadsheet sample (first {len(right_data)} rows): {json.dumps(right_data)}
 </data_context>
 
 <previous_analysis>

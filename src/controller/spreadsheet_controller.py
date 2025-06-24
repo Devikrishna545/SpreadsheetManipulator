@@ -15,6 +15,7 @@ from src.model.modification_history import ModificationHistory
 from src.llm.llm_service import LLMService
 from src.controller.script_executor import ScriptExecutor
 from src.controller.file_manager import FileManager
+from src.controller.script_manager import ScriptManager
 
 class SpreadsheetController:
     """
@@ -32,6 +33,7 @@ class SpreadsheetController:
         self.llm_service = LLMService()
         self.script_dir = os.path.join('src', 'script')
         self.script_executor = ScriptExecutor(script_dir=self.script_dir)
+        self.script_manager = ScriptManager(script_dir=self.script_dir)
         self.file_manager = FileManager(
             upload_dir=os.path.join('static', 'uploads'),
             download_dir=os.path.join('static', 'downloads'),
@@ -124,7 +126,8 @@ class SpreadsheetController:
                 df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
         
         # Always return data as a 2D array (list of lists), ignore headers
-        data = df_copy.replace({float('nan'): None}).values.tolist()
+        # Replace NaN, inf, -inf with None for JSON serialization
+        data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
         col_count = len(df_copy.columns)
         # Do not return headers at all
         # headers = df_copy.columns.tolist()
@@ -170,9 +173,17 @@ class SpreadsheetController:
         # Generate script using LLM with appropriate processing mode
         script = self.llm_service.generate_script(spreadsheet_json, command, use_advanced_processing)
         
+        # Save the generated script using ScriptManager
+        script_id = self.script_manager.save_script(script, {
+            'command': command,
+            'session_id': session_id,
+            'use_advanced_processing': use_advanced_processing
+        })
+        
         # Store generated script
         session.set_generated_script(script)
-          # Execute script on spreadsheet data
+        
+        # Execute script on spreadsheet data
         new_df, modified_cells = self.script_executor.execute_script(
             script, 
             current_spreadsheet.get_data(),
@@ -199,14 +210,11 @@ class SpreadsheetController:
         for col in df_copy.columns:
             if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
                 df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-        
-        data = df_copy.replace({float('nan'): None}).values.tolist()
-        # Do not return headers at all
-        # headers = df_copy.columns.tolist()
+        # Replace NaN, inf, -inf with None for JSON serialization
+        data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
         
         return {
             'data': data,
-            # 'headers': headers,  # REMOVE THIS LINE
             'metadata': new_spreadsheet.get_metadata(),
             'can_undo': history.can_undo(),
             'can_redo': history.can_redo(),
@@ -248,8 +256,8 @@ class SpreadsheetController:
         for col in df_copy.columns:
             if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
                 df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-        
-        data = df_copy.replace({float('nan'): None}).values.tolist()
+        # Replace NaN, inf, -inf with None for JSON serialization
+        data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
         # Do not return headers at all
         # headers = df_copy.columns.tolist()
         
@@ -296,8 +304,8 @@ class SpreadsheetController:
         for col in df_copy.columns:
             if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
                 df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-        
-        data = df_copy.replace({float('nan'): None}).values.tolist()
+        # Replace NaN, inf, -inf with None for JSON serialization
+        data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
         # Do not return headers at all
         # headers = df_copy.columns.tolist()
         
@@ -378,6 +386,12 @@ class SpreadsheetController:
                     except (PermissionError, OSError) as e:
                         print(f"Warning: Could not delete file {download_path}: {e}")
         
+        # Clean up old scripts
+        try:
+            self.script_manager.cleanup_old_scripts()
+        except Exception as e:
+            print(f"Warning: Error cleaning up scripts: {e}")
+            
         # Remove session
         self.session_manager.remove_session(session_id)
     
@@ -470,8 +484,8 @@ class SpreadsheetController:
         for col in df_copy.columns:
             if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
                 df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-
-        data = df_copy.replace({float('nan'): None}).values.tolist()
+        # Replace NaN, inf, -inf with None for JSON serialization
+        data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
 
         return {
             'data': data,
@@ -592,6 +606,13 @@ class SpreadsheetController:
             # Generate universal algorithm using LLM
             algorithm_script = self.llm_service.generate_universal_algorithm(action_plan, left_data, right_data)
             
+            # Save the generated script using ScriptManager
+            script_id = self.script_manager.save_script(algorithm_script, {
+                'action_plan': action_plan,
+                'session_id': session_id
+            })
+            
+            print(f"Generated algorithm script saved with ID: {script_id}")
             print(f"Generated algorithm script length: {len(algorithm_script)} characters")
             
             # Execute the universal algorithm
@@ -602,7 +623,6 @@ class SpreadsheetController:
             )
             
             # Save the modified data and create history entry
-            # self.session_manager.save_modification(session_id, modified_df)
             session = self.session_manager.get_session(session_id)
             if not session:
                 raise ValueError("Session not found or expired")
@@ -626,12 +646,14 @@ class SpreadsheetController:
             print(f"{'='*50}\n")
             
             # Return the response in the same format as process_command
+            # Patch: replace NaN, inf, -inf with None in the returned data
+            safe_data = modified_df.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
             return {
                 "sessionId": session_id,
-                "data": modified_df.values.tolist(),
+                "data": safe_data,
                 "headers": modified_df.columns.tolist(),
-                "can_undo": self.session_manager.can_undo(session_id),
-                "can_redo": self.session_manager.can_redo(session_id),
+                "can_undo": history.can_undo(),
+                "can_redo": history.can_redo(),
                 "modified_cells": modified_cells,
                 "metadata": {
                     "rows": len(modified_df),

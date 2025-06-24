@@ -46,6 +46,16 @@ class SecurityManager:
             # 'pickle', 'marshal', 'shelve'
         }
     
+    def log_rejection(self, script: str, reason: str):
+        """
+        Log the rejected script and the reason for rejection
+        Args:
+            script: The rejected script
+            reason: The reason for rejection
+        """
+        logging.warning(f"SecurityManager: Script rejected. Reason: {reason}")
+        logging.warning(f"Rejected script:\n{script}")
+
     def validate_script(self, script: str) -> bool:
         """
         Validate a script for security concerns
@@ -63,8 +73,7 @@ class SecurityManager:
         # Basic checks - forbidden functions
         for forbidden in self.forbidden_functions:
             if forbidden in script:
-                logging.warning(f"SecurityManager: Forbidden keyword '{forbidden}' found in script.")
-                logging.warning(f"Rejected script:\n{script}")
+                self.log_rejection(script, f"Forbidden keyword '{forbidden}' found in script.")
                 return False
         
         # Use AST to analyze the script more thoroughly
@@ -77,36 +86,31 @@ class SecurityManager:
                 if isinstance(node, ast.Import):
                     for name in node.names:
                         if name.name not in self.allowed_modules:
-                            logging.warning(f"SecurityManager: Forbidden import '{name.name}' found in script.")
-                            logging.warning(f"Rejected script:\n{script}")
+                            self.log_rejection(script, f"Forbidden import '{name.name}' found in script.")
                             return False
                 
                 # Check for import from statements
                 elif isinstance(node, ast.ImportFrom):
                     if node.module not in self.allowed_modules:
-                        logging.warning(f"SecurityManager: Forbidden import from '{node.module}' found in script.")
-                        logging.warning(f"Rejected script:\n{script}")
+                        self.log_rejection(script, f"Forbidden import from '{node.module}' found in script.")
                         return False
                     
                 # Check for calls to __import__
                 elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                     if node.func.id == '__import__':
-                        logging.warning("SecurityManager: __import__ call found in script.")
-                        logging.warning(f"Rejected script:\n{script}")
+                        self.log_rejection(script, "__import__ call found in script.")
                         return False
                 
                 # Check for exec or eval calls
                 elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                     if node.func.id in ['exec', 'eval']:
-                        logging.warning(f"SecurityManager: Forbidden call '{node.func.id}' found in script.")
-                        logging.warning(f"Rejected script:\n{script}")
+                        self.log_rejection(script, f"Forbidden call '{node.func.id}' found in script.")
                         return False
             
             return True
             
         except SyntaxError as e:
-            logging.warning(f"SecurityManager: SyntaxError while parsing script: {e}")
-            logging.warning(f"Rejected script:\n{script}")
+            self.log_rejection(script, f"SyntaxError while parsing script: {e}")
             return False
     
     def get_sandbox_parameters(self) -> Dict[str, Any]:

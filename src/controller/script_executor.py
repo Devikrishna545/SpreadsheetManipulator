@@ -98,18 +98,19 @@ class ScriptExecutor:
             print("EXECUTING SCRIPT...")
             # Execute script
             exec(script, sandbox_globals)
-            
+
             # Get the modified dataframe
             modified_df = sandbox_globals.get('df', spreadsheet_df)
-            
-            print(f"EXECUTION SUCCESSFUL")
-            print(f"MODIFIED DATA SHAPE: {modified_df.shape}")
-            print(f"MODIFIED COLUMNS: {list(modified_df.columns)}")
-            
-            # IMPORTANT: Reset the index to ensure consistent row numbering
-            # This ensures that after deletions, row indices start from 0 again
+
+            # --- POST-PROCESSING: Patch DataFrame if script tried to write out-of-bounds ---
+            # If the script failed with 'iloc cannot enlarge its target object',
+            # try to detect if the DataFrame shape is too small for the intended writes.
+            # (This is a best-effort patch: if the script did not run, this block is skipped.)
+            # If you want to be more robust, you can wrap exec in a try/except and retry with a larger DataFrame.
+
+            # Reset the index to ensure consistent row numbering
             modified_df = modified_df.reset_index(drop=True)
-            
+
             # Find modified cells
             modified_cells = self._find_modified_cells(
                 orig_df=spreadsheet_df, 
@@ -117,12 +118,12 @@ class ScriptExecutor:
                 orig_values=orig_values, 
                 new_df=modified_df
             )
-            
+
             print(f"MODIFIED CELLS COUNT: {len(modified_cells)}")
             print(f"{'='*60}")
             print("SCRIPT EXECUTION COMPLETED SUCCESSFULLY")
             print(f"{'='*60}\n")
-            
+
             return modified_df, modified_cells
         except Exception as e:
             error_msg = str(e)
@@ -130,6 +131,33 @@ class ScriptExecutor:
             print(f"{'='*60}")
             print("SCRIPT EXECUTION FAILED")
             print(f"{'='*60}\n")
+            # --- PATCH: If error is 'iloc cannot enlarge its target object', try to expand DataFrame and warn ---
+            if 'iloc cannot enlarge its target object' in error_msg:
+                print("WARNING: Detected iloc enlargement error. Attempting to patch DataFrame and retry.")
+                # Try to expand DataFrame by adding 10 extra rows and columns
+                patched_df = spreadsheet_df.copy()
+                extra_rows = 10
+                extra_cols = 10
+                for _ in range(extra_rows):
+                    patched_df.loc[len(patched_df)] = [None] * len(patched_df.columns)
+                for i in range(extra_cols):
+                    patched_df[f'_extra_col_{i}'] = None
+                try:
+                    sandbox_globals = self._create_sandbox(patched_df)
+                    exec(script, sandbox_globals)
+                    modified_df = sandbox_globals.get('df', patched_df)
+                    modified_df = modified_df.reset_index(drop=True)
+                    modified_cells = self._find_modified_cells(
+                        orig_df=spreadsheet_df, 
+                        orig_columns=orig_columns,
+                        orig_values=orig_values, 
+                        new_df=modified_df
+                    )
+                    print("PATCHED EXECUTION SUCCESSFUL")
+                    return modified_df, modified_cells
+                except Exception as e2:
+                    print(f"PATCHED EXECUTION FAILED: {e2}")
+                    raise RuntimeError(f"Script execution failed after patch: {e2}")
             # Return the original DataFrame without modifications instead of adding error column
             raise RuntimeError(f"Script execution failed: {error_msg}")
     

@@ -109,29 +109,31 @@ class SchemaGenerator:
         
         prompt = """
         I need to transform a source spreadsheet to match a target schema.
-        
+
         SOURCE SCHEMA:
         ```json
         {source_schema}
         ```
-        
+
         TARGET SCHEMA:
         ```json
         {target_schema}
         ```
-        
+
         Please write a Python script using pandas that transforms the source DataFrame 'df' 
         to match the target schema. The script should:
-        
+
         1. Rename columns as needed
         2. Convert data types to match the target
         3. Reorder columns to match the target
         4. Apply any necessary transformations to make the data structure match
         5. Identify and transform all similar tables within the source data
-        
+        6. **Before using .iloc or assigning to a cell, always check if the DataFrame is large enough. If not, expand it with new rows/columns as needed to avoid 'iloc cannot enlarge its target object' errors.**
+        7. The script must never cause an IndexError or ValueError when writing to the DataFrame.
+
         The script should handle the case where the source data may contain multiple tables 
         with similar structures. Each of these tables should be transformed.
-        
+
         Return only the Python code without explanations.
         """.format(
             source_schema=json.dumps(source_schema_serialized, indent=2),
