@@ -575,7 +575,7 @@ class SpreadsheetController:
     
     def generate_and_execute_algorithm(self, session_id: str, action_plan: str, left_data: list, right_data: list) -> Dict[str, Any]:
         """
-        Generate and execute a universal algorithm based on an action plan
+        Generate and execute a universal algorithm based on an action plan with error handling and retry
         
         Args:
             session_id: The session identifier
@@ -589,79 +589,130 @@ class SpreadsheetController:
         if not self.session_manager.session_exists(session_id):
             raise ValueError("Session not found")
         
+        max_algorithm_attempts = 3  # Increased for better reliability
+        
         try:
             print(f"\n{'='*50}")
-            print("GENERATING UNIVERSAL ALGORITHM")
+            print("🤖 GENERATING UNIVERSAL ALGORITHM")
             print(f"{'='*50}")
-            print(f"Action Plan: {action_plan}")
-            print(f"Left data rows: {len(left_data)}")
-            print(f"Right data rows: {len(right_data)}")
-            print("-" * 50)
+            print(f"📋 Left dataset: {len(left_data)} rows")
+            print(f"📄 Right template: {len(right_data)} rows")
             
             # Get current spreadsheet data
             current_df = self.get_spreadsheet_df(session_id)
             if current_df is None:
                 raise ValueError("No spreadsheet data found for session")
             
-            # Generate universal algorithm using LLM
-            algorithm_script = self.llm_service.generate_universal_algorithm(action_plan, left_data, right_data)
+            last_error_msg = None
             
-            # Save the generated script using ScriptManager
-            script_id = self.script_manager.save_script(algorithm_script, {
-                'action_plan': action_plan,
-                'session_id': session_id
-            })
-            
-            print(f"Generated algorithm script saved with ID: {script_id}")
-            print(f"Generated algorithm script length: {len(algorithm_script)} characters")
-            
-            # Execute the universal algorithm
-            modified_df, modified_cells = self.script_executor.execute_universal_algorithm(
-                algorithm_script, 
-                current_df.copy(),
-                self.file_manager
-            )
-            
-            # Save the modified data and create history entry
-            session = self.session_manager.get_session(session_id)
-            if not session:
-                raise ValueError("Session not found or expired")
-            history = session.get_modification_history()
-            if not history:
-                raise ValueError("Modification history not found for this session")
-            current_spreadsheet = history.get_current_state()
-            if not current_spreadsheet:
-                raise ValueError("No spreadsheet data found")
-            new_spreadsheet = Spreadsheet(
-                current_spreadsheet.file_id,
-                current_spreadsheet.original_filename,
-                modified_df
-            )
-            history.add_state(new_spreadsheet)
-            session.update_spreadsheet(new_spreadsheet)
-            
-            print(f"Algorithm execution completed. Modified cells: {len(modified_cells)}")
-            print(f"{'='*50}")
-            print("UNIVERSAL ALGORITHM EXECUTION COMPLETED")
-            print(f"{'='*50}\n")
-            
-            # Return the response in the same format as process_command
-            # Patch: replace NaN, inf, -inf with None in the returned data
-            safe_data = modified_df.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
-            return {
-                "sessionId": session_id,
-                "data": safe_data,
-                "headers": modified_df.columns.tolist(),
-                "can_undo": history.can_undo(),
-                "can_redo": history.can_redo(),
-                "modified_cells": modified_cells,
-                "metadata": {
-                    "rows": len(modified_df),
-                    "columns": len(modified_df.columns),
-                    "operation": "universal_algorithm",
-                    "action_plan": action_plan
-                }
-            }
+            for algorithm_attempt in range(max_algorithm_attempts):
+                print(f"\n🔄 Algorithm Generation Attempt {algorithm_attempt + 1}/{max_algorithm_attempts}")
+                
+                try:
+                    # Generate universal algorithm using LLM (with error feedback if available)
+                    algorithm_script = self.llm_service.generate_universal_algorithm_with_error_feedback(
+                        action_plan, left_data, right_data, last_error_msg
+                    )
+                    
+                    # Save the generated script using ScriptManager
+                    script_id = self.script_manager.save_script(algorithm_script, {
+                        'action_plan': action_plan,
+                        'session_id': session_id,
+                        'attempt': algorithm_attempt + 1
+                    })
+                    
+                    print(f"💾 Algorithm saved (ID: {script_id}, {len(algorithm_script)} chars)")
+                    
+                    # Execute the universal algorithm with enhanced error handling
+                    execution_attempts = 3  # Try execution multiple times with increasingly detailed error feedback
+                    execution_error_msg = None
+                    
+                    for execution_attempt in range(execution_attempts):
+                        try:
+                            print(f"⚙️  Executing algorithm (attempt {execution_attempt + 1}/{execution_attempts})...")
+                            
+                            modified_df, modified_cells = self.script_executor.execute_universal_algorithm_with_validation(
+                                algorithm_script, 
+                                current_df.copy(),
+                                self.file_manager
+                            )
+                            
+                            # If we get here, execution was successful
+                            print(f"🎉 Algorithm successful! (Gen: {algorithm_attempt + 1}, Exec: {execution_attempt + 1})")
+                            
+                            # Save the modified data and create history entry
+                            session = self.session_manager.get_session(session_id)
+                            if not session:
+                                raise ValueError("Session not found or expired")
+                            history = session.get_modification_history()
+                            if not history:
+                                raise ValueError("Modification history not found for this session")
+                            current_spreadsheet = history.get_current_state()
+                            if not current_spreadsheet:
+                                raise ValueError("No spreadsheet data found")
+                            new_spreadsheet = Spreadsheet(
+                                current_spreadsheet.file_id,
+                                current_spreadsheet.original_filename,
+                                modified_df
+                            )
+                            history.add_state(new_spreadsheet)
+                            session.update_spreadsheet(new_spreadsheet)
+                            
+                            print(f"✅ UNIVERSAL ALGORITHM COMPLETED - {len(modified_cells)} cells modified")
+                            
+                            # Return the response in the same format as process_command
+                            # Patch: replace NaN, inf, -inf with None in the returned data
+                            safe_data = modified_df.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
+                            return {
+                                "sessionId": session_id,
+                                "data": safe_data,
+                                "headers": modified_df.columns.tolist(),
+                                "can_undo": history.can_undo(),
+                                "can_redo": history.can_redo(),
+                                "modified_cells": modified_cells,
+                                "metadata": {
+                                    "rows": len(modified_df),
+                                    "columns": len(modified_df.columns),
+                                    "operation": "universal_algorithm",
+                                    "action_plan": action_plan,
+                                    "generation_attempts": algorithm_attempt + 1,
+                                    "execution_attempts": execution_attempt + 1
+                                }
+                            }
+                            
+                        except Exception as execution_error:
+                            # Get the detailed error message for better feedback
+                            execution_error_msg = str(execution_error)
+                            print(f"❌ Execution attempt {execution_attempt + 1} failed: {execution_error_msg}")
+                            
+                            if execution_attempt < execution_attempts - 1:
+                                print(f"🔄 Retrying execution...")
+                                continue  # Continue to next execution attempt
+                            else:
+                                # All execution attempts failed, break to try generating a new algorithm
+                                print(f"❌ All {execution_attempts} execution attempts failed")
+                                last_error_msg = f"Algorithm execution failed after {execution_attempts} attempts: {execution_error_msg}. The algorithm may not be processing the entire dataset correctly or may have fundamental logic errors."
+                                break  # Break out of execution loop to generate new algorithm
+                    
+                    # If we reach here, execution failed for this algorithm, continue to next generation attempt
+                    if algorithm_attempt < max_algorithm_attempts - 1:
+                        print(f"🔄 Retrying algorithm generation with error feedback...")
+                        continue  # Continue to next algorithm generation attempt
+                    else:
+                        raise RuntimeError(f"Algorithm execution failed after {execution_attempts} execution attempts: {execution_error_msg}")
+                    
+                except Exception as generation_error:
+                    # Handle algorithm generation errors
+                    generation_error_msg = str(generation_error)
+                    last_error_msg = f"Algorithm generation failed: {generation_error_msg}"
+                    
+                    print(f"Algorithm generation attempt {algorithm_attempt + 1} failed: {generation_error_msg}")
+                    
+                    if algorithm_attempt < max_algorithm_attempts - 1:
+                        print(f"Retrying algorithm generation...")
+                        continue
+                    else:
+                        raise RuntimeError(f"All {max_algorithm_attempts} algorithm generation attempts failed. Last error: {generation_error_msg}")
             
         except Exception as e:
             error_msg = f"Universal algorithm generation/execution failed: {str(e)}"

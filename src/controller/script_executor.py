@@ -44,19 +44,17 @@ class ScriptExecutor:
             Tuple[pd.DataFrame, List[List[int]]]: Modified DataFrame and list of modified cells
         """
         print(f"\n{'='*60}")
-        print("SCRIPT EXECUTION STARTING")
+        print("🔧 SCRIPT EXECUTION STARTING")
         print(f"{'='*60}")
-        print("Script to execute:")
-        print(script)
         print("-" * 60)
         
         # Validate script for security
         if not self.security_manager.validate_script(script):
             error_msg = "Script validation failed due to security concerns. See server logs for details."
-            print(f"SECURITY VALIDATION FAILED: {error_msg}")
+            print(f"❌ Security validation failed: {error_msg}")
             raise ValueError(error_msg)
         
-        print("SECURITY VALIDATION: PASSED")
+        print("✓ Security validation passed")
         
         # Create a unique ID for this script
         import uuid
@@ -69,7 +67,7 @@ class ScriptExecutor:
         with open(script_path, 'w', encoding='utf-8') as f:
             f.write(script)
             
-        print(f"SCRIPT SAVED: {script_path}")
+        print(f"💾 Script saved: {script_id}")
             
         # Save script metadata to json directory for reference if file_manager is provided
         if file_manager:
@@ -80,7 +78,7 @@ class ScriptExecutor:
                 'columns': spreadsheet_df.columns.tolist(),
                 'rows': len(spreadsheet_df)
             }, f"script_{script_id}")
-            print(f"SCRIPT METADATA SAVED: script_{script_id}.json")
+            print(f"📊 Script metadata saved")
         
         # Track original data for determining modifications
         orig_columns = set(spreadsheet_df.columns)
@@ -88,25 +86,41 @@ class ScriptExecutor:
         data_dict: Dict[Hashable, Any] = filled_df.to_dict()
         orig_values = {str(k): v for k, v in data_dict.items()}
         
-        print(f"ORIGINAL DATA SHAPE: {spreadsheet_df.shape}")
-        print(f"ORIGINAL COLUMNS: {list(spreadsheet_df.columns)}")
+        print(f"📊 Original data: {spreadsheet_df.shape[0]} rows, {spreadsheet_df.shape[1]} columns")
         
         # Create a sandbox environment
         sandbox_globals = self._create_sandbox(spreadsheet_df)
         
         try:
-            print("EXECUTING SCRIPT...")
+            print("⚙️  Executing script...")
+            
+            # Check if script assigns to df at the end, if not add it
+            script_lines = script.strip().split('\n')
+            script_modifies_df = any('df =' in line or 'df=' in line for line in script_lines)
+            
+            # If script doesn't assign to df, we need to find the final result variable
+            # Look for common result variable patterns that contain DataFrame operations
+            result_vars = []
+            for line in script_lines:
+                if '=' in line and not line.strip().startswith('#'):
+                    var_name = line.split('=')[0].strip()
+                    if var_name and ('df' in var_name.lower() or 'transform' in var_name.lower() or 'result' in var_name.lower()):
+                        # Check if it's a DataFrame assignment (not just a property access)
+                        right_side = line.split('=', 1)[1].strip()
+                        if any(keyword in right_side for keyword in ['DataFrame', '.copy()', 'apply_', 'pd.', 'df.']):
+                            result_vars.append(var_name)
+            
+            # If we found a potential result variable, add assignment to df
+            if not script_modifies_df and result_vars:
+                final_var = result_vars[-1]  # Use the last one found
+                script += f"\n\n# Auto-generated: Assign result back to df for system compatibility\ndf = {final_var}"
+                print(f"🔧 Auto-patching script: Adding 'df = {final_var}' to ensure result is captured")
+            
             # Execute script
             exec(script, sandbox_globals)
 
             # Get the modified dataframe
             modified_df = sandbox_globals.get('df', spreadsheet_df)
-
-            # --- POST-PROCESSING: Patch DataFrame if script tried to write out-of-bounds ---
-            # If the script failed with 'iloc cannot enlarge its target object',
-            # try to detect if the DataFrame shape is too small for the intended writes.
-            # (This is a best-effort patch: if the script did not run, this block is skipped.)
-            # If you want to be more robust, you can wrap exec in a try/except and retry with a larger DataFrame.
 
             # Reset the index to ensure consistent row numbering
             modified_df = modified_df.reset_index(drop=True)
@@ -119,21 +133,16 @@ class ScriptExecutor:
                 new_df=modified_df
             )
 
-            print(f"MODIFIED CELLS COUNT: {len(modified_cells)}")
-            print(f"{'='*60}")
-            print("SCRIPT EXECUTION COMPLETED SUCCESSFULLY")
-            print(f"{'='*60}\n")
+            print(f"✅ Script executed successfully - {len(modified_cells)} cells modified")
 
             return modified_df, modified_cells
         except Exception as e:
             error_msg = str(e)
-            print(f"EXECUTION FAILED: {error_msg}")
-            print(f"{'='*60}")
-            print("SCRIPT EXECUTION FAILED")
-            print(f"{'='*60}\n")
+            print(f"❌ Script execution failed: {error_msg}")
+            
             # --- PATCH: If error is 'iloc cannot enlarge its target object', try to expand DataFrame and warn ---
             if 'iloc cannot enlarge its target object' in error_msg:
-                print("WARNING: Detected iloc enlargement error. Attempting to patch DataFrame and retry.")
+                print("🔧 Attempting DataFrame patch for iloc enlargement error...")
                 # Try to expand DataFrame by adding 10 extra rows and columns
                 patched_df = spreadsheet_df.copy()
                 extra_rows = 10
@@ -153,10 +162,10 @@ class ScriptExecutor:
                         orig_values=orig_values, 
                         new_df=modified_df
                     )
-                    print("PATCHED EXECUTION SUCCESSFUL")
+                    print("✅ Patched execution successful")
                     return modified_df, modified_cells
                 except Exception as e2:
-                    print(f"PATCHED EXECUTION FAILED: {e2}")
+                    print(f"❌ Patched execution failed: {e2}")
                     raise RuntimeError(f"Script execution failed after patch: {e2}")
             # Return the original DataFrame without modifications instead of adding error column
             raise RuntimeError(f"Script execution failed: {error_msg}")
@@ -268,7 +277,7 @@ class ScriptExecutor:
 
     def execute_universal_algorithm(self, script: str, spreadsheet_df: pd.DataFrame, file_manager: Optional[FileManager] = None) -> Tuple[pd.DataFrame, List[List[int]]]:
         """
-        Execute a universal algorithm script on spreadsheet data
+        Execute a universal algorithm script on spreadsheet data with error handling and retry
         
         Args:
             script: The universal algorithm script generated by LLM
@@ -279,11 +288,88 @@ class ScriptExecutor:
             Tuple[pd.DataFrame, List[List[int]]]: Modified DataFrame and list of modified cells
         """
         print(f"\n{'='*60}")
-        print("UNIVERSAL ALGORITHM EXECUTION STARTING")
+        print("🚀 UNIVERSAL ALGORITHM EXECUTION STARTING")
         print(f"{'='*60}")
-        print("Universal algorithm script to execute:")
-        print(script)
-        print("-" * 60)
         
-        # Use the same execution flow as regular scripts but with different logging
-        return self.execute_script(script, spreadsheet_df, file_manager)
+        try:
+            result = self.execute_script(script, spreadsheet_df.copy(), file_manager)
+            print(f"✅ Universal algorithm execution successful")
+            return result
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Universal algorithm execution failed: {error_msg}")
+            # Store the error for potential retry
+            self._last_error = error_msg
+            raise e
+
+    def execute_universal_algorithm_with_validation(self, script: str, spreadsheet_df: pd.DataFrame, file_manager: Optional[FileManager] = None) -> Tuple[pd.DataFrame, List[List[int]]]:
+        """
+        Execute a universal algorithm script with enhanced validation to ensure full dataset processing
+        
+        Args:
+            script: The universal algorithm script generated by LLM
+            spreadsheet_df: The pandas DataFrame containing spreadsheet data
+            file_manager: Optional FileManager to save script for reference
+            
+        Returns:
+            Tuple[pd.DataFrame, List[List[int]]]: Modified DataFrame and list of modified cells
+            
+        Raises:
+            RuntimeError: If the algorithm appears to only process partial data
+        """
+        print(f"\n{'='*60}")
+        print("UNIVERSAL ALGORITHM EXECUTION WITH VALIDATION STARTING")
+        print(f"{'='*60}")
+        
+        original_row_count = len(spreadsheet_df)
+        original_col_count = len(spreadsheet_df.columns)
+        
+        print(f"📊 Original dataset: {original_row_count} rows, {original_col_count} columns")
+        
+        try:
+            # Execute the script
+            result_df, modified_cells = self.execute_script(script, spreadsheet_df.copy(), file_manager)
+            
+            # Validate that the algorithm processed the full dataset
+            result_row_count = len(result_df)
+            result_col_count = len(result_df.columns)
+            
+            print(f"📈 Result dataset: {result_row_count} rows, {result_col_count} columns")
+            
+            # Check if the algorithm appears to have only processed a subset of data
+            if result_row_count < original_row_count * 0.9:  # If result has less than 90% of original rows
+                error_msg = (
+                    f"VALIDATION FAILED: Algorithm appears to have only processed {result_row_count} rows "
+                    f"out of {original_row_count} original rows. This suggests the algorithm is not "
+                    f"processing the entire dataset as required. The algorithm should work on ALL rows "
+                    f"in the DataFrame, not just a subset."
+                )
+                print(f"❌ VALIDATION FAILED: {error_msg}")
+                raise RuntimeError(error_msg)
+            
+            # Additional validation: check if modifications seem limited to first few rows only
+            if len(modified_cells) > 0:
+                max_modified_row = max(cell[0] for cell in modified_cells)
+                if max_modified_row < min(30, original_row_count * 0.5):  # If modifications only in first 30 rows or less than 50% of data
+                    if original_row_count > 50:  # Only flag this for larger datasets
+                        warning_msg = (
+                            f"⚠️  Modifications appear limited to rows 0-{max_modified_row} "
+                            f"out of {original_row_count} total rows. Algorithm may not be processing entire dataset."
+                        )
+                        print(f"{warning_msg}")
+                        # Don't raise error for this, just warn, as some algorithms might legitimately only modify top rows
+            
+            print(f"✅ Algorithm validation successful: processed {result_row_count} rows")
+            return result_df, modified_cells
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"Algorithm execution/validation failed: {error_msg}")
+            # Store the error for potential retry
+            self._last_error = error_msg
+            raise e
+
+    def get_last_execution_error(self) -> str:
+        """Get the last execution error for retry purposes"""
+        return getattr(self, '_last_error', '')

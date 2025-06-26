@@ -460,6 +460,34 @@ function showErrorModal(message) {
     errorModal.show();
 }
 
+// Helper function to show action plan confirmation modal
+function showActionPlanModal(actionPlan, rowCount, onConfirm) {
+    // Set the row count in the warning message
+    document.getElementById('actionPlanRowCount').textContent = rowCount;
+    
+    // Set the action plan content
+    document.getElementById('actionPlanContent').textContent = actionPlan;
+    
+    // Create modal instance
+    const actionPlanModal = new bootstrap.Modal(document.getElementById('actionPlanModal'));
+    
+    // Handle proceed button click
+    const proceedBtn = document.getElementById('actionPlanProceedBtn');
+    
+    // Remove any existing event listeners to prevent duplicates
+    const newProceedBtn = proceedBtn.cloneNode(true);
+    proceedBtn.parentNode.replaceChild(newProceedBtn, proceedBtn);
+    
+    // Add new event listener
+    newProceedBtn.addEventListener('click', () => {
+        actionPlanModal.hide();
+        onConfirm();
+    });
+    
+    // Show the modal
+    actionPlanModal.show();
+}
+
 // Add this new function to handle command file uploads
 async function uploadCommandFile(event) {
     if (!event.target.files || event.target.files.length === 0) {
@@ -565,8 +593,12 @@ generateActionPlanBtn.addEventListener('click', async function() {
         return;
     }
     
-    const leftData = leftHot.getData();
+    // IMPORTANT: Get full left dataset from currentData, not from the display
+    // The display might be virtualized and not contain all rows
+    const leftData = currentData && currentData.data ? currentData.data : leftHot.getData();
     const rightData = rightHot.getData();
+    
+    console.log(`Algorithm will process ${leftData.length} rows from left spreadsheet and ${rightData.length} rows from right spreadsheet`);
     
     // Generate the action plan
     const actionPlan = generateActionPlanLog(leftData, rightData);
@@ -576,27 +608,25 @@ generateActionPlanBtn.addEventListener('click', async function() {
         return;
     }
     
-    // Confirm with user before proceeding
-    if (!confirm(`The system will generate a universal algorithm based on your sample changes and apply it to the entire left spreadsheet. This action cannot be undone except through the undo button.\n\nAction Plan:\n${actionPlan}\n\nDo you want to proceed?`)) {
-        return;
-    }
-    
-    // Send to Gemini for algorithm generation and execution
-    try {
-        const result = await apiGenerateAndExecuteAlgorithm(currentSessionId, actionPlan, leftData, rightData);
-        
-        if (result) {
-            // Update the current data and render the spreadsheet with the new changes
-            currentData = result;
-            renderSpreadsheet(currentData);
-            updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
+    // Show action plan modal for user confirmation
+    showActionPlanModal(actionPlan, leftData.length, async () => {
+        // User confirmed, proceed with algorithm generation
+        try {
+            const result = await apiGenerateAndExecuteAlgorithm(currentSessionId, actionPlan, leftData, rightData);
+            
+            if (result) {
+                // Update the current data and render the spreadsheet with the new changes
+                currentData = result;
+                renderSpreadsheet(currentData);
+                updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
 
-            // Show success message
-            updateStatus('Universal algorithm applied successfully', 'success');
-            setTimeout(() => updateStatus('Ready', 'active'), 3000);
+                // Show success message
+                updateStatus('Universal algorithm applied successfully', 'success');
+                setTimeout(() => updateStatus('Ready', 'active'), 3000);
+            }
+        } catch (error) {
+            console.error('Error generating algorithm:', error);
+            showErrorModal(`Error generating algorithm: ${error.message}`);
         }
-    } catch (error) {
-        console.error('Error generating algorithm:', error);
-        showErrorModal(`Error generating algorithm: ${error.message}`);
-    }
+    });
 });
