@@ -121,18 +121,63 @@ class SchemaGenerator:
         ```
 
         Please write a Python script using pandas that transforms the source DataFrame 'df' 
-        to match the target schema. The script should:
+        to match the target schema. The script MUST be a UNIVERSAL ALGORITHM that processes 
+        the ENTIRE DATASET, not just specific rows.
 
-        1. Rename columns as needed
-        2. Convert data types to match the target
-        3. Reorder columns to match the target
-        4. Apply any necessary transformations to make the data structure match
-        5. Identify and transform all similar tables within the source data
-        6. **Before using .iloc or assigning to a cell, always check if the DataFrame is large enough. If not, expand it with new rows/columns as needed to avoid 'iloc cannot enlarge its target object' errors.**
-        7. The script must never cause an IndexError or ValueError when writing to the DataFrame.
+        CRITICAL REQUIREMENTS:
+        1. **NEVER use hardcoded row indices like df.iloc[0, 1] = "value"**
+        2. **Process ALL ROWS in the DataFrame - the algorithm must work on datasets of any size**
+        3. **Use vectorized operations, loops, or apply functions to transform all rows**
+        4. **Every cell in the result must contain appropriate data - no empty cells allowed**
+        5. **The script must work on the entire dataset from first row to last row**
+        6. **If the source has 7000+ rows, your algorithm must process all 7000+ rows**
+        7. Rename columns as needed using df.columns = [new_column_names]
+        8. Convert data types to match the target across all rows
+        9. Apply transformations using patterns that work on the entire dataset
+        10. If you need to expand the DataFrame, do it BEFORE writing any data
+        11. Use operations like df['column'] = value or df.loc[:, 'column'] = values
 
-        The script should handle the case where the source data may contain multiple tables 
-        with similar structures. Each of these tables should be transformed.
+        REQUIRED UNIVERSAL PATTERNS (Choose appropriate ones):
+        ```python
+        # Option 1: Full column assignment (when all rows should have same value)
+        df['column_name'] = 'constant_value'
+        
+        # Option 2: Conditional assignment (when different rows need different values)
+        df.loc[condition, 'column'] = 'value'
+        df.loc[df['source_col'] == 'pattern', 'target_col'] = 'new_value'
+        
+        # Option 3: Loop through all rows (when each row needs individual processing)
+        for i in range(len(df)):
+            df.loc[i, 'column'] = compute_value_for_row(i)
+        
+        # Option 4: Apply function to transform values
+        df['new_col'] = df['old_col'].apply(lambda x: transform_function(x))
+        
+        # Option 5: Vectorized operations
+        df.loc[:, 'column'] = df['source'].str.replace('pattern', 'replacement')
+        ```
+
+        EXAMPLES OF FORBIDDEN PATTERNS:
+        - df.iloc[0, 1] = "value"  # Only affects row 0
+        - df.iloc[1:10, 2] = "value"  # Only affects rows 1-10
+        - Any hardcoded row indices
+        - Transformations that only work on a subset of data
+
+        VALIDATION REQUIREMENTS:
+        - Your algorithm MUST process every single row in the source DataFrame
+        - If source has N rows, output must have N rows (or more if expansion is needed)
+        - Every cell in the output should contain meaningful data (no empty cells)
+        - The transformation pattern must be consistent across the entire dataset
+
+        DATASET SIZE AWARENESS:
+        - The source dataset may have thousands of rows (7000+)
+        - Your algorithm must scale to handle any number of rows
+        - Use efficient pandas operations that work on the entire DataFrame at once
+        - Avoid row-by-row processing unless absolutely necessary for complex logic
+
+        The script should identify the structure/pattern from the target schema and apply 
+        that pattern to ALL rows in the source data. Every row should be transformed 
+        according to the same logical rules.
 
         Return only the Python code without explanations.
         """.format(

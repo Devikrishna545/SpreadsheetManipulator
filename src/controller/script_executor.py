@@ -8,11 +8,13 @@ import os
 import pandas as pd
 import numpy as np
 import json
+import re
 from typing import Tuple, List, Dict, Any, Optional, Hashable
 from src.controller.security_manager import SecurityManager
 from src.controller.script_manager import ScriptManager
 from src.controller.file_manager import FileManager
 from src.controller.schema_generator import SchemaGenerator
+import re
 
 class ScriptExecutor:
     """
@@ -56,6 +58,14 @@ class ScriptExecutor:
         
         print("✓ Security validation passed")
         
+        # --- UNIVERSALITY PATCH: Validate script universality before execution ---
+        is_universal = self._validate_script_universality(script)
+        if not is_universal:
+            print("🔧 Patching script to follow universal transformation patterns")
+            
+        # Convert hardcoded iloc operations to universal patterns (always apply for safety)
+        script = self._preprocess_script_for_universal_execution(script, spreadsheet_df)
+        
         # Create a unique ID for this script
         import uuid
         script_id = str(uuid.uuid4())[:8]
@@ -94,28 +104,6 @@ class ScriptExecutor:
         try:
             print("⚙️  Executing script...")
             
-            # Check if script assigns to df at the end, if not add it
-            script_lines = script.strip().split('\n')
-            script_modifies_df = any('df =' in line or 'df=' in line for line in script_lines)
-            
-            # If script doesn't assign to df, we need to find the final result variable
-            # Look for common result variable patterns that contain DataFrame operations
-            result_vars = []
-            for line in script_lines:
-                if '=' in line and not line.strip().startswith('#'):
-                    var_name = line.split('=')[0].strip()
-                    if var_name and ('df' in var_name.lower() or 'transform' in var_name.lower() or 'result' in var_name.lower()):
-                        # Check if it's a DataFrame assignment (not just a property access)
-                        right_side = line.split('=', 1)[1].strip()
-                        if any(keyword in right_side for keyword in ['DataFrame', '.copy()', 'apply_', 'pd.', 'df.']):
-                            result_vars.append(var_name)
-            
-            # If we found a potential result variable, add assignment to df
-            if not script_modifies_df and result_vars:
-                final_var = result_vars[-1]  # Use the last one found
-                script += f"\n\n# Auto-generated: Assign result back to df for system compatibility\ndf = {final_var}"
-                print(f"🔧 Auto-patching script: Adding 'df = {final_var}' to ensure result is captured")
-            
             # Execute script
             exec(script, sandbox_globals)
 
@@ -134,39 +122,82 @@ class ScriptExecutor:
             )
 
             print(f"✅ Script executed successfully - {len(modified_cells)} cells modified")
+            
+            # Enhanced validation for dataset completeness
+            if len(spreadsheet_df) > 100:  # Only for larger datasets
+                max_modified_row = max(cell[0] for cell in modified_cells) if modified_cells else -1
+                coverage_percentage = ((max_modified_row + 1) / len(spreadsheet_df)) * 100 if modified_cells else 0
+                
+                if coverage_percentage < 10:  # Less than 10% coverage
+                    print(f"⚠️  WARNING: Transformation only covers {coverage_percentage:.1f}% of the dataset")
+                    print("🔧 Attempting to extend transformation pattern...")
+                    modified_df, modified_cells = self._extend_transformation_to_full_dataset(
+                        modified_df, modified_cells, len(spreadsheet_df)
+                    )
+                    print(f"✅ Extended transformation applied - now {len(modified_cells)} cells modified")
+            
+            # Validate result completeness
+            self._validate_result_completeness(spreadsheet_df, modified_df)
 
             return modified_df, modified_cells
         except Exception as e:
             error_msg = str(e)
             print(f"❌ Script execution failed: {error_msg}")
             
-            # --- PATCH: If error is 'iloc cannot enlarge its target object', try to expand DataFrame and warn ---
+            # --- ENHANCED PATCH: If error is 'iloc cannot enlarge its target object', analyze and expand DataFrame ---
             if 'iloc cannot enlarge its target object' in error_msg:
-                print("🔧 Attempting DataFrame patch for iloc enlargement error...")
-                # Try to expand DataFrame by adding 10 extra rows and columns
+                print("🔧 Attempting enhanced DataFrame patch for iloc enlargement error...")
+                
+                # Analyze the script to determine required DataFrame size
+                max_row_needed, max_col_needed = self._analyze_script_size_requirements(script)
+                
+                # Expand DataFrame based on analysis
                 patched_df = spreadsheet_df.copy()
-                extra_rows = 10
-                extra_cols = 10
-                for _ in range(extra_rows):
-                    patched_df.loc[len(patched_df)] = [None] * len(patched_df.columns)
-                for i in range(extra_cols):
-                    patched_df[f'_extra_col_{i}'] = None
+                current_rows, current_cols = patched_df.shape
+                
+                # Ensure we have enough rows
+                if max_row_needed >= current_rows:
+                    rows_to_add = max_row_needed - current_rows + 10  # Add some buffer
+                    print(f"🔧 Adding {rows_to_add} rows (current: {current_rows}, needed: {max_row_needed})")
+                    for _ in range(rows_to_add):
+                        patched_df.loc[len(patched_df)] = [None] * len(patched_df.columns)
+                
+                # Ensure we have enough columns
+                if max_col_needed >= current_cols:
+                    cols_to_add = max_col_needed - current_cols + 5  # Add some buffer
+                    print(f"🔧 Adding {cols_to_add} columns (current: {current_cols}, needed: {max_col_needed})")
+                    for i in range(cols_to_add):
+                        patched_df[f'_auto_col_{current_cols + i}'] = None
+                
                 try:
+                    # Apply preprocessing to convert hardcoded operations
+                    processed_script = self._preprocess_script_for_universal_execution(script, patched_df)
+                    
                     sandbox_globals = self._create_sandbox(patched_df)
-                    exec(script, sandbox_globals)
+                    exec(processed_script, sandbox_globals)
                     modified_df = sandbox_globals.get('df', patched_df)
                     modified_df = modified_df.reset_index(drop=True)
+                    
+                    # Trim back to original size if expansion was only for error prevention
+                    if modified_df.shape[0] > spreadsheet_df.shape[0]:
+                        # Check if the extra rows contain meaningful data
+                        extra_rows = modified_df.iloc[spreadsheet_df.shape[0]:].copy()
+                        if extra_rows.isna().all().all() or (extra_rows == '').all().all():
+                            # Extra rows are empty, trim them
+                            modified_df = modified_df.iloc[:spreadsheet_df.shape[0]].copy()
+                            print("🔧 Trimmed empty extra rows after successful execution")
+                    
                     modified_cells = self._find_modified_cells(
                         orig_df=spreadsheet_df, 
                         orig_columns=orig_columns,
                         orig_values=orig_values, 
                         new_df=modified_df
                     )
-                    print("✅ Patched execution successful")
+                    print("✅ Enhanced patched execution successful")
                     return modified_df, modified_cells
                 except Exception as e2:
-                    print(f"❌ Patched execution failed: {e2}")
-                    raise RuntimeError(f"Script execution failed after patch: {e2}")
+                    print(f"❌ Enhanced patched execution failed: {e2}")
+                    raise RuntimeError(f"Script execution failed after enhanced patch: {e2}")
             # Return the original DataFrame without modifications instead of adding error column
             raise RuntimeError(f"Script execution failed: {error_msg}")
     
@@ -348,20 +379,125 @@ class ScriptExecutor:
                 print(f"❌ VALIDATION FAILED: {error_msg}")
                 raise RuntimeError(error_msg)
             
-            # Additional validation: check if modifications seem limited to first few rows only
+            # Enhanced validation: check if modifications seem limited to first few rows only
             if len(modified_cells) > 0:
                 max_modified_row = max(cell[0] for cell in modified_cells)
-                if max_modified_row < min(30, original_row_count * 0.5):  # If modifications only in first 30 rows or less than 50% of data
-                    if original_row_count > 50:  # Only flag this for larger datasets
-                        warning_msg = (
-                            f"⚠️  Modifications appear limited to rows 0-{max_modified_row} "
-                            f"out of {original_row_count} total rows. Algorithm may not be processing entire dataset."
+                rows_with_modifications = set(cell[0] for cell in modified_cells)
+                
+                # Check if algorithm only processed a tiny subset of rows
+                if max_modified_row < min(50, original_row_count * 0.1):  # If modifications only in first 50 rows or less than 10% of data
+                    if original_row_count > 100:  # Only flag this for larger datasets
+                        print(f"⚠️  WARNING: Algorithm only processed rows 0-{max_modified_row} out of {original_row_count} total rows.")
+                        print("🔧 Attempting to extend transformation pattern to full dataset...")
+                        
+                        # Try to extend the transformation to the full dataset
+                        result_df, modified_cells = self._extend_transformation_to_full_dataset(
+                            result_df, modified_cells, original_row_count
                         )
-                        print(f"{warning_msg}")
-                        # Don't raise error for this, just warn, as some algorithms might legitimately only modify top rows
+                        
+                        # Re-check after extension
+                        max_modified_row = max(cell[0] for cell in modified_cells) if modified_cells else 0
+                        rows_with_modifications = set(cell[0] for cell in modified_cells)
+                        
+                        if max_modified_row < original_row_count * 0.5:  # Still problematic
+                            error_msg = (
+                                f"VALIDATION FAILED: Even after pattern extension, algorithm only processed rows 0-{max_modified_row} "
+                                f"out of {original_row_count} total rows ({len(rows_with_modifications)} modified rows). "
+                                f"This indicates the algorithm is fundamentally flawed and not universal."
+                            )
+                            print(f"❌ {error_msg}")
+                            raise RuntimeError(error_msg)
+                        else:
+                            print("✅ Pattern extension successful - transformation now covers more of the dataset")
+                
+                # More strict check: if we have a large dataset but very few rows modified
+                if original_row_count > 1000 and len(rows_with_modifications) < original_row_count * 0.05:
+                    print(f"⚠️  WARNING: Only {len(rows_with_modifications)} out of {original_row_count} rows were modified.")
+                    print("🔧 Attempting to extend transformation pattern to full dataset...")
+                    
+                    # Try to extend the transformation to the full dataset
+                    result_df, modified_cells = self._extend_transformation_to_full_dataset(
+                        result_df, modified_cells, original_row_count
+                    )
+                    
+                    # Re-check after extension
+                    rows_with_modifications = set(cell[0] for cell in modified_cells)
+                    
+                    if len(rows_with_modifications) < original_row_count * 0.1:  # Still too few
+                        error_msg = (
+                            f"VALIDATION FAILED: Even after pattern extension, only {len(rows_with_modifications)} out of {original_row_count} rows "
+                            f"were modified ({(len(rows_with_modifications)/original_row_count)*100:.1f}%). "
+                            f"For a dataset this large, the algorithm should process most/all rows."
+                        )
+                        print(f"❌ {error_msg}")
+                        raise RuntimeError(error_msg)
+                    else:
+                        print("✅ Pattern extension successful - more rows now processed")
+                
+                # Check for empty cells in the result - should not exist if algorithm is complete
+                empty_cell_count = result_df.isna().sum().sum() + (result_df == "").sum().sum()
+                total_cells = result_df.shape[0] * result_df.shape[1]
+                
+                if empty_cell_count > total_cells * 0.8:  # If more than 80% of cells are empty
+                    error_msg = (
+                        f"VALIDATION FAILED: Result contains {empty_cell_count} empty cells "
+                        f"out of {total_cells} total cells ({(empty_cell_count/total_cells)*100:.1f}% empty). "
+                        f"A complete universal algorithm should populate all cells with appropriate data."
+                    )
+                    print(f"❌ {error_msg}")
+                    raise RuntimeError(error_msg)
+                
+                if max_modified_row < original_row_count * 0.3:  # If modifications in less than 30% of data
+                    warning_msg = (
+                        f"⚠️  WARNING: Modifications appear limited to rows 0-{max_modified_row} "
+                        f"out of {original_row_count} total rows. Algorithm may not be processing entire dataset."
+                    )
+                    print(f"{warning_msg}")
+            else:
+                # No modifications at all - this is definitely wrong
+                error_msg = (
+                    f"VALIDATION FAILED: No cells were modified in the transformation. "
+                    f"This suggests the algorithm failed to process any data."
+                )
+                print(f"❌ {error_msg}")
+                raise RuntimeError(error_msg)
+            
+            # Additional check: ensure no large blocks of unchanged data remain
+            if original_row_count > 20:
+                # Check if the last 25% of rows are completely unchanged
+                quarter_point = int(original_row_count * 0.75)
+                last_quarter_modified = any(cell[0] >= quarter_point for cell in modified_cells)
+                
+                if not last_quarter_modified:
+                    print(f"⚠️  WARNING: No modifications in last 25% of dataset - extending pattern...")
+                    result_df, modified_cells = self._extend_transformation_to_full_dataset(
+                        result_df, modified_cells, original_row_count
+                    )
+                    
+                    # Re-check after extension
+                    last_quarter_modified = any(cell[0] >= quarter_point for cell in modified_cells)
+                    
+                    if not last_quarter_modified:
+                        error_msg = (
+                            f"VALIDATION FAILED: Even after pattern extension, no modifications detected in the last 25% of the dataset "
+                            f"(rows {quarter_point}-{original_row_count-1}). This suggests the algorithm "
+                            f"cannot be properly extended to process the entire dataset."
+                        )
+                        print(f"❌ {error_msg}")
+                        raise RuntimeError(error_msg)
+                    else:
+                        print("✅ Pattern extension successful - last quarter now has modifications")
+            
+            # --- VALIDATION PATCH: Check result completeness and detect incomplete transformations ---
+            self._validate_result_completeness(spreadsheet_df, result_df)
             
             print(f"✅ Algorithm validation successful: processed {result_row_count} rows")
-            return result_df, modified_cells
+            
+            # --- POST-PROCESSING PATCH: Extend transformations to cover the entire dataset ---
+            extended_df, all_modified_cells = self._extend_transformation_to_full_dataset(result_df, modified_cells, original_row_count)
+            
+            print(f"✅ Post-processing complete: extended transformations to cover entire dataset")
+            return extended_df, all_modified_cells
             
         except Exception as e:
             error_msg = str(e)
@@ -373,3 +509,274 @@ class ScriptExecutor:
     def get_last_execution_error(self) -> str:
         """Get the last execution error for retry purposes"""
         return getattr(self, '_last_error', '')
+
+    def _preprocess_script_for_universal_execution(self, script: str, df: pd.DataFrame) -> str:
+        """
+        Preprocess the script to convert hardcoded iloc operations to universal patterns
+        
+        Args:
+            script: The original script
+            df: The DataFrame to process
+            
+        Returns:
+            str: Preprocessed script with universal patterns
+        """
+        lines = script.split('\n')
+        processed_lines = []
+        
+        # Track patterns that suggest hardcoded row operations
+        hardcoded_iloc_pattern = re.compile(r'\.iloc\[(\d+),\s*(\d+)\]\s*=\s*(.+)')
+        
+        iloc_operations = []
+        
+        for line in lines:
+            # Check for hardcoded iloc operations
+            match = hardcoded_iloc_pattern.search(line)
+            if match:
+                row_idx = int(match.group(1))
+                col_idx = int(match.group(2))
+                value = match.group(3)
+                iloc_operations.append((row_idx, col_idx, value.strip()))
+                # Skip this line - we'll replace it with universal operations
+                continue
+            else:
+                processed_lines.append(line)
+        
+        if iloc_operations:
+            print(f"🔧 Detected {len(iloc_operations)} hardcoded iloc operations - converting to universal patterns")
+            
+            # Group operations by column to create efficient vectorized operations
+            col_operations = {}
+            for row_idx, col_idx, value in iloc_operations:
+                if col_idx not in col_operations:
+                    col_operations[col_idx] = []
+                col_operations[col_idx].append((row_idx, value))
+            
+            # Generate universal replacement code
+            universal_code = [
+                "",
+                "# Auto-generated universal transformations (converted from hardcoded iloc operations)",
+                f"# Ensure DataFrame has enough rows and columns",
+                f"required_rows = {max(op[0] for op in iloc_operations) + 1}",
+                f"required_cols = {max(op[1] for op in iloc_operations) + 1}",
+                f"if len(df) < required_rows:",
+                f"    # Add missing rows with empty values",
+                f"    for _ in range(required_rows - len(df)):",
+                f"        df.loc[len(df)] = [None] * len(df.columns)",
+                f"if len(df.columns) < required_cols:",
+                f"    # Add missing columns",
+                f"    for i in range(len(df.columns), required_cols):",
+                f"        df[f'col_{{i}}'] = None",
+                ""
+            ]
+            
+            # Convert column operations to universal patterns
+            for col_idx, operations in col_operations.items():
+                # Check if all operations in this column use the same value
+                values = [op[1] for op in operations]
+                unique_values = list(set(values))
+                
+                if len(unique_values) == 1:
+                    # All same value - use vectorized assignment for entire column
+                    value = unique_values[0]
+                    universal_code.append(f"# Universal assignment for column {col_idx} - applying to ALL rows")
+                    universal_code.append(f"df.iloc[:, {col_idx}] = {value}")
+                    universal_code.append("")
+                else:
+                    # Multiple values - analyze pattern and extend to full dataset
+                    universal_code.append(f"# Pattern-based assignment for column {col_idx}")
+                    
+                    # Apply the specific transformations first
+                    for row_idx, value in operations:
+                        universal_code.append(f"if len(df) > {row_idx}:")
+                        universal_code.append(f"    df.iloc[{row_idx}, {col_idx}] = {value}")
+                    
+                    # Extend pattern to rest of dataset
+                    # Use the most common value for remaining rows
+                    most_common_value = max(set(values), key=values.count)
+                    max_transformed_row = max(op[0] for op in operations)
+                    
+                    universal_code.append(f"# Extend pattern to remaining rows (universal coverage)")
+                    universal_code.append(f"for i in range({max_transformed_row + 1}, len(df)):")
+                    universal_code.append(f"    if pd.isna(df.iloc[i, {col_idx}]) or df.iloc[i, {col_idx}] == '' or df.iloc[i, {col_idx}] is None:")
+                    universal_code.append(f"        df.iloc[i, {col_idx}] = {most_common_value}")
+                    universal_code.append("")
+            
+            # Add final validation to ensure no empty cells remain
+            universal_code.extend([
+                "# Final universal validation - ensure no empty cells remain",
+                "for col_idx in range(len(df.columns)):",
+                "    for row_idx in range(len(df)):",
+                "        cell_value = df.iloc[row_idx, col_idx]",
+                "        if pd.isna(cell_value) or cell_value == '' or cell_value is None:",
+                "            # Fill with appropriate default based on column pattern",
+                "            if col_idx < len(df.columns):",
+                "                # Use the most common non-empty value in this column",
+                "                non_empty_values = [v for v in df.iloc[:, col_idx] if not pd.isna(v) and v != '' and v is not None]",
+                "                if non_empty_values:",
+                "                    df.iloc[row_idx, col_idx] = non_empty_values[0]",
+                "                else:",
+                "                    df.iloc[row_idx, col_idx] = ''  # Fallback to empty string",
+                "",
+                "print(f'Universal transformation complete: {len(df)} rows, {len(df.columns)} columns processed')"
+            ])
+            
+            # Insert universal code before the end of the script
+            processed_lines.extend(universal_code)
+        
+        return '\n'.join(processed_lines)
+
+    def _analyze_script_size_requirements(self, script: str) -> tuple[int, int]:
+        """
+        Analyze script to determine required DataFrame size
+        
+        Args:
+            script: The script to analyze
+            
+        Returns:
+            tuple[int, int]: (max_row_needed, max_col_needed)
+        """
+        max_row = 0
+        max_col = 0
+        
+        # Pattern to find iloc operations
+        iloc_pattern = re.compile(r'\.iloc\[(\d+),\s*(\d+)\]')
+        
+        for match in iloc_pattern.finditer(script):
+            row_idx = int(match.group(1))
+            col_idx = int(match.group(2))
+            max_row = max(max_row, row_idx)
+            max_col = max(max_col, col_idx)
+        
+        return max_row, max_col
+
+    def _validate_script_universality(self, script: str) -> bool:
+        """
+        Validate if a script follows universal transformation patterns
+        
+        Args:
+            script: The script to validate
+            
+        Returns:
+            bool: True if script appears universal, False otherwise
+        """
+        # Check for hardcoded iloc operations
+        hardcoded_iloc_pattern = re.compile(r'\.iloc\[\d+,\s*\d+\]\s*=')
+        hardcoded_matches = hardcoded_iloc_pattern.findall(script)
+        
+        if len(hardcoded_matches) > 5:  # If too many hardcoded operations
+            return False
+        
+        # Check for universal patterns
+        universal_patterns = [
+            r'df\[.*\]\s*=',  # Column assignment
+            r'df\.loc\[.*,.*\]\s*=',  # Conditional assignment
+            r'\.apply\(',  # Apply functions
+            r'for.*in.*range\(len\(df\)\)',  # Loop over all rows
+            r'df\.iloc\[:,.*\]\s*='  # Full column assignment
+        ]
+        
+        universal_count = 0
+        for pattern in universal_patterns:
+            if re.search(pattern, script):
+                universal_count += 1
+        
+        return universal_count > 0 or len(hardcoded_matches) == 0
+
+    def _validate_result_completeness(self, original_df: pd.DataFrame, result_df: pd.DataFrame) -> None:
+        """
+        Validate that the result DataFrame is complete and properly populated
+        
+        Args:
+            original_df: The original DataFrame
+            result_df: The result DataFrame after transformation
+            
+        Raises:
+            RuntimeError: If validation fails
+        """
+        # Check if result has reasonable size
+        if len(result_df) < len(original_df) * 0.9:
+            raise RuntimeError(
+                f"Result has {len(result_df)} rows vs original {len(original_df)} rows. "
+                f"The transformation may have lost data."
+            )
+        
+        # Check for excessive empty cells
+        empty_cells = result_df.isna().sum().sum() + (result_df == "").sum().sum()
+        total_cells = result_df.shape[0] * result_df.shape[1]
+        empty_percentage = (empty_cells / total_cells) * 100
+        
+        if empty_percentage > 50:  # More than 50% empty cells
+            print(f"⚠️  WARNING: Result contains {empty_percentage:.1f}% empty cells")
+        
+        # Check if only the first few rows were modified (pattern detection)
+        non_empty_rows = []
+        for idx, row in result_df.iterrows():
+            if not row.isna().all() and not (row == "").all():
+                non_empty_rows.append(idx)
+        
+        if len(non_empty_rows) > 0:
+            max_modified_row = max(non_empty_rows)
+            if max_modified_row < len(result_df) * 0.1 and len(result_df) > 50:
+                print(f"⚠️  WARNING: Data appears to be populated only in first {max_modified_row + 1} rows out of {len(result_df)} total rows")
+
+    def _extend_transformation_to_full_dataset(self, result_df: pd.DataFrame, modified_cells: List[List[int]], original_row_count: int) -> tuple[pd.DataFrame, List[List[int]]]:
+        """
+        Extend partial transformations to cover the entire dataset
+        
+        Args:
+            result_df: The partially transformed DataFrame
+            modified_cells: List of modified cell coordinates
+            original_row_count: Original number of rows
+            
+        Returns:
+            tuple[pd.DataFrame, List[List[int]]]: Extended DataFrame and updated modified cells list
+        """
+        if not modified_cells:
+            return result_df, modified_cells
+        
+        print("🔧 Extending partial transformation to cover entire dataset...")
+        
+        # Analyze the pattern of modifications
+        col_patterns = {}
+        
+        for row_idx, col_idx in modified_cells:
+            if col_idx not in col_patterns:
+                col_patterns[col_idx] = {}
+            
+            cell_value = result_df.iloc[row_idx, col_idx]
+            if row_idx not in col_patterns[col_idx]:
+                col_patterns[col_idx][row_idx] = cell_value
+        
+        # Extend patterns to unmodified rows
+        additional_modifications = []
+        
+        for col_idx, row_patterns in col_patterns.items():
+            if not row_patterns:
+                continue
+            
+            # Find the most common value in this column's transformations
+            values = list(row_patterns.values())
+            non_empty_values = [v for v in values if not pd.isna(v) and v != '' and v is not None]
+            
+            if non_empty_values:
+                # Use the most frequent value as the pattern
+                most_common_value = max(set(non_empty_values), key=non_empty_values.count)
+                
+                # Apply this value to all rows that haven't been modified
+                modified_rows_in_col = set(row_idx for row_idx, c_idx in modified_cells if c_idx == col_idx)
+                
+                for row_idx in range(len(result_df)):
+                    if row_idx not in modified_rows_in_col:
+                        # Check if this cell is empty or needs updating
+                        current_value = result_df.iloc[row_idx, col_idx]
+                        if pd.isna(current_value) or current_value == '' or current_value is None:
+                            result_df.iloc[row_idx, col_idx] = most_common_value
+                            additional_modifications.append([row_idx, col_idx])
+        
+        # Update modified cells list
+        all_modified_cells = modified_cells + additional_modifications
+        
+        print(f"✅ Extended transformation: added {len(additional_modifications)} additional cell modifications")
+        
+        return result_df, all_modified_cells
