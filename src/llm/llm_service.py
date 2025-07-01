@@ -85,7 +85,7 @@ class LLMService:
     
     def _generate_simple_script(self, spreadsheet_data: Dict[str, Any], command: str) -> str:
         """Generate script using regular Gemini model for simple commands"""
-        max_attempts = 3
+        max_attempts = 5
         last_error_msg = None
         for attempt in range(max_attempts):
             try:
@@ -122,7 +122,7 @@ class LLMService:
 
     def _generate_complex_script(self, spreadsheet_data: Dict[str, Any], command: str) -> str:
         """Generate script using thinking and code execution for complex transformations"""
-        max_attempts = 3
+        max_attempts = 5
         last_error_msg = None
         for attempt in range(max_attempts):
             try:
@@ -482,7 +482,7 @@ df['LLM_ERROR'] = "Script generation failed. Please try a different command."
         Returns:
             str: Generated Python script implementing the universal algorithm
         """
-        max_attempts = 3
+        max_attempts = 5
         last_error_msg = None
 
         # Use limited sample for analysis to avoid token limits, but make algorithm work on ALL data
@@ -696,7 +696,7 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
             return self.generate_universal_algorithm(action_plan, left_data, right_data)
         
         # Generate algorithm with error feedback
-        max_attempts = 2  # Reduced since this is already a retry
+        max_attempts = 5  # Increased for better error recovery
         last_error_msg = error_feedback
 
         # Use limited sample for analysis to avoid token limits, but make algorithm work on ALL data
@@ -838,7 +838,7 @@ CRITICAL REMINDER: Your algorithm will be applied to a DataFrame with {full_left
 Generate ONLY the Python code - no explanations or markdown formatting:"""
         return prompt
 
-    def generate_universal_algorithm_with_auto_retry(self, action_plan: str, left_data: list, right_data: list, max_retries: int = 3) -> str:
+    def generate_universal_algorithm_with_auto_retry(self, action_plan: str, left_data: list, right_data: list, max_retries: int = 5) -> str:
         """
         Generate a universal algorithm with automatic retry on execution errors
         

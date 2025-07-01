@@ -5,7 +5,7 @@ import {
 } from './uiInteractions.js';
 import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet, generateAndExecuteAlgorithm as apiGenerateAndExecuteAlgorithm }
 from './apiService.js';
-import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView, generateActionPlanLog } from './spreadsheetHandler.js';
+import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView, generateActionPlanLog, isSplitViewEnabled } from './spreadsheetHandler.js';
 import { setupShortcutKeys,getCurrentSessionPrompts,resetPromptHistory } from './shortcuts.js';
 import { initCellSelector, clearCellSelector } from './cell-selector.js';
 import { initCellTagger, scanAndHighlightTags } from './cell-tagger.js';
@@ -261,21 +261,28 @@ export function setCurrentPromptText(text) {
     commandInput.value = text;
 }
 
-// Update the schema functions to work with the revised data format
+// Manual Schema Update - captures schema from right spreadsheet
 function updateSchema() {
+    // Check if split view is active
+    if (!isSplitViewEnabled()) {
+        updateStatus('Split view required for schema functions', 'error');
+        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
+        return;
+    }
+    
     // Show loading state
-    updateStatus('Updating schema...', 'processing');
+    updateStatus('Capturing schema structure...', 'processing');
     
     // Get data from the right spreadsheet
     const rightData = getRightSpreadsheetData();
     
     if (!rightData) {
-        showErrorModal('Right spreadsheet not available. Please make sure split view is active.');
-        updateStatus('Ready', 'waiting');
+        updateStatus('Right spreadsheet data not available', 'error');
+        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
         return;
     }
     
-    // Send to backend
+    // Send to backend for schema capture
     fetch('/update_schema', {
         method: 'POST',
         headers: {
@@ -283,9 +290,7 @@ function updateSchema() {
         },
         body: JSON.stringify({
             sessionId: currentSessionId,
-            rightSpreadsheetData: rightData.structuredData,
-            columnNames: rightData.columnNames,
-            useFirstRowAsHeader: rightData.useFirstRowAsHeader,
+            rightSpreadsheetData: rightData,
             transformLeft: false
         }),
     })
@@ -297,81 +302,95 @@ function updateSchema() {
     })
     .then(data => {
         if (data.success) {
-            console.log('Schema updated:', data.schema);
-            updateStatus('Schema updated successfully', 'success');
-            setTimeout(() => updateStatus('Ready', 'waiting'), 2000);
+            console.log('Schema captured:', data.schema);
+            updateStatus(`Schema captured: ${Object.keys(data.schema.column_patterns).length} column patterns found`, 'success');
+            setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
         } else {
             throw new Error(data.error || 'Unknown error occurred');
         }
     })
     .catch(error => {
-        console.error('Error updating schema:', error);
-        showErrorModal(`Error updating schema: ${error.message}`);
-        updateStatus('Ready', 'waiting');
+        console.error('Error capturing schema:', error);
+        updateStatus(`Error capturing schema: ${error.message}`, 'error');
+        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
     });
 }
 
+// Manual Schema Transformation - applies right spreadsheet structure to left spreadsheet
 async function transformToSchema() {
-    // Show loading state
-    updateStatus('Transforming data to match schema...', 'processing');
+    // Check if split view is active
+    if (!isSplitViewEnabled()) {
+        updateStatus('Split view must be active to use schema functions', 'error');
+        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
+        return;
+    }
     
     // Get data from the right spreadsheet
     const rightData = getRightSpreadsheetData();
     
     if (!rightData) {
-        showErrorModal('Right spreadsheet not available. Please make sure split view is active.');
-        updateStatus('Ready', 'waiting');
+        updateStatus('Right spreadsheet data not available', 'error');
+        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
         return;
     }
     
-    // Send to backend with transformLeft=true
-    fetch('/update_schema', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            sessionId: currentSessionId,
-            rightSpreadsheetData: rightData.structuredData,
-            columnNames: rightData.columnNames,
-            useFirstRowAsHeader: rightData.useFirstRowAsHeader,
-            transformLeft: true
-        }),
-    })
-    .then(response => {
+    // Show confirmation modal using the same modal as action plan
+    const rowCount = currentData?.data?.length || 0;
+    const transformationPlan = `This will transform the entire left spreadsheet (${rowCount} rows) to match the structure shown in the right spreadsheet.
+
+The transformation will:
+- Apply the column structure from the right spreadsheet
+- Detect patterns (constants, sequences, dates, cycles) from the right spreadsheet
+- Transform all ${rowCount} rows according to these patterns
+
+This action cannot be undone easily.`;
+    
+    showActionPlanModal(transformationPlan, rowCount, () => {
+        executeSchemaTransformation(rightData);
+    });
+}
+
+// Separate function to execute the actual transformation
+async function executeSchemaTransformation(rightData) {
+    // Show loading state
+    updateStatus('Transforming left spreadsheet to match schema...', 'processing');
+    
+    try {
+        // Send to backend for transformation
+        const response = await fetch('/update_schema', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                sessionId: currentSessionId,
+                rightSpreadsheetData: rightData,
+                transformLeft: true
+            }),
+        });
+        
         if (!response.ok) {
-            return response.json().then(errorData => {
-                throw new Error(errorData.detail || `Server responded with status: ${response.status}`);
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success === false) {
-            throw new Error(data.error || 'Unknown error occurred');
+            throw new Error(`Server responded with status: ${response.status}`);
         }
         
-        // Update the current data and render the left spreadsheet with the transformed data
-        if (data.data) {
+        const data = await response.json();
+        
+        if (data.success !== false) {
+            // Update the current data and render the left spreadsheet with the transformed data
             currentData = data;
             renderSpreadsheet(currentData);
             updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
+            
+            updateStatus('Schema transformation complete', 'success');
+            setTimeout(() => updateStatus('Ready', 'waiting'), 2000);
+        } else {
+            throw new Error(data.error || 'Unknown error occurred');
         }
-
-        updateStatus('Transformation complete', 'success');
-        setTimeout(() => updateStatus('Ready', 'waiting'), 2000);
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('Error transforming spreadsheet:', error);
-        let errorMessage = error.message;
-        if (errorMessage.includes('safety concerns')) {
-            errorMessage = 'The AI model blocked the transformation due to content safety concerns. Please review your data and try again.';
-        } else if (errorMessage.includes('No valid response')) {
-            errorMessage = 'The AI model could not generate a valid transformation. Please try simplifying your schema or data structure.';
-        }
-        showErrorModal(`Error transforming spreadsheet: ${errorMessage}`);
-        updateStatus('Ready', 'waiting');
-    });
+        updateStatus(`Error transforming spreadsheet: ${error.message}`, 'error');
+        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
+    }
 }
 
 // Function to get data from the right spreadsheet
@@ -384,74 +403,20 @@ function getRightSpreadsheetData() {
     
     const rightHotInstance = rightContainer.hotInstance;
     
-    // Get data and headers
+    // Get data as 2D array (this is what the backend expects)
     const data = rightHotInstance.getData();
-    const headers = rightHotInstance.getColHeader();
     
-    // Create a properly formatted structure for the backend
-    // First row can be used as "real" column headers if needed
-    const firstRow = data[0] || [];
+    // Filter out completely empty rows
+    const filteredData = data.filter(row => 
+        row.some(cell => cell !== null && cell !== undefined && cell !== '')
+    );
     
-    // Determine if first row contains proper headers or is just data
-    const useFirstRowAsHeader = firstRow.some(cell => cell !== null && cell !== '');
-    
-    // If the first row has data, use it as column names, otherwise use the Excel headers
-    const columnNames = useFirstRowAsHeader ? firstRow : headers;
-    
-    // Create an array of row objects, skipping the header row if we're using it as headers
-    const startIndex = useFirstRowAsHeader ? 1 : 0;
-    const formattedData = [];
-    
-    for (let i = startIndex; i < data.length; i++) {
-        const rowObj = {};
-        const row = data[i];
-        
-        // For each cell in the row, use the appropriate header as the key
-        for (let j = 0; j < row.length; j++) {
-            // Use the column name (or Excel-style header if no column names)
-            const key = j < columnNames.length ? columnNames[j] : `Column${j+1}`;
-            rowObj[key] = row[j];
-        }
-        
-        formattedData.push(rowObj);
-    }
-    
-    // Return both raw data and properly formatted data
-    return {
-        rawData: data,
-        structuredData: formattedData,
-        headers: headers,
-        columnNames: columnNames,
-        useFirstRowAsHeader: useFirstRowAsHeader
-    };
+    return filteredData.length > 0 ? filteredData : null;
 }
 
-// Function to update the left spreadsheet with transformed data
-function updateLeftSpreadsheet(transformedData) {
-    // Get the left spreadsheet instance
-    const leftContainer = document.getElementById('spreadsheetData');
-    if (!leftContainer || !window.hotInstance) {
-        console.error('Left spreadsheet not available');
-        return;
-    }
-
-    // Defensive: support both {data, headers} and just data array
-    let data = Array.isArray(transformedData) ? transformedData : transformedData.data;
-    let headers = transformedData.headers || null;
-
-    // Update the spreadsheet with new data
-    window.hotInstance.loadData(data);
-
-    // If headers have changed, update them too
-    if (headers) {
-        window.hotInstance.updateSettings({
-            colHeaders: headers
-        });
-    }
-
-    // Refresh the view
-    window.hotInstance.render();
-}
+// PLACEHOLDER: updateLeftSpreadsheet function - functionality removed  
+// This function previously updated the left spreadsheet with transformed schema data
+// New implementation will use different update mechanisms
 
 // Helper function to show error modal
 function showErrorModal(message) {

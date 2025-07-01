@@ -1,188 +1,401 @@
 """
 Schema Generator module
-------------------
-Generates JSON schema from spreadsheet data and vice versa
+-----------------------
+Handles JSON schema generation and transformation logic for the "Update Schema" 
+and "Transform to Schema" buttons. This module provides functionality to:
+- Capture schema structure from spreadsheet data
+- Analyze column patterns (constants, sequences, dates, cycles)
+- Apply schema transformations to spreadsheet data
 """
 
 import pandas as pd
-import json
-from typing import Dict, Any, List, Optional
-import datetime
+import numpy as np
+from typing import List, Dict, Any, Tuple
+import warnings
 
-def _serialize_datetimes(obj):
-    """
-    Recursively convert datetime objects in dicts/lists to ISO format strings.
-    """
-    if isinstance(obj, dict):
-        return {k: _serialize_datetimes(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [_serialize_datetimes(v) for v in obj]
-    elif isinstance(obj, (datetime.datetime, pd.Timestamp)):
-        return obj.isoformat()
-    else:
-        return obj
 
 class SchemaGenerator:
     """
-    Generates and maintains a schema representation of spreadsheet data
+    Handles schema generation and transformation operations for spreadsheets
     """
     
     def __init__(self):
         """Initialize the schema generator"""
-        self.last_schema = None
-        
-    def generate_schema(self, df: pd.DataFrame) -> Dict[str, Any]:
+        pass
+    
+    def capture_schema_structure(self, right_data: List[List]) -> dict:
         """
-        Generate a JSON schema from a pandas DataFrame
+        Capture the structure/schema from the right spreadsheet template
         
         Args:
-            df: The pandas DataFrame to analyze
+            right_data: 2D array representing the right spreadsheet data
             
         Returns:
-            Dict[str, Any]: JSON schema representing the structure and sample data
+            dict: Schema information including patterns, structure, and transformations
         """
-        if df.empty:
-            return {"columns": [], "sample_data": []}
+        if not right_data or len(right_data) == 0:
+            return {"error": "Right spreadsheet is empty"}
         
-        # Extract column info
-        columns = []
-        for col_name in df.columns:
-            # Get column data type
-            col_data = df[col_name].dropna()
-            if len(col_data) == 0:
-                dtype = "unknown"
-            elif pd.api.types.is_numeric_dtype(col_data):
-                if all(col_data.apply(lambda x: float(x).is_integer() if pd.notnull(x) else True)):
-                    dtype = "integer"
-                else:
-                    dtype = "float"
-            elif pd.api.types.is_datetime64_dtype(col_data):
-                dtype = "datetime"
-            else:
-                dtype = "string"
-            
-            # Get sample values (up to 3), convert datetimes to string
-            sample_values = [
-                v.isoformat() if isinstance(v, (datetime.datetime, pd.Timestamp)) else v
-                for v in df[col_name].dropna().head(3).tolist()
-            ]
-            columns.append({
-                "name": str(col_name),
-                "type": dtype,
-                "sample_values": sample_values
-            })
-        
-        # Get sample rows (up to 5), convert datetimes to string
-        sample_data = []
-        for _, row in df.head(5).iterrows():
-            row_dict = row.to_dict()
-            for k, v in row_dict.items():
-                if isinstance(v, (datetime.datetime, pd.Timestamp)):
-                    row_dict[k] = v.isoformat()
-            sample_data.append(row_dict)
-        
+        # Analyze the structure of the right spreadsheet
         schema = {
-            "columns": columns,
-            "sample_data": sample_data,
-            "row_count": len(df),
-            "column_count": len(df.columns)
+            "row_count": len(right_data),
+            "col_count": len(right_data[0]) if right_data[0] else 0,
+            "column_patterns": {},
+            "transformation_rules": []
         }
         
-        self.last_schema = schema
+        # Analyze each column for patterns
+        for col_idx in range(schema["col_count"]):
+            column_data = [row[col_idx] if col_idx < len(row) else '' for row in right_data]
+            column_analysis = self._analyze_column_pattern(column_data, col_idx)
+            schema["column_patterns"][col_idx] = column_analysis
+        
         return schema
     
-    def get_transformation_prompt(self, source_df: pd.DataFrame, target_schema: Dict[str, Any]) -> str:
+    def _analyze_column_pattern(self, column_data: List, col_idx: int) -> dict:
         """
-        Generate a prompt for LLM to transform source data to match target schema
+        Analyze a column to determine its pattern (constant, sequence, etc.)
         
         Args:
-            source_df: The source pandas DataFrame
-            target_schema: The target JSON schema
+            column_data: List of values in the column
+            col_idx: Column index
             
         Returns:
-            str: A prompt for the LLM
+            dict: Pattern analysis for the column
         """
-        source_schema = self.generate_schema(source_df)
-        # Serialize datetimes in both schemas before dumping to JSON
-        source_schema_serialized = _serialize_datetimes(source_schema)
-        target_schema_serialized = _serialize_datetimes(target_schema)
+        # Remove empty values for analysis
+        non_empty_values = [val for val in column_data if val != '' and val is not None]
         
-        prompt = """
-        I need to transform a source spreadsheet to match a target schema.
-
-        SOURCE SCHEMA:
-        ```json
-        {source_schema}
-        ```
-
-        TARGET SCHEMA:
-        ```json
-        {target_schema}
-        ```
-
-        Please write a Python script using pandas that transforms the source DataFrame 'df' 
-        to match the target schema. The script MUST be a UNIVERSAL ALGORITHM that processes 
-        the ENTIRE DATASET, not just specific rows.
-
-        CRITICAL REQUIREMENTS:
-        1. **NEVER use hardcoded row indices like df.iloc[0, 1] = "value"**
-        2. **Process ALL ROWS in the DataFrame - the algorithm must work on datasets of any size**
-        3. **Use vectorized operations, loops, or apply functions to transform all rows**
-        4. **Every cell in the result must contain appropriate data - no empty cells allowed**
-        5. **The script must work on the entire dataset from first row to last row**
-        6. **If the source has 7000+ rows, your algorithm must process all 7000+ rows**
-        7. Rename columns as needed using df.columns = [new_column_names]
-        8. Convert data types to match the target across all rows
-        9. Apply transformations using patterns that work on the entire dataset
-        10. If you need to expand the DataFrame, do it BEFORE writing any data
-        11. Use operations like df['column'] = value or df.loc[:, 'column'] = values
-
-        REQUIRED UNIVERSAL PATTERNS (Choose appropriate ones):
-        ```python
-        # Option 1: Full column assignment (when all rows should have same value)
-        df['column_name'] = 'constant_value'
+        if not non_empty_values:
+            return {"type": "empty", "pattern": "empty_column"}
         
-        # Option 2: Conditional assignment (when different rows need different values)
-        df.loc[condition, 'column'] = 'value'
-        df.loc[df['source_col'] == 'pattern', 'target_col'] = 'new_value'
+        # Check if all values are the same (constant)
+        unique_values = list(set(non_empty_values))
+        if len(unique_values) == 1:
+            return {
+                "type": "constant",
+                "pattern": "constant_value",
+                "value": unique_values[0]
+            }
         
-        # Option 3: Loop through all rows (when each row needs individual processing)
-        for i in range(len(df)):
-            df.loc[i, 'column'] = compute_value_for_row(i)
+        # Check for numeric sequence
+        try:
+            numeric_values = [float(val) for val in non_empty_values if str(val).replace('.', '').replace('-', '').isdigit()]
+            if len(numeric_values) >= 2:
+                # Check if it's an arithmetic sequence
+                diff = numeric_values[1] - numeric_values[0]
+                is_sequence = all(
+                    abs((numeric_values[i] - numeric_values[i-1]) - diff) < 0.001 
+                    for i in range(1, len(numeric_values))
+                )
+                if is_sequence:
+                    return {
+                        "type": "sequence",
+                        "pattern": "arithmetic_sequence",
+                        "start_value": numeric_values[0],
+                        "increment": diff
+                    }
+        except ValueError:
+            pass
         
-        # Option 4: Apply function to transform values
-        df['new_col'] = df['old_col'].apply(lambda x: transform_function(x))
+        # Check for date patterns
+        if self._is_date_pattern(non_empty_values):
+            return {
+                "type": "date_sequence",
+                "pattern": "date_progression",
+                "values": non_empty_values
+            }
         
-        # Option 5: Vectorized operations
-        df.loc[:, 'column'] = df['source'].str.replace('pattern', 'replacement')
-        ```
-
-        EXAMPLES OF FORBIDDEN PATTERNS:
-        - df.iloc[0, 1] = "value"  # Only affects row 0
-        - df.iloc[1:10, 2] = "value"  # Only affects rows 1-10
-        - Any hardcoded row indices
-        - Transformations that only work on a subset of data
-
-        VALIDATION REQUIREMENTS:
-        - Your algorithm MUST process every single row in the source DataFrame
-        - If source has N rows, output must have N rows (or more if expansion is needed)
-        - Every cell in the output should contain meaningful data (no empty cells)
-        - The transformation pattern must be consistent across the entire dataset
-
-        DATASET SIZE AWARENESS:
-        - The source dataset may have thousands of rows (7000+)
-        - Your algorithm must scale to handle any number of rows
-        - Use efficient pandas operations that work on the entire DataFrame at once
-        - Avoid row-by-row processing unless absolutely necessary for complex logic
-
-        The script should identify the structure/pattern from the target schema and apply 
-        that pattern to ALL rows in the source data. Every row should be transformed 
-        according to the same logical rules.
-
-        Return only the Python code without explanations.
-        """.format(
-            source_schema=json.dumps(source_schema_serialized, indent=2),
-            target_schema=json.dumps(target_schema_serialized, indent=2)
-        )
+        # Check for repeating cycle
+        if len(non_empty_values) > 1:
+            cycle_length = self._find_repeating_cycle(non_empty_values)
+            if cycle_length > 0:
+                cycle = non_empty_values[:cycle_length]
+                return {
+                    "type": "cycle",
+                    "pattern": "repeating_cycle",
+                    "cycle_values": cycle,
+                    "cycle_length": cycle_length
+                }
         
-        return prompt
+        # Default to column rearrangement
+        return {
+            "type": "rearrangement",
+            "pattern": "column_mapping",
+            "values": non_empty_values
+        }
+    
+    def _is_date_pattern(self, values: List) -> bool:
+        """Check if values represent a date pattern"""
+        try:
+            import pandas as pd
+            import warnings
+            # Suppress all warnings for date parsing including dateutil warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore")  # Suppress all warnings including dateutil
+                
+                # Try to parse as dates with specific formats first
+                try:
+                    # Try common date formats
+                    for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%Y-%m-%d %H:%M:%S']:
+                        try:
+                            parsed_dates = pd.to_datetime(values, format=fmt, errors='raise')
+                            return True
+                        except:
+                            continue
+                except:
+                    pass
+                
+                # Fallback to general parsing with warnings suppressed
+                parsed_dates = pd.to_datetime(values, errors='coerce', infer_datetime_format=False)
+                return not parsed_dates.isna().all()
+        except:
+            return False
+    
+    def _find_repeating_cycle(self, values: List) -> int:
+        """Find the length of a repeating cycle in the values"""
+        for cycle_len in range(1, min(len(values) // 2 + 1, 10)):  # Limit cycle length
+            is_cycle = True
+            for i in range(cycle_len, len(values)):
+                if values[i] != values[i % cycle_len]:
+                    is_cycle = False
+                    break
+            if is_cycle:
+                return cycle_len
+        return 0
+    
+    def apply_schema_patterns(self, df: pd.DataFrame, schema: dict, right_data: List[List]) -> Tuple[pd.DataFrame, List[List]]:
+        """
+        Apply the schema patterns to transform the dataframe
+        
+        Args:
+            df: Current dataframe to transform
+            schema: Schema information from right spreadsheet
+            right_data: Original right spreadsheet data
+            
+        Returns:
+            tuple: (Transformed dataframe, list of modified cells)
+        """
+        import pandas as pd
+        import numpy as np
+        
+        # Create a new dataframe with the same number of rows as original
+        new_df = pd.DataFrame()
+        modified_cells = []  # Track all modified cells for highlighting
+        
+        # Apply patterns for each column
+        for col_idx, pattern in schema["column_patterns"].items():
+            col_name = f"Column_{col_idx}"  # Use generic column names
+            
+            # Track all cells in this column as modified (since we're transforming the entire column)
+            for row_idx in range(len(df)):
+                modified_cells.append([row_idx, col_idx])  # [row, col] format for frontend
+            
+            if pattern["type"] == "constant":
+                # Set all rows to the constant value
+                new_df[col_name] = [pattern["value"]] * len(df)
+                
+            elif pattern["type"] == "sequence":
+                # Generate arithmetic sequence
+                start_val = pattern["start_value"]
+                increment = pattern["increment"]
+                new_df[col_name] = [start_val + (i * increment) for i in range(len(df))]
+                
+            elif pattern["type"] == "date_sequence":
+                # Generate date sequence
+                try:
+                    import pandas as pd
+                    import warnings
+                    # Suppress all warnings for date parsing including dateutil warnings
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore")  # Suppress all warnings including dateutil
+                        
+                        # Try specific date formats first
+                        base_dates = None
+                        for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%Y-%m-%d %H:%M:%S', '%d-%m-%Y']:
+                            try:
+                                base_dates = pd.to_datetime(pattern["values"], format=fmt, errors='raise')
+                                break
+                            except:
+                                continue
+                        
+                        # Fallback to general parsing with warnings suppressed
+                        if base_dates is None:
+                            base_dates = pd.to_datetime(pattern["values"], errors='coerce', infer_datetime_format=False)
+                    
+                    if len(base_dates) >= 2 and not base_dates.isna().all():
+                        # Calculate the time difference
+                        time_diff = base_dates.iloc[1] - base_dates.iloc[0]
+                        # Generate sequence starting from first date
+                        date_sequence = [base_dates.iloc[0] + (i * time_diff) for i in range(len(df))]
+                        new_df[col_name] = date_sequence
+                    else:
+                        new_df[col_name] = [pattern["values"][0]] * len(df)
+                except:
+                    # Fallback to string values
+                    new_df[col_name] = [pattern["values"][0]] * len(df)
+                    
+            elif pattern["type"] == "cycle":
+                # Repeat the cycle pattern
+                cycle = pattern["cycle_values"]
+                cycle_values = [cycle[i % len(cycle)] for i in range(len(df))]
+                new_df[col_name] = cycle_values
+                
+            elif pattern["type"] == "rearrangement":
+                # Try to map from existing columns if possible
+                if col_idx < len(df.columns):
+                    # Use data from the corresponding column in original df
+                    new_df[col_name] = df.iloc[:, col_idx].values
+                else:
+                    # Use the first value from the pattern
+                    first_val = pattern["values"][0] if pattern["values"] else ""
+                    new_df[col_name] = [first_val] * len(df)
+                    
+            else:  # empty or unknown
+                new_df[col_name] = [""] * len(df)
+        
+        return new_df, modified_cells
+
+    def generate_schema_json(self, data: List[List]) -> dict:
+        """
+        Generate a JSON schema representation from spreadsheet data
+        
+        Args:
+            data: 2D array representing spreadsheet data
+            
+        Returns:
+            dict: JSON schema representation
+        """
+        if not data or len(data) == 0:
+            return {"error": "No data provided"}
+        
+        schema = self.capture_schema_structure(data)
+        
+        # Convert to a more structured JSON schema format
+        json_schema = {
+            "type": "object",
+            "properties": {},
+            "metadata": {
+                "rows": schema["row_count"],
+                "columns": schema["col_count"],
+                "generated_at": pd.Timestamp.now().isoformat()
+            }
+        }
+        
+        # Create properties for each column
+        for col_idx, pattern in schema["column_patterns"].items():
+            property_name = f"column_{col_idx}"
+            
+            if pattern["type"] == "constant":
+                json_schema["properties"][property_name] = {
+                    "type": "constant",
+                    "value": pattern["value"],
+                    "pattern": pattern["pattern"]
+                }
+            elif pattern["type"] == "sequence":
+                json_schema["properties"][property_name] = {
+                    "type": "number",
+                    "pattern": "arithmetic_sequence",
+                    "start_value": pattern["start_value"],
+                    "increment": pattern["increment"]
+                }
+            elif pattern["type"] == "date_sequence":
+                json_schema["properties"][property_name] = {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "date_progression",
+                    "sample_values": pattern["values"][:3]  # First 3 values as samples
+                }
+            elif pattern["type"] == "cycle":
+                json_schema["properties"][property_name] = {
+                    "type": "array",
+                    "pattern": "repeating_cycle",
+                    "cycle_values": pattern["cycle_values"],
+                    "cycle_length": pattern["cycle_length"]
+                }
+            else:  # rearrangement or empty
+                json_schema["properties"][property_name] = {
+                    "type": "string",
+                    "pattern": pattern["pattern"],
+                    "sample_values": pattern.get("values", [])[:3]
+                }
+        
+        return json_schema
+
+    def validate_schema_compatibility(self, left_data: List[List], right_data: List[List]) -> dict:
+        """
+        Validate if the left spreadsheet can be transformed to match the right spreadsheet schema
+        
+        Args:
+            left_data: Source spreadsheet data
+            right_data: Target spreadsheet schema data
+            
+        Returns:
+            dict: Validation result with compatibility information
+        """
+        if not left_data or not right_data:
+            return {
+                "compatible": False,
+                "reason": "Missing data - both left and right spreadsheets required"
+            }
+        
+        left_schema = self.capture_schema_structure(left_data)
+        right_schema = self.capture_schema_structure(right_data)
+        
+        # Check basic compatibility
+        compatibility = {
+            "compatible": True,
+            "warnings": [],
+            "transformations": []
+        }
+        
+        # Check column count compatibility
+        if len(left_data[0]) != len(right_data[0]):
+            compatibility["warnings"].append(
+                f"Column count mismatch: Left has {len(left_data[0])} columns, "
+                f"Right has {len(right_data[0])} columns"
+            )
+        
+        # Check row count
+        if len(left_data) < len(right_data):
+            compatibility["warnings"].append(
+                f"Left spreadsheet has fewer rows ({len(left_data)}) than right ({len(right_data)}). "
+                "Transformation will use right spreadsheet patterns for all left rows."
+            )
+        
+        # Analyze transformations needed
+        for col_idx, right_pattern in right_schema["column_patterns"].items():
+            transformation = {
+                "column": col_idx,
+                "from_pattern": left_schema["column_patterns"].get(col_idx, {"type": "unknown"}),
+                "to_pattern": right_pattern,
+                "complexity": self._assess_transformation_complexity(
+                    left_schema["column_patterns"].get(col_idx, {"type": "unknown"}),
+                    right_pattern
+                )
+            }
+            compatibility["transformations"].append(transformation)
+        
+        return compatibility
+    
+    def _assess_transformation_complexity(self, from_pattern: dict, to_pattern: dict) -> str:
+        """
+        Assess the complexity of transforming from one pattern to another
+        
+        Args:
+            from_pattern: Source pattern
+            to_pattern: Target pattern
+            
+        Returns:
+            str: Complexity level ('simple', 'moderate', 'complex')
+        """
+        if from_pattern["type"] == to_pattern["type"]:
+            return "simple"
+        
+        if to_pattern["type"] in ["constant", "sequence"]:
+            return "simple"
+        
+        if to_pattern["type"] in ["date_sequence", "cycle"]:
+            return "moderate"
+        
+        return "complex"

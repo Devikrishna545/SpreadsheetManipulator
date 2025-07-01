@@ -13,7 +13,7 @@ from typing import Tuple, List, Dict, Any, Optional, Hashable
 from src.controller.security_manager import SecurityManager
 from src.controller.script_manager import ScriptManager
 from src.controller.file_manager import FileManager
-from src.controller.schema_generator import SchemaGenerator
+# PLACEHOLDER: Schema generator import removed
 import re
 
 class ScriptExecutor:
@@ -31,7 +31,7 @@ class ScriptExecutor:
         self.security_manager = SecurityManager()
         self.script_dir = script_dir or os.path.join('src', 'script')
         self.script_manager = ScriptManager(self.script_dir)
-        self.schema_generator = SchemaGenerator()
+        # PLACEHOLDER: Schema generator initialization removed
     
     def execute_script(self, script: str, spreadsheet_df: pd.DataFrame, file_manager: Optional[FileManager] = None) -> Tuple[pd.DataFrame, List[List[int]]]:
         """
@@ -280,31 +280,11 @@ class ScriptExecutor:
         
         return modified_cells
     
-    def generate_schema_from_df(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """
-        Generate a schema from the provided DataFrame
-        
-        Args:
-            df: The pandas DataFrame to analyze
-            
-        Returns:
-            Dict[str, Any]: JSON schema representing the structure
-        """
-        return self.schema_generator.generate_schema(df)
-    
-    def generate_transformation_script(self, source_df: pd.DataFrame, target_df: pd.DataFrame) -> str:
-        """
-        Generate a script to transform source_df to match the structure of target_df
-        
-        Args:
-            source_df: The source DataFrame to transform
-            target_df: The target DataFrame with the desired structure
-            
-        Returns:
-            str: A prompt for the LLM to generate a transformation script
-        """
-        target_schema = self.schema_generator.generate_schema(target_df)
-        return self.schema_generator.get_transformation_prompt(source_df, target_schema)
+    # PLACEHOLDER: Schema generation methods removed
+    # The following methods were removed as part of schema functionality cleanup:
+    # - generate_schema_from_df()
+    # - generate_transformation_script()
+    # New implementation will replace these with different logic.
 
     def execute_universal_algorithm(self, script: str, spreadsheet_df: pd.DataFrame, file_manager: Optional[FileManager] = None) -> Tuple[pd.DataFrame, List[List[int]]]:
         """

@@ -10,7 +10,6 @@ from werkzeug.utils import secure_filename
 from typing import Optional, Any
 from werkzeug.datastructures import FileStorage
 
-
 class FileManager:
     """
     Manages file operations for the application

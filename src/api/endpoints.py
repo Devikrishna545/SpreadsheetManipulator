@@ -59,13 +59,9 @@ class TableChangesRequest(BaseModel):
     sessionId: str
     changes: List[Dict[str, Any]]
 
-# Update the SchemaRequest model to include the new fields
-class SchemaRequest(BaseModel):
-    sessionId: str
-    rightSpreadsheetData: List[Dict[str, Any]]
-    columnNames: Optional[List[str]] = None
-    useFirstRowAsHeader: Optional[bool] = False
-    transformLeft: bool = False
+# PLACEHOLDER: SchemaRequest model removed
+# This model was used for schema-related endpoints that have been removed
+# New implementation will use different request models
 
 # Dependency for controllers
 class Controllers:
@@ -292,96 +288,49 @@ def process_table_changes(request: TableChangesRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# Add these new endpoints after the existing endpoints
 @app.post("/update_schema")
-def update_schema(request: SchemaRequest):
-    """Update the schema based on the right spreadsheet data."""
+def update_schema(request: dict):
+    """
+    Manual schema transformation - applies right spreadsheet structure to left spreadsheet
+    without LLM processing. Uses the right spreadsheet as a template.
+    """
     try:
-        session_id = request.sessionId
+        session_id = request.get('sessionId')
+        right_data = request.get('rightSpreadsheetData', [])
+        transform_left = request.get('transformLeft', False)
         
-        # Check if session exists
-        if not controllers.session_manager.session_exists(session_id):
-            raise ValueError(f"Session {session_id} not found")
+        if not session_id:
+            raise HTTPException(status_code=400, detail="Session ID is required")
         
-        # Convert right spreadsheet data to DataFrame with proper handling of headers
-        if request.columnNames:
-            # Use provided column names
-            right_df = pd.DataFrame(request.rightSpreadsheetData)
-            
-            # If we're using custom column names, ensure they're properly set
-            if len(right_df.columns) == len(request.columnNames):
-                right_df.columns = request.columnNames
+        if transform_left:
+            # Apply the right spreadsheet structure to the left spreadsheet
+            result = controllers.spreadsheet_controller.apply_manual_schema_transformation(
+                session_id, right_data
+            )
+            return result
         else:
-            # No column names provided, just use the data as is
-            right_df = pd.DataFrame(request.rightSpreadsheetData)
-        
-        # Generate schema from right spreadsheet
-        schema = controllers.spreadsheet_controller.get_schema_from_df(right_df)
-        
-        # Store the schema and data in the session
-        controllers.session_manager.update_session_data(
-            session_id, 
-            {
-                'target_schema': schema,
-                'right_df': right_df.to_dict(),
-                'column_names': request.columnNames,
-                'use_first_row_as_header': request.useFirstRowAsHeader
-            }
-        )
-        
-        # If transformLeft is true, also generate and apply transformation
-        if request.transformLeft:
-            return transform_to_schema(session_id)
-        
-        return {"success": True, "schema": schema}
-    
+            # Just capture/validate the schema from right spreadsheet
+            schema_info = controllers.spreadsheet_controller.capture_schema_structure(right_data)
+            return {"success": True, "schema": schema_info, "message": "Schema structure captured successfully"}
+            
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/transform_to_schema/{session_id}")
-def transform_to_schema(session_id: str):
-    """Transform the left spreadsheet to match the right spreadsheet schema."""
+def transform_to_schema(session_id: str, request: dict):
+    """
+    Alias endpoint for manual schema transformation
+    """
     try:
-        # Check if session exists
-        if not controllers.session_manager.session_exists(session_id):
-            raise ValueError(f"Session {session_id} not found")
+        right_data = request.get('rightSpreadsheetData', [])
         
-        # Get session data
-        session_data = controllers.session_manager.get_session_data(session_id)
-        
-        if 'target_schema' not in session_data:
-            raise ValueError("No target schema found. Please update the right spreadsheet first.")
-        
-        # Get the left spreadsheet data
-        left_df = controllers.spreadsheet_controller.get_spreadsheet_df(session_id)
-        
-        # Get the right spreadsheet data
-        right_df = pd.DataFrame.from_dict(session_data['right_df'])
-        
-        # Generate transformation prompt
-        transformation_prompt = controllers.spreadsheet_controller.generate_transformation_prompt(
-            left_df, right_df
+        result = controllers.spreadsheet_controller.apply_manual_schema_transformation(
+            session_id, right_data
         )
+        return result
         
-        # Process the transformation command with ADVANCED PROCESSING
-        # This will return the proper spreadsheet view data with 'data', 'metadata', etc.
-        spreadsheet_view = controllers.spreadsheet_controller.process_command(
-            session_id, transformation_prompt, use_advanced_processing=True
-        )
-        
-        # The spreadsheet_view should already contain all necessary data for the frontend
-        # Just ensure it has a success flag
-        if isinstance(spreadsheet_view, dict):
-            spreadsheet_view['success'] = True
-            return spreadsheet_view
-        else:
-            return {"success": False, "error": "Invalid response from command processing"}
-    
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Error in transform_to_schema: {str(e)}\n{error_details}")
-        return {"success": False, "error": str(e), "details": error_details}
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/upload_commands")
 async def upload_command_file(
@@ -453,3 +402,32 @@ async def generate_algorithm(request: Request):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/generate_schema_json/{session_id}")
+def generate_schema_json(session_id: str):
+    """
+    Generate JSON schema representation of current spreadsheet
+    """
+    try:
+        schema_json = controllers.spreadsheet_controller.generate_schema_json(session_id)
+        return {"success": True, "schema": schema_json}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/validate_schema_compatibility/{session_id}")
+def validate_schema_compatibility(session_id: str, request: dict):
+    """
+    Validate if current spreadsheet can be transformed to match target schema
+    """
+    try:
+        right_data = request.get('rightSpreadsheetData', [])
+        
+        if not right_data:
+            raise HTTPException(status_code=400, detail="Right spreadsheet data is required")
+        
+        compatibility = controllers.spreadsheet_controller.validate_schema_compatibility(
+            session_id, right_data
+        )
+        return {"success": True, "compatibility": compatibility}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

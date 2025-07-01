@@ -1,6 +1,6 @@
 # Spreadsheet Auto-Editor
 
-A Flask application that helps accountants automatically edit spreadsheets using natural language commands processed by LLMs.
+A Flask application that helps accountants automatically edit spreadsheets using natural language commands processed by LLMs and manual schema transformations.
 
 ## Features
 
@@ -8,9 +8,28 @@ A Flask application that helps accountants automatically edit spreadsheets using
 - View uploaded spreadsheets in the browser
 - Issue natural language commands to modify spreadsheets
 - LLM generates Python scripts to perform modifications
+- **Manual Schema Transformation (No LLM)**: Use a template spreadsheet to restructure entire datasets
+- Split view mode for template-based transformations
 - Undo/Redo functionality for all modifications
 - Download modified spreadsheets
 - Automatic cleanup of files after download
+
+### Manual Schema Transformation
+
+The application includes a powerful manual schema transformation feature that works without LLM:
+
+1. **Split View Mode**: View your main dataset (left) and template (right) side by side
+2. **Template Creation**: Edit the right side to show the desired structure and patterns
+3. **Schema Capture**: Capture the template structure and patterns
+4. **Mass Transformation**: Apply the template to restructure your entire dataset (even 7000+ rows)
+
+**Supported Patterns:**
+- **Constant Values**: Set all rows to the same value
+- **Sequential Numbers**: Generate sequences (1, 2, 3... or custom increments)
+- **Date Sequences**: Generate date series (daily, weekly, monthly)
+- **Repeating Cycles**: Cycle through multiple values
+- **Column Rearrangement**: Reorder and rename columns
+- **Data Type Conversion**: Automatic type conversion (string, integer, float, datetime)
 
 ## Project Structure
 

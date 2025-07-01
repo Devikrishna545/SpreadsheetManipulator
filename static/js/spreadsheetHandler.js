@@ -144,8 +144,11 @@ export function renderSpreadsheet(data) { // data is currentData from main.js
     
     window.hotInstance = new Handsontable(spreadsheetDataContainer, settings);
     
+    // Add highlighting for modified cells with a small delay to ensure table is rendered
     if (data.modified_cells && data.modified_cells.length > 0) {
-        highlightModifiedCells(data.modified_cells);
+        setTimeout(() => {
+            highlightModifiedCells(data.modified_cells);
+        }, 100);
     }
 }
 
@@ -221,16 +224,28 @@ function generateExcelColHeaders(count) {
 }
 
 function highlightModifiedCells(modifiedCells) {
-    if (!window.hotInstance) return;
+    if (!window.hotInstance || !modifiedCells || modifiedCells.length === 0) return;
+    
+    console.log(`Highlighting ${modifiedCells.length} modified cells`);
+    
+    // Add highlighting to all modified cells
     for (const [row, col] of modifiedCells) {
         const td = window.hotInstance.getCell(row, col);
         if (td) {
             td.classList.add('modified');
-            setTimeout(() => {
-                td.classList.remove('modified');
-            }, 2000);
         }
     }
+    
+    // Remove highlighting after 4 seconds (longer duration for schema transformations)
+    setTimeout(() => {
+        for (const [row, col] of modifiedCells) {
+            const td = window.hotInstance.getCell(row, col);
+            if (td) {
+                td.classList.remove('modified');
+            }
+        }
+        console.log('Cell highlighting removed');
+    }, 4000);
 }
 
 export async function loadSpreadsheetData(sessionId) {

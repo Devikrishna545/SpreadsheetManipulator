@@ -16,6 +16,7 @@ from src.llm.llm_service import LLMService
 from src.controller.script_executor import ScriptExecutor
 from src.controller.file_manager import FileManager
 from src.controller.script_manager import ScriptManager
+from src.controller.schema_generator import SchemaGenerator
 
 class SpreadsheetController:
     """
@@ -39,6 +40,7 @@ class SpreadsheetController:
             download_dir=os.path.join('static', 'downloads'),
             json_dir=os.path.join('static', 'json')
         )
+        self.schema_generator = SchemaGenerator()
     
     def upload_spreadsheet(self, file: FileStorage) -> str:
         """
@@ -505,31 +507,156 @@ class SpreadsheetController:
             i += 1
         return f"{base} {i}"
 
-    def get_schema_from_df(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def capture_schema_structure(self, right_data: List[List]) -> dict:
         """
-        Generate a schema from the provided DataFrame
+        Capture the structure/schema from the right spreadsheet template
         
         Args:
-            df: The pandas DataFrame to analyze
+            right_data: 2D array representing the right spreadsheet data
             
         Returns:
-            Dict[str, Any]: JSON schema representing the structure
+            dict: Schema information including patterns, structure, and transformations
         """
-        return self.script_executor.generate_schema_from_df(df)
-
-    def generate_transformation_prompt(self, source_df: pd.DataFrame, target_df: pd.DataFrame) -> str:
+        return self.schema_generator.capture_schema_structure(right_data)
+    
+    def apply_manual_schema_transformation(self, session_id: str, right_data: List[List]) -> dict:
         """
-        Generate a prompt to transform source_df to match the structure of target_df
+        Apply manual schema transformation using right spreadsheet as template
         
         Args:
-            source_df: The source DataFrame to transform
-            target_df: The target DataFrame with the desired structure
+            session_id: Session ID
+            right_data: 2D array representing the right spreadsheet structure
             
         Returns:
-            str: A prompt for the LLM to generate a transformation script
+            dict: Result with transformed spreadsheet data
         """
-        return self.script_executor.generate_transformation_script(source_df, target_df)
+        try:
+            # Get session and current spreadsheet
+            session = self.session_manager.get_session(session_id)
+            if not session:
+                raise ValueError("Session not found or expired")
+            
+            # Get current spreadsheet state
+            history = session.get_modification_history()
+            if not history:
+                raise ValueError("Modification history not found for this session")
+                
+            current_spreadsheet = history.get_current_state()
+            if not current_spreadsheet:
+                raise ValueError("No spreadsheet data found")
+            
+            # Get current data
+            current_df = current_spreadsheet.get_data().copy()
+            
+            # Capture schema from right spreadsheet
+            schema = self.schema_generator.capture_schema_structure(right_data)
+            
+            # Apply transformation based on schema patterns
+            transformed_df, modified_cells = self.schema_generator.apply_schema_patterns(current_df, schema, right_data)
+            
+            # Create new spreadsheet state
+            new_spreadsheet = Spreadsheet(
+                current_spreadsheet.file_id,
+                current_spreadsheet.original_filename,
+                transformed_df
+            )
+            
+            # Add to history
+            history.add_state(new_spreadsheet)
+            
+            # Update session spreadsheet
+            session.update_spreadsheet(new_spreadsheet)
+            
+            # Prepare view data with datetime handling (similar to process_command)
+            df_copy = transformed_df.copy()
+            
+            # Convert datetime columns to strings for JSON serialization
+            for col in df_copy.columns:
+                if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                    df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
+            # Replace NaN, inf, -inf with None for JSON serialization
+            data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
+            
+            return {
+                'data': data,
+                'metadata': new_spreadsheet.get_metadata(),
+                'can_undo': history.can_undo(),
+                'can_redo': history.can_redo(),
+                'modified_cells': modified_cells  # Add this to enable cell highlighting
+            }
+            
+        except Exception as e:
+            raise Exception(f"Schema transformation failed: {str(e)}")
 
+    # PLACEHOLDER: Schema-related methods moved to SchemaGenerator
+    # The following methods were moved to the SchemaGenerator class:
+    # - _analyze_column_pattern()
+    # - _is_date_pattern() 
+    # - _find_repeating_cycle()
+    # - _apply_schema_patterns()
+    # - get_schema_from_df() (previously removed)
+    # - generate_transformation_prompt() (previously removed)
+    # Use self.schema_generator to access these functionalities.
+
+    def generate_schema_json(self, session_id: str) -> dict:
+        """
+        Generate JSON schema from current spreadsheet data
+        
+        Args:
+            session_id: Session ID
+            
+        Returns:
+            dict: JSON schema representation
+        """
+        # Get session and current spreadsheet
+        session = self.session_manager.get_session(session_id)
+        if not session:
+            raise ValueError("Session not found or expired")
+        
+        history = session.get_modification_history()
+        if not history:
+            raise ValueError("Modification history not found for this session")
+            
+        current_spreadsheet = history.get_current_state()
+        if not current_spreadsheet:
+            raise ValueError("No spreadsheet data found")
+        
+        # Convert DataFrame to 2D list for schema generation
+        df = current_spreadsheet.get_data()
+        data = df.values.tolist()
+        
+        return self.schema_generator.generate_schema_json(data)
+    
+    def validate_schema_compatibility(self, session_id: str, right_data: List[List]) -> dict:
+        """
+        Validate if current spreadsheet can be transformed to match right spreadsheet schema
+        
+        Args:
+            session_id: Session ID
+            right_data: Target spreadsheet schema data
+            
+        Returns:
+            dict: Validation result with compatibility information
+        """
+        # Get session and current spreadsheet
+        session = self.session_manager.get_session(session_id)
+        if not session:
+            raise ValueError("Session not found or expired")
+        
+        history = session.get_modification_history()
+        if not history:
+            raise ValueError("Modification history not found for this session")
+            
+        current_spreadsheet = history.get_current_state()
+        if not current_spreadsheet:
+            raise ValueError("No spreadsheet data found")
+        
+        # Convert DataFrame to 2D list for validation
+        df = current_spreadsheet.get_data()
+        left_data = df.values.tolist()
+        
+        return self.schema_generator.validate_schema_compatibility(left_data, right_data)
+    
     def get_spreadsheet_df(self, session_id: str) -> pd.DataFrame:
         """
         Get the current spreadsheet DataFrame for a session
@@ -589,7 +716,7 @@ class SpreadsheetController:
         if not self.session_manager.session_exists(session_id):
             raise ValueError("Session not found")
         
-        max_algorithm_attempts = 3  # Increased for better reliability
+        max_algorithm_attempts = 5  # Increased for better reliability
         
         try:
             print(f"\n{'='*50}")
@@ -624,7 +751,7 @@ class SpreadsheetController:
                     print(f"💾 Algorithm saved (ID: {script_id}, {len(algorithm_script)} chars)")
                     
                     # Execute the universal algorithm with enhanced error handling
-                    execution_attempts = 3  # Try execution multiple times with increasingly detailed error feedback
+                    execution_attempts = 5  # Try execution multiple times with increasingly detailed error feedback
                     execution_error_msg = None
                     
                     for execution_attempt in range(execution_attempts):
