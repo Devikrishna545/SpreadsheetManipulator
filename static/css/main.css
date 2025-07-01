@@ -134,7 +134,7 @@ body.dark-theme {
 .spreadsheet-body.custom-scrollbar {
     overflow: auto !important;
     /* Inherit all custom-scrollbar styles */
-
+    padding-bottom: 48px; /* Add enough space for the sheet tab bar */
 }
 
 /* All other specific CSS rules that were previously here have been removed 

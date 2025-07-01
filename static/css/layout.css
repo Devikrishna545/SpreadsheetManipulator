@@ -93,6 +93,16 @@
     flex-direction: column;
 }
 
+.main-content-scroll-wrapper {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    height: 100%;
+    /* Add bottom padding to prevent content from being hidden behind the fixed footer */
+    padding-bottom: 48px; /* slightly more than footer height for spacing */
+    /* Add custom scrollbar style */
+    /* The class custom-scrollbar will be added in HTML */
+}
+
 /* Top Navigation */
 .bg-dark-custom {
     background-color: rgba(10, 10, 20, 0.5); 
@@ -124,3 +134,101 @@
     transform: scale(1.1);
 }
 
+.page-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  /* Ensure space for footer */
+  padding-bottom: 44px; /* Height of the footer */
+}
+
+/* Footer always at the bottom, above everything else */
+.fixed-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    z-index: 101;
+    background: rgba(10,10,20,0.85);
+    border-top: 1px solid var(--glass-border-color);
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    pointer-events: auto;
+}
+
+.footer-left {
+    position: absolute;
+    left: 18px;
+}
+
+.footer-center {
+    margin: 0 auto;
+    text-align: center;
+}
+
+.footer-right {
+    position: absolute;
+    right: 18px;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.footer-link {
+    color: var(--main-accent);
+    text-decoration: underline;
+}
+
+.footer-title {
+    font-size: 1.1rem;
+    animation: flicker 3s infinite alternate;
+}
+
+.navbar-logo-img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    height: 56px;
+    max-height: 64px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 8px rgba(0,191,255,0.15));
+}
+
+.logo-faded {
+    opacity: 0.6;
+}
+
+/* Sidebar toggle button absolute left center */
+.sidebar-toggle-pos {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+}
+
+/* Status badge absolute right center */
+.status-badge-pos {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+}
+
+.user-manual-link {
+    font-size: 0.85rem;
+    height: 28px;
+    line-height: 20px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+}
+
+.user-manual-link i {
+    font-size: 1em;
+}

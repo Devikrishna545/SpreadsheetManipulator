@@ -652,3 +652,18 @@
     box-shadow: 0 0 16px 4px #00eaff99, 0 0 0 2px #00eaffcc inset;
     background: linear-gradient(135deg, #232a34 40%, #00eaff22 100%);
 }
+
+#sheetTabContainer {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    z-index: 10;
+    display: flex;
+    gap: 4px;
+    padding: 6px 8px;
+    background: var(--bg-secondary, #23272b);
+    border-radius: 0 8px 0 0;
+    min-height: 36px;
+    /* Add a subtle box-shadow for separation */
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
+}
