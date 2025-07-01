@@ -3,6 +3,9 @@ import { updateUndoRedoButtons, updateStatus } from './uiInteractions.js';
 import { updateCellSelector, clearCellSelector } from './cell-selector.js';
 
 const spreadsheetDataContainer = document.getElementById('spreadsheetData');
+const sheetTabContainer = document.getElementById('sheetTabContainer'); // New: sheet tab bar
+let workbookSheets = []; // [{name, data}]
+let currentSheetIndex = 0;
 let pendingChanges = []; // Store changes to batch submit
 let isProcessingChanges = false; // Prevent overlapping change submissions
 
@@ -11,70 +14,84 @@ let isSplitViewActive = false;
 let editableHotInstance = null;
 
 export function renderSpreadsheet(data) { // data is currentData from main.js
-    if (!data || !data.data) return;
-    
+    if (!data) return;
+
+    // Detect workbook (multiple sheets)
+    if (data.sheets && Array.isArray(data.sheets) && data.sheets.length > 0) {
+        workbookSheets = data.sheets;
+        // Default to first sheet if not set
+        if (typeof data.activeSheetIndex === 'number') {
+            currentSheetIndex = data.activeSheetIndex;
+        } else {
+            currentSheetIndex = 0;
+        }
+        renderSheetTabs(workbookSheets, currentSheetIndex);
+        renderSingleSheet(workbookSheets[currentSheetIndex]);
+    } else {
+        // Single sheet fallback
+        workbookSheets = [{ name: data.metadata?.sheetName || 'Sheet1', data: data.data }];
+        currentSheetIndex = 0;
+        renderSheetTabs(workbookSheets, 0);
+        renderSingleSheet(workbookSheets[0]);
+    }
+}
+
+/**
+ * Render a single sheet (sheetObj: {name, data})
+ */
+function renderSingleSheet(sheetObj) {
+    if (!sheetObj || !sheetObj.data) return;
+
     if (window.hotInstance) {
         window.hotInstance.destroy();
     }
-    
-    // Generate Excel-style column headers (A, B, C, ...)
-    const columnCount = data.data[0] ? data.data[0].length : 0;
+
+    const columnCount = sheetObj.data[0] ? sheetObj.data[0].length : 0;
     const alphabeticHeaders = generateExcelColHeaders(columnCount);
-    
+
     const settings = {
-        data: data.data,
+        data: sheetObj.data,
         rowHeaders: true,
-        colHeaders: alphabeticHeaders, // Use alphabetic headers instead of data.headers
+        colHeaders: alphabeticHeaders,
         licenseKey: 'non-commercial-and-evaluation',
         stretchH: 'all',
-        readOnly: true, // Changed from false to true to make non-editable
-        contextMenu: true, // Enable context menu for row/column operations
+        readOnly: true,
+        contextMenu: true,
         manualColumnResize: true,
         manualRowResize: true,
         className: 'htDark',
-        outsideClickDeselects: false, // Persist selection when clicking outside
-        multiSelect: true, // Enable multiple selection of cell ranges
-        fillHandle: true, // Enable the drag-down fill handle for data entry
+        outsideClickDeselects: false,
+        multiSelect: true,
+        fillHandle: true,
         afterRender: function() {
             this.rootElement.classList.add('handsontable-dark');
         },
         afterSelection: function(r, c, r2, c2, preventScrolling, selectionLayerLevel) {
-            // Update cell selector with all selected ranges
-            // getSelected returns an array of [startRow, startCol, endRow, endCol] arrays
             updateCellSelector(this.getSelected());
         },
         afterDeselect: function() {
-            // Clear cell selector only if there's truly no selection
             const currentSelection = this.getSelected();
             if (!currentSelection || currentSelection.length === 0) {
                 clearCellSelector();
             }
         },
         afterInit: function() {
-            // Initialize with first cell selected
             this.selectCell(0, 0);
         },
-        // Track changes for undo/redo functionality
         afterChange: function(changes, source) {
-            if (source === 'loadData') return; // Skip initial data load
+            if (source === 'loadData') return;
             if (!changes) return;
-            
-            // Process changes for undo/redo
             if (source !== 'undo' && source !== 'redo') {
                 const changeData = {
                     type: 'cell',
                     changes: changes.map(([row, prop, oldValue, newValue]) => ({
-                        row, 
+                        row,
                         col: typeof prop === 'string' ? this.propToCol(prop) : prop,
-                        oldValue, 
+                        oldValue,
                         newValue
                     }))
                 };
-                
-                // Add to pending changes queue
                 pendingChanges.push(changeData);
-                
-                // Debounce to avoid too many API calls
                 submitPendingChanges();
             }
         },
@@ -126,7 +143,6 @@ export function renderSpreadsheet(data) { // data is currentData from main.js
                 submitPendingChanges();
             }
         },
-        // Add options to context menu
         contextMenu: {
             items: {
                 'row_above': {name: 'Insert row above'},
@@ -141,12 +157,44 @@ export function renderSpreadsheet(data) { // data is currentData from main.js
             }
         }
     };
-    
+
     window.hotInstance = new Handsontable(spreadsheetDataContainer, settings);
-    
-    if (data.modified_cells && data.modified_cells.length > 0) {
-        highlightModifiedCells(data.modified_cells);
+
+    if (sheetObj.modified_cells && sheetObj.modified_cells.length > 0) {
+        highlightModifiedCells(sheetObj.modified_cells);
     }
+}
+
+/**
+ * Render sheet tabs at the bottom left.
+ * @param {Array} sheets - Array of {name, data}
+ * @param {number} activeIndex
+ */
+export function renderSheetTabs(sheets, activeIndex) {
+    if (!sheetTabContainer) return;
+    sheetTabContainer.innerHTML = '';
+    sheets.forEach((sheet, idx) => {
+        const tab = document.createElement('button');
+        tab.className = 'sheet-tab-btn btn btn-sm btn-outline-light' + (idx === activeIndex ? ' active' : '');
+        tab.textContent = sheet.name || `Sheet${idx + 1}`;
+        tab.style.marginRight = '4px';
+        tab.style.borderRadius = '6px 6px 0 0';
+        tab.style.padding = '2px 12px';
+        tab.style.fontWeight = idx === activeIndex ? 'bold' : 'normal';
+        tab.onclick = () => switchSheet(idx);
+        sheetTabContainer.appendChild(tab);
+    });
+}
+
+/**
+ * Switch to a different sheet in the workbook.
+ * @param {number} sheetIndex
+ */
+export function switchSheet(sheetIndex) {
+    if (sheetIndex === currentSheetIndex || !workbookSheets[sheetIndex]) return;
+    currentSheetIndex = sheetIndex;
+    renderSheetTabs(workbookSheets, currentSheetIndex);
+    renderSingleSheet(workbookSheets[currentSheetIndex]);
 }
 
 // Function to submit pending changes to the server

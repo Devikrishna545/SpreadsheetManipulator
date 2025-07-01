@@ -63,8 +63,17 @@ class SpreadsheetController:
         
         # Parse file
         df = None
+        sheets = None
         if file_path.endswith('.xlsx') or file_path.endswith('.xls'):
-            df = pd.read_excel(file_path)
+            excel = pd.ExcelFile(file_path)
+            if len(excel.sheet_names) > 1:
+                sheets = []
+                for sheet_name in excel.sheet_names:
+                    sheet_df = excel.parse(sheet_name)
+                    sheets.append({'name': sheet_name, 'data': sheet_df})
+                df = sheets[0]['data']
+            else:
+                df = pd.read_excel(file_path)
         elif file_path.endswith('.csv'):
             df = pd.read_csv(file_path)
         
@@ -74,6 +83,9 @@ class SpreadsheetController:
             
         # Create spreadsheet object
         spreadsheet = Spreadsheet(file_id, file.filename, df, file_path)
+        # Attach workbook sheets if present
+        if sheets:
+            spreadsheet.workbook_sheets = sheets
         
         # Create session
         session_id = self.session_manager.create_session()
@@ -116,6 +128,33 @@ class SpreadsheetController:
         spreadsheet = history.get_current_state()
         if not spreadsheet:
             raise ValueError("No spreadsheet data found")
+        
+        # --- Workbook support: if spreadsheet has workbook_sheets, return all sheets ---
+        if hasattr(spreadsheet, 'workbook_sheets') and spreadsheet.workbook_sheets:
+            sheets_data = []
+            for sheet in spreadsheet.workbook_sheets:
+                df_copy = sheet['data'].copy()
+                for col in df_copy.columns:
+                    if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
+                        df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
+                data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
+                sheets_data.append({
+                    'name': sheet['name'],
+                    'data': data,
+                    'metadata': {
+                        'sheetName': sheet['name'],
+                        'rows': len(df_copy),
+                        'columns': len(df_copy.columns)
+                    }
+                })
+            return {
+                'sheets': sheets_data,
+                'activeSheetIndex': 0,
+                'can_undo': history.can_undo(),
+                'can_redo': history.can_redo(),
+                'modified_cells': [],
+                'metadata': spreadsheet.get_metadata()
+            }
         
         # Prepare view data with datetime handling
         df_copy = spreadsheet.get_data().copy()

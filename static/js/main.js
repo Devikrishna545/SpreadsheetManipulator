@@ -5,7 +5,7 @@ import {
 } from './uiInteractions.js';
 import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet, generateAndExecuteAlgorithm as apiGenerateAndExecuteAlgorithm }
 from './apiService.js';
-import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView, generateActionPlanLog } from './spreadsheetHandler.js';
+import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView, generateActionPlanLog, renderSheetTabs, switchSheet } from './spreadsheetHandler.js';
 import { setupShortcutKeys,getCurrentSessionPrompts,resetPromptHistory } from './shortcuts.js';
 import { initCellSelector, clearCellSelector } from './cell-selector.js';
 import { initCellTagger, scanAndHighlightTags } from './cell-tagger.js';
@@ -158,7 +158,15 @@ async function onFileUpload(event) {
         const initialData = await fetchSpreadsheetData(currentSessionId);
         if (initialData) {
             currentData = initialData;
-            renderSpreadsheet(currentData);
+            // If backend returns sheets, pass as workbook
+            if (initialData.sheets && Array.isArray(initialData.sheets)) {
+                renderSpreadsheet({
+                    sheets: initialData.sheets,
+                    activeSheetIndex: 0
+                });
+            } else {
+                renderSpreadsheet(currentData);
+            }
             updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);           
         }
     }
@@ -630,3 +638,31 @@ generateActionPlanBtn.addEventListener('click', async function() {
         }
     });
 });
+
+// Add sheet tab rendering and switching
+document.addEventListener('DOMContentLoaded', function() {
+    const sheetTabContainer = document.getElementById('sheetTabContainer');
+    
+    // Initial render - assuming currentData.sheets is available
+    if (currentData && currentData.sheets) {
+        renderSheetTabs(currentData.sheets, sheetTabContainer, currentData.activeSheetIndex);
+    }
+});
+
+// Handle sheet tab click
+function onSheetTabClick(sheetIndex) {
+    if (currentData && currentData.sheets && currentData.sheets.length > sheetIndex) {
+        // Switch to the selected sheet
+        switchSheet(currentData.sheets[sheetIndex]);
+        
+        // Update the active sheet index
+        currentData.activeSheetIndex = sheetIndex;
+        
+        // Re-render the sheet tabs to reflect the active state
+        const sheetTabContainer = document.getElementById('sheetTabContainer');
+        renderSheetTabs(currentData.sheets, sheetTabContainer, sheetIndex);
+    }
+}
+
+// Expose the onSheetTabClick function to the global scope for tab clicks
+window.onSheetTabClick = onSheetTabClick;
