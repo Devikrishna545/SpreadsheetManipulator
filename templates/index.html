@@ -13,344 +13,368 @@
     <link rel="stylesheet" href="{{ url_for('static', path='css/cell-tagger.css') }}">
 </head>
 <body class="dark-theme">
-    <div class="particle-background" id="particleBackground"></div> <!-- Added for particles -->
-    <!-- Top Navigation -->
-    <nav class="navbar navbar-dark bg-dark-custom">
-        <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">
-                <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Toggle Sidebar">
+    <div class="particle-background" id="particleBackground"></div>
+    <!-- Wrap everything above the footer -->
+    <div class="page-wrapper d-flex flex-column min-vh-100">
+        <!-- Top Navigation -->
+        <nav class="navbar navbar-dark bg-dark-custom">
+            <div class="container-fluid justify-content-center position-relative">
+                <!-- Centered logo image -->
+                <img src="{{ url_for('static', path='assets/images/hlb-hamt.jpg') }}" 
+                     alt="HLB HAMT" 
+                     class="navbar-logo-img mx-auto d-block logo-faded">
+                <!-- Sidebar toggle button absolutely positioned left -->
+                <button class="sidebar-toggle-btn sidebar-toggle-pos" id="sidebarToggleBtn" title="Toggle Sidebar">
                     <i class="fas fa-bars"></i>
                 </button>
-                <i class="fas fa-table me-2"></i>Auto Editor
-            </span>
-            <div class="d-flex align-items-center">
-                <span class="status-badge" id="statusBadge">Ready</span>
-            </div>
-        </div>
-    </nav>
-
-    <div class="app-container">
-        <!-- Left Sidebar -->
-        <div class="sidebar custom-scrollbar" id="sidebar">
-            <div class="sidebar-content">
-                <!-- Upload Section -->
-                <div class="sidebar-section">
-                    <h6 class="sidebar-title">
-                        <i class="fas fa-upload me-2"></i>File Management
-                    </h6>
-                    <form id="uploadForm" enctype="multipart/form-data" class="mb-3">
-                        <div class="file-input-wrapper" title ="Select(Alt+Shft+U)">
-                            <input class="form-control file-input" type="file" id="fileInput" accept=".xlsx,.xls,.csv" 
-                                 aria-label="File input" required>
-                            <label for="fileInput" class="file-input-label">
-                                <i class="fas fa-cloud-upload-alt"></i>
-                                <span>Choose File</span>
-                            </label>
-                        </div>
-                        <small class="form-text text-muted">Excel (.xlsx, .xls), CSV (.csv)</small>
-                        <button type="submit" class="btn btn-primary btn-futuristic w-100 mt-2"
-                            title="Upload (Alt+U)">
-                            <i class="fas fa-upload me-2"></i>Upload
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Actions Section -->
-                <div class="sidebar-section" id="actionsSection" style="display: none;">
-                    <h6 class="sidebar-title">
-                        <i class="fas fa-cogs me-2"></i>Actions
-                    </h6>
-                    <div class="action-buttons">
-                        <button id="undoBtn" class="btn btn-outline-warning btn-futuristic w-100 mb-2" disabled
-                            title="Undo (Ctrl+Z)">
-                            <i class="fas fa-undo me-2"></i>Undo
-                        </button>
-                        <button id="redoBtn" class="btn btn-outline-info btn-futuristic w-100 mb-2" disabled
-                            title="Redo (Ctrl+Y)">
-                            <i class="fas fa-redo me-2"></i>Redo
-                        </button>
-                        <button id="downloadBtn" class="btn btn-success btn-futuristic w-100" 
-                            title="Download (Alt+D)">
-                            <i class="fas fa-download me-2"></i>Download
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Session Info -->
-                <div class="sidebar-section" id="sessionInfo" style="display: none;">
-                    <h6 class="sidebar-title">
-                        <i class="fas fa-info-circle me-2"></i>Session Info
-                    </h6>
-                    <div class="session-details">
-                        <div class="session-item">
-                            <span class="session-label">Status:</span>
-                            <span class="session-value" id="sessionStatus">Active</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">File:</span>
-                            <span class="session-value" id="fileName">-</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Shortcut Keys Section -->
-                <div class="sidebar-section" id="shortcutInfo" style="display: none;">
-                    <h6 class="sidebar-title">
-                        <i class="fas fa-keyboard me-2"></i>Shortcuts
-                    </h6>
-                    <div class="session-details custom-scrollbar" style="max-height: 220px; overflow-y: auto;">
-                        <div class="session-item">
-                            <span class="session-label">Item Tagger</span>
-                            <span class="session-value">#</span>
-                        </div>
-                        <div class ="session-item">
-                            <span class="session-label">Split</span>
-                            <span class="session-value">Alt+Shft+S</span>
-                        </div>
-                         <div class ="session-item">
-                            <span class="session-label">Fullscreen</span>
-                            <span class="session-value">Alt+F</span>
-                        </div>
-                           <div class="session-item">
-                            <span class="session-label"> Update Schema</span>
-                            <span class="session-value">Alt+Shift+U</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">Transform to Schema</span>
-                            <span class="session-value">Alt+Shift+T</span>
-                        </div> 
-                        <div class="session-item">
-                            <span class="session-label">Select</span>
-                            <span class="session-value">Alt+Shift+U</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">Upload</span>
-                            <span class="session-value">Alt+U</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">Execute</span>
-                            <span class="session-value">Enter</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">Undo</span>
-                            <span class="session-value">Ctrl+Z</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">Redo</span>
-                            <span class="session-value">Ctrl+Y</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">Download</span>
-                            <span class="session-value">Alt+D</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">Menu</span>
-                            <span class="session-value">Alt+M</span>
-                        </div>
-                          <div class="session-item">
-                            <span class="session-label">Min-Max Spreadsheet</span>
-                            <span class="session-value">Alt+Shft+M</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">Activate Textbox</span>
-                            <span class="session-value">Alt+I</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">Save Prompt</span>
-                            <span class="session-value">Alt+Shft+S</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">View Prompts</span>
-                            <span class="session-value">Alt+Shft+P</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">Escape</span>
-                            <span class="session-value">Esc</span>
-                        </div>
-                        <div class="session-item">
-                            <span class="session-label">Cell Selector</span>
-                            <span class="session-value">Alt+Shft+X</span>
-                        </div> 
-                        <div class="session-item">
-                            <span class="session-label">Upload Commands</span>
-                            <span class="session-value">Alt+C</span>
-                        </div>                                           
-                    </div>
+                <div class="d-flex align-items-center status-badge-pos">
+                    <span class="status-badge" id="statusBadge">Ready</span>
                 </div>
             </div>
-        </div>
+        </nav>
 
-        <!-- Main Content Area -->
-        <div class="main-content">
-            <!-- Command Input Section -->
-            <div class="command-section" id="commandContainer" style="display: none;">
-                <div class="command-card">
-                    <div class="command-header">
-                        <h5><i class="fas fa-terminal me-2"></i>AI Command Interface</h5>
+        <div class="app-container">
+            <!-- Left Sidebar -->
+            <div class="sidebar custom-scrollbar" id="sidebar">
+                <div class="sidebar-content">
+                    <!-- Upload Section -->
+                    <div class="sidebar-section">
+                        <h6 class="sidebar-title">
+                            <i class="fas fa-upload me-2"></i>File Management
+                        </h6>
+                        <form id="uploadForm" enctype="multipart/form-data" class="mb-3">
+                            <div class="file-input-wrapper" title ="Select(Alt+Shft+U)">
+                                <input class="form-control file-input" type="file" id="fileInput" accept=".xlsx,.xls,.csv" 
+                                     aria-label="File input" required>
+                                <label for="fileInput" class="file-input-label">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <span>Choose File</span>
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">Excel (.xlsx, .xls), CSV (.csv)</small>
+                            <button type="submit" class="btn btn-primary btn-futuristic w-100 mt-2"
+                                title="Upload (Alt+U)">
+                                <i class="fas fa-upload me-2"></i>Upload
+                            </button>
+                        </form>
                     </div>
-                    <div class="command-body custom-scrollbar">
-                        <div class="command-input-wrapper">
-                            <textarea class="form-control command-input" id="commandInput" rows="3" 
-                                placeholder="Describe what you want to do with your spreadsheet...&#10;Example: Add a column named 'Total' that sums columns A and B"></textarea>
-                            <div style="flex: 0 0 120px; display: flex; flex-direction: column; gap: 8px;">
-                                <div style="display: flex; gap: 8px;">
-                                    <button id="savePromptBtn" class="btn btn-outline-info btn-futuristic icon-btn" title="Save Prompt (Alt+Shift+S)" type="button">
-                                        <i class="fas fa-save"></i>
-                                    </button>
-                                    <button id="promptLibraryBtn" class="btn btn-outline-info btn-futuristic icon-btn" title="Show Saved Prompts (Alt+Shift+P)" type="button">
-                                        <i class="fas fa-book-open"></i>
-                                    </button>
+
+                    <!-- Actions Section -->
+                    <div class="sidebar-section" id="actionsSection" style="display: none;">
+                        <h6 class="sidebar-title">
+                            <i class="fas fa-cogs me-2"></i>Actions
+                        </h6>
+                        <div class="action-buttons">
+                            <button id="undoBtn" class="btn btn-outline-warning btn-futuristic w-100 mb-2" disabled
+                                title="Undo (Ctrl+Z)">
+                                <i class="fas fa-undo me-2"></i>Undo
+                            </button>
+                            <button id="redoBtn" class="btn btn-outline-info btn-futuristic w-100 mb-2" disabled
+                                title="Redo (Ctrl+Y)">
+                                <i class="fas fa-redo me-2"></i>Redo
+                            </button>
+                            <button id="downloadBtn" class="btn btn-success btn-futuristic w-100" 
+                                title="Download (Alt+D)">
+                                <i class="fas fa-download me-2"></i>Download
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Session Info -->
+                    <div class="sidebar-section" id="sessionInfo" style="display: none;">
+                        <h6 class="sidebar-title">
+                            <i class="fas fa-info-circle me-2"></i>Session Info
+                        </h6>
+                        <div class="session-details">
+                            <div class="session-item">
+                                <span class="session-label">Status:</span>
+                                <span class="session-value" id="sessionStatus">Active</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">File:</span>
+                                <span class="session-value" id="fileName">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Shortcut Keys Section -->
+                    <div class="sidebar-section" id="shortcutInfo" style="display: none;">
+                        <h6 class="sidebar-title">
+                            <i class="fas fa-keyboard me-2"></i>Shortcuts
+                        </h6>
+                        <div class="session-details custom-scrollbar" style="max-height: 220px; overflow-y: auto;">
+                            <div class="session-item">
+                                <span class="session-label">Item Tagger</span>
+                                <span class="session-value">#</span>
+                            </div>
+                            <div class ="session-item">
+                                <span class="session-label">Split</span>
+                                <span class="session-value">Alt+Shft+S</span>
+                            </div>
+                             <div class ="session-item">
+                                <span class="session-label">Fullscreen</span>
+                                <span class="session-value">Alt+F</span>
+                            </div>
+                               <div class="session-item">
+                                <span class="session-label"> Update Schema</span>
+                                <span class="session-value">Alt+Shift+U</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Transform to Schema</span>
+                                <span class="session-value">Alt+Shift+T</span>
+                            </div> 
+                            <div class="session-item">
+                                <span class="session-label">Select</span>
+                                <span class="session-value">Alt+Shift+U</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Upload</span>
+                                <span class="session-value">Alt+U</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Execute</span>
+                                <span class="session-value">Enter</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Undo</span>
+                                <span class="session-value">Ctrl+Z</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Redo</span>
+                                <span class="session-value">Ctrl+Y</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Download</span>
+                                <span class="session-value">Alt+D</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Menu</span>
+                                <span class="session-value">Alt+M</span>
+                            </div>
+                              <div class="session-item">
+                                <span class="session-label">Min-Max Spreadsheet</span>
+                                <span class="session-value">Alt+Shft+M</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Activate Textbox</span>
+                                <span class="session-value">Alt+I</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Save Prompt</span>
+                                <span class="session-value">Alt+Shft+S</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">View Prompts</span>
+                                <span class="session-value">Alt+Shft+P</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Escape</span>
+                                <span class="session-value">Esc</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Cell Selector</span>
+                                <span class="session-value">Alt+Shft+X</span>
+                            </div> 
+                            <div class="session-item">
+                                <span class="session-label">Upload Commands</span>
+                                <span class="session-value">Alt+C</span>
+                            </div>                                           
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="main-content-scroll-wrapper custom-scrollbar">
+                <div class="main-content">
+                    <!-- Command Input Section -->
+                    <div class="command-section" id="commandContainer" style="display: none;">
+                        <div class="command-card">
+                            <div class="command-header">
+                                <h5><i class="fas fa-terminal me-2"></i>AI Command Interface</h5>
+                            </div>
+                            <div class="command-body custom-scrollbar">
+                                <div class="command-input-wrapper">
+                                    <textarea class="form-control command-input" id="commandInput" rows="3" 
+                                        placeholder="Describe what you want to do with your spreadsheet...&#10;Example: Add a column named 'Total' that sums columns A and B"></textarea>
+                                    <div style="flex: 0 0 120px; display: flex; flex-direction: column; gap: 8px;">
+                                        <div style="display: flex; gap: 8px;">
+                                            <button id="savePromptBtn" class="btn btn-outline-info btn-futuristic icon-btn" title="Save Prompt (Alt+Shift+S)" type="button">
+                                                <i class="fas fa-save"></i>
+                                            </button>
+                                            <button id="promptLibraryBtn" class="btn btn-outline-info btn-futuristic icon-btn" title="Show Saved Prompts (Alt+Shift+P)" type="button">
+                                                <i class="fas fa-book-open"></i>
+                                            </button>
+                                        </div>
+                                        <button id="processBtn" class="btn btn-primary btn-futuristic w-100" style="margin-top: 0;" title="Process Command (Enter)">
+                                            <i class="fas fa-magic me-2"></i>Enter
+                                        </button>
+                                    </div>
                                 </div>
-                                <button id="processBtn" class="btn btn-primary btn-futuristic w-100" style="margin-top: 0;" title="Process Command (Enter)">
-                                    <i class="fas fa-magic me-2"></i>Enter
-                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Spreadsheet Display -->
+                    <div class="spreadsheet-section" id="spreadsheetContainer" style="display: none;">
+                        <div class="spreadsheet-card">
+                            <div class="spreadsheet-header">
+                                <h5><i class="fas fa-table me-2"></i>Spreadsheet Data</h5>
+                                <div class="spreadsheet-controls">
+                                    <!-- Batch Actions -->
+                                    <div class="batch-actions">
+                                        <button class="btn btn-sm btn-outline-light" id="uploadCommandsBtn" title="Upload Commands (Alt+C)">
+                                            <i class="fas fa-file-upload"></i>
+                                        </button>
+                                        <!-- Hidden file input for text commands -->
+                                        <input type="file" id="commandFileInput" accept=".txt" style="display: none;" />
+                                        <!-- Action Plan Button -->
+                                        <button class="btn btn-sm btn-outline-light" id="generateActionPlanBtn" title="Generate & Execute Algorithm">
+                                            <i class="fas fa-robot"></i>
+                                        </button>
+                                    </div>
+                                    <!-- Schema Management Buttons -->
+                                    <div class="schema-buttons">
+                                        <button class="btn btn-sm btn-outline-light" id="updateSchemaBtn" title="Update Schema (Alt+Shift+U)">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-light" id="transformSchemaBtn" title="Transform to Schema (Alt+Shift+T)">
+                                            <i class="fas fa-magic"></i>
+                                        </button>
+                                    </div>
+                                    <!-- Screen Controls -->
+                                    <div class="screen-controls">
+                                        <button class="btn btn-sm btn-outline-light" id="splitViewBtn" title="Split View (Alt+Shift+S)">
+                                                <i class="fas fa-columns"></i>
+                                        </button>
+                                        <!-- Fullscreen Button -->
+                                        <button class="btn btn-sm btn-outline-light" id="fullscreenBtn" tooltip="Toggle Fullscreen" title="Fullscreen (Alt+F)">
+                                            <i class="fas fa-expand"></i>
+                                        </button>
+                                    </div>
+                                    <!-- Cell Selector Bar -->
+                                    <div class="cell-selector-bar" id="cellSelectorBar">
+                                        <i class="fas fa-crosshairs me-2"></i>
+                                        <input type="text" class="form-control form-control-sm cell-selector-input" id="cellSelectorDisplay" placeholder="-">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="spreadsheet-body custom-scrollbar">
+                                <div id="spreadsheetData"></div>
+                                <!-- Sheet Tab Bar: bottom left inside spreadsheet container -->
+                                <div id="sheetTabContainer" style="position: absolute; left: 0; bottom: 0; z-index: 10; display: flex; gap: 4px; padding: 6px 8px; background: var(--bg-secondary, #23272b); border-radius: 0 8px 0 0; min-height: 36px;">
+                                    <!-- Sheet tabs will be dynamically inserted here -->
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Spreadsheet Display -->
-            <div class="spreadsheet-section" id="spreadsheetContainer" style="display: none;">
-                <div class="spreadsheet-card">
-                    <div class="spreadsheet-header">
-                        <h5><i class="fas fa-table me-2"></i>Spreadsheet Data</h5>
-                        <div class="spreadsheet-controls">
-                            <!-- Batch Actions -->
-                            <div class="batch-actions">
-                                <button class="btn btn-sm btn-outline-light" id="uploadCommandsBtn" title="Upload Commands (Alt+C)">
-                                    <i class="fas fa-file-upload"></i>
-                                </button>
-                                <!-- Hidden file input for text commands -->
-                                <input type="file" id="commandFileInput" accept=".txt" style="display: none;" />
-                                <!-- Action Plan Button -->
-                                <button class="btn btn-sm btn-outline-light" id="generateActionPlanBtn" title="Generate & Execute Algorithm">
-                                    <i class="fas fa-robot"></i>
-                                </button>
-                            </div>
-                            <!-- Schema Management Buttons -->
-                            <div class="schema-buttons">
-                                <button class="btn btn-sm btn-outline-light" id="updateSchemaBtn" title="Update Schema (Alt+Shift+U)">
-                                    <i class="fas fa-sync-alt"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-light" id="transformSchemaBtn" title="Transform to Schema (Alt+Shift+T)">
-                                    <i class="fas fa-magic"></i>
-                                </button>
-                            </div>
-                            <!-- Screen Controls -->
-                            <div class="screen-controls">
-                                <button class="btn btn-sm btn-outline-light" id="splitViewBtn" title="Split View (Alt+Shift+S)">
-                                        <i class="fas fa-columns"></i>
-                                </button>
-                                <!-- Fullscreen Button -->
-                                <button class="btn btn-sm btn-outline-light" id="fullscreenBtn" tooltip="Toggle Fullscreen" title="Fullscreen (Alt+F)">
-                                    <i class="fas fa-expand"></i>
-                                </button>
-                            </div>
-                            <!-- Cell Selector Bar -->
-                            <div class="cell-selector-bar" id="cellSelectorBar">
-                                <i class="fas fa-crosshairs me-2"></i>
-                                <input type="text" class="form-control form-control-sm cell-selector-input" id="cellSelectorDisplay" placeholder="-">
-                            </div>
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loadingContainer" style="display: none;">
+            <div class="loading-content">
+                <div class="futuristic-loader">
+                    <div class="loader-ring"></div>
+                    <div class="loader-ring"></div>
+                    <div class="loader-ring"></div>
+                    <div class="signal"></div>
+                    <div class="signal"></div>
+                    <div class="signal"></div>
+                    <div class="signal"></div>
+                    <div class="loader-dot"></div>
+                </div>
+                <p class="loading-text" id="loadingMessage">Processing your command...</p>
+            </div>
+        </div>
+
+        <!-- Error Modal -->
+        <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="errorModalLabel">
+                            <i class="fas fa-exclamation-triangle me-2 text-warning"></i>Error
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="errorModalBody">
+                        An error occurred.
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Plan Modal -->
+        <div class="modal fade" id="actionPlanModal" tabindex="-1" aria-labelledby="actionPlanModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="actionPlanModalLabel">
+                            <i class="fas fa-robot me-2"></i>Universal Algorithm Action Plan
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Warning:</strong> The system will generate a universal algorithm based on your sample changes and apply it to the entire left spreadsheet (<span id="actionPlanRowCount">0</span> rows).
+                        </div>
+                        <h6 class="mb-3"><i class="fas fa-list-ul me-2"></i>Detected Changes:</h6>
+                        <div class="action-plan-content custom-scrollbar" id="actionPlanContent" style="max-height: 300px; overflow-y: auto; background-color: var(--bg-secondary); border-radius: 8px; padding: 15px; font-family: 'Courier New', monospace; white-space: pre-wrap;">
+                            <!-- Action plan will be inserted here -->
                         </div>
                     </div>
-                    <div class="spreadsheet-body custom-scrollbar">
-                        <div id="spreadsheetData"></div>
-                        <!-- Sheet Tab Bar: bottom left inside spreadsheet container -->
-                        <div id="sheetTabContainer" style="position: absolute; left: 0; bottom: 0; z-index: 10; display: flex; gap: 4px; padding: 6px 8px; background: var(--bg-secondary, #23272b); border-radius: 0 8px 0 0; min-height: 36px;">
-                            <!-- Sheet tabs will be dynamically inserted here -->
-                        </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </button>
+                        <button type="button" class="btn btn-primary" id="actionPlanProceedBtn">
+                            <i class="fas fa-play me-2"></i>Proceed
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Prompt Modal -->
+        <div class="modal fade" id="promptModal" tabindex="-1" aria-labelledby="promptModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 500px;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="promptModalLabel">
+                            <i class="fas fa-book-open me-2"></i>Prompts
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="closePromptModalBtn"></button>
+                    </div>
+                    <div class="modal-body custom-scrollbar" style="max-height: 300px; overflow-y: auto;">
+                        <ul class="list-group" id="promptList"></ul>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingContainer" style="display: none;">
-        <div class="loading-content">
-            <div class="futuristic-loader">
-                <div class="loader-ring"></div>
-                <div class="loader-ring"></div>
-                <div class="loader-ring"></div>
-                <div class="signal"></div>
-                <div class="signal"></div>
-                <div class="signal"></div>
-                <div class="signal"></div>
-                <div class="loader-dot"></div>
-            </div>
-            <p class="loading-text" id="loadingMessage">Processing your command...</p>
+    <!-- Fixed footer at the bottom, outside page-wrapper -->
+    <footer id="footerWrap" class="fixed-footer">
+        <div class="footer-left">
+            <a href="/usermanual" class="btn btn-outline-info btn-futuristic btn-xs user-manual-link" target="_blank">
+                <i class="fas fa-book me-1"></i> User Manual
+            </a>
         </div>
-    </div>
-
-    <!-- Error Modal -->
-    <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="errorModalLabel">
-                        <i class="fas fa-exclamation-triangle me-2 text-warning"></i>Error
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body" id="errorModalBody">
-                    An error occurred.
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
+        <div class="footer-center">
+            <span class="navbar-brand footer-blink footer-title">
+                Auto Editor
+            </span>
         </div>
-    </div>
-
-    <!-- Action Plan Modal -->
-    <div class="modal fade" id="actionPlanModal" tabindex="-1" aria-labelledby="actionPlanModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="actionPlanModalLabel">
-                        <i class="fas fa-robot me-2"></i>Universal Algorithm Action Plan
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-warning" role="alert">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        <strong>Warning:</strong> The system will generate a universal algorithm based on your sample changes and apply it to the entire left spreadsheet (<span id="actionPlanRowCount">0</span> rows).
-                    </div>
-                    <h6 class="mb-3"><i class="fas fa-list-ul me-2"></i>Detected Changes:</h6>
-                    <div class="action-plan-content custom-scrollbar" id="actionPlanContent" style="max-height: 300px; overflow-y: auto; background-color: var(--bg-secondary); border-radius: 8px; padding: 15px; font-family: 'Courier New', monospace; white-space: pre-wrap;">
-                        <!-- Action plan will be inserted here -->
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="fas fa-times me-2"></i>Cancel
-                    </button>
-                    <button type="button" class="btn btn-primary" id="actionPlanProceedBtn">
-                        <i class="fas fa-play me-2"></i>Proceed
-                    </button>
-                </div>
-            </div>
+        <div class="footer-right">
+            HLBHAMT &copy; {{ 2024 }}
         </div>
-    </div>
-
-    <!-- Prompt Modal -->
-    <div class="modal fade" id="promptModal" tabindex="-1" aria-labelledby="promptModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 500px;">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="promptModalLabel">
-                        <i class="fas fa-book-open me-2"></i>Prompts
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="closePromptModalBtn"></button>
-                </div>
-                <div class="modal-body custom-scrollbar" style="max-height: 300px; overflow-y: auto;">
-                    <ul class="list-group" id="promptList"></ul>
-                </div>
-            </div>
-        </div>
-    </div>
+    </footer>
 
     <!-- Add Bootstrap JavaScript before your custom scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -361,4 +385,5 @@
     <script type="module" src="{{ url_for('static', path='js/main.js') }}"></script>
     <script type="module" src="{{ url_for('static', path='js/prompts.js') }}"></script>   
 </body>
+</html>
 </html>
