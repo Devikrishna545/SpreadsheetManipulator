@@ -889,3 +889,32 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
                     return self.handle_api_error(Exception(f"Failed to generate universal algorithm after {max_retries} attempts. Last error: {error_msg}"))
         
         return self.handle_api_error(Exception("Unexpected error in universal algorithm generation with auto-retry"))
+
+    def generate_script_correction(self, correction_prompt: str) -> str:
+        """
+        Generate a corrected script based on error feedback.
+        
+        Args:
+            correction_prompt: Prompt containing the failing script and error details
+            
+        Returns:
+            str: Corrected Python script
+        """
+        try:
+            # Use the regular model for script corrections
+            model = genai.GenerativeModel(
+                model_name="gemini-2.0-flash-exp",
+                generation_config=self.generation_config,
+                safety_settings=self.safety_settings
+            )
+            
+            response = model.generate_content(correction_prompt)
+            
+            if response.text:
+                return response.text.strip()
+            else:
+                return ""
+                
+        except Exception as e:
+            print(f"❌ Error generating script correction: {e}")
+            return ""

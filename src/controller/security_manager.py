@@ -66,6 +66,13 @@ class SecurityManager:
         Returns:
             bool: True if the script passes security validation, False otherwise
         """
+        # Check for basic syntax issues first
+        try:
+            ast.parse(script)
+        except SyntaxError as e:
+            self.log_rejection(script, f"SyntaxError while parsing script: {str(e)}")
+            return False
+            
         # Allow error handling scripts that just add an error column
         if "LLM_ERROR" in script and "df['LLM_ERROR']" in script and len(script.split('\n')) <= 5:
             return True

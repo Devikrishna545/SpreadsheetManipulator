@@ -184,7 +184,9 @@ class SpreadsheetController:
     
     def process_command(self, session_id: str, command: str, use_advanced_processing: bool = False) -> Dict[str, Any]:
         """
-        Process a user command through LLM
+        Process a user command through LLM, always using the latest spreadsheet structure.
+        Ensures that after every prompt, the backend operates on the most current DataFrame,
+        and updates the session/history after every script execution.
 
         Args:
             session_id: Session ID
@@ -199,14 +201,24 @@ class SpreadsheetController:
         if not session:
             raise ValueError("Session not found or expired")
         
-        # Get current spreadsheet state
+        # Get current spreadsheet state - REFRESH STRUCTURE BEFORE PROCESSING
         history = session.get_modification_history()
         if not history:
             raise ValueError("Modification history not found for this session")
-            
         current_spreadsheet = history.get_current_state()
         if not current_spreadsheet:
             raise ValueError("No spreadsheet data found")
+
+        # IMPORTANT: Get the most current DataFrame state
+        # This ensures we have the latest structure including any manual user changes
+        current_df = current_spreadsheet.get_data()
+
+        # --- NEW: Log and validate structure before LLM prompt ---
+        print(f"\n🔄 [PRE-PROMPT] Ensuring up-to-date spreadsheet structure before LLM processing:")
+        print(f"   - Shape: {current_df.shape[0]} rows × {current_df.shape[1]} columns")
+        print(f"   - Columns: {list(current_df.columns)}")
+        print(f"   - Data types: {dict(current_df.dtypes)}")
+        print(f"   - Head preview:\n{current_df.head(5)}")
         
         # Convert spreadsheet to JSON format for LLM and save a copy to static/json
         spreadsheet_json = current_spreadsheet.to_json(save_to_file=True, file_manager=self.file_manager)
@@ -224,12 +236,25 @@ class SpreadsheetController:
         # Store generated script
         session.set_generated_script(script)
         
-        # Execute script on spreadsheet data
-        new_df, modified_cells = self.script_executor.execute_script(
-            script, 
-            current_spreadsheet.get_data(),
-            file_manager=self.file_manager
-        )
+        # Execute script on spreadsheet data using appropriate method
+        # PASS CURRENT DATAFRAME (not from spreadsheet object) to ensure latest structure
+        if use_advanced_processing:
+            # Use advanced execution with universal transformation patterns
+            new_df, modified_cells = self.script_executor.execute_script(
+                script, 
+                current_df.copy(),  # Use current_df instead of current_spreadsheet.get_data()
+                file_manager=self.file_manager,
+                session_id=session_id  # Pass session_id for structure tracking
+            )
+        else:
+            # Use simple execution for AI Command Interface (no universal patterns)
+            new_df, modified_cells = self.script_executor.execute_simple_script(
+                script, 
+                current_df.copy(),  # Use current_df instead of current_spreadsheet.get_data()
+                command,
+                file_manager=self.file_manager,
+                session_id=session_id  # Pass session_id for structure tracking
+            )
         
         # Create new spreadsheet state
         new_spreadsheet = Spreadsheet(
@@ -764,10 +789,15 @@ class SpreadsheetController:
             print(f"📋 Left dataset: {len(left_data)} rows")
             print(f"📄 Right template: {len(right_data)} rows")
             
-            # Get current spreadsheet data
+            # Get current spreadsheet data - ENSURE WE HAVE THE LATEST STRUCTURE
             current_df = self.get_spreadsheet_df(session_id)
             if current_df is None:
                 raise ValueError("No spreadsheet data found for session")
+            
+            print(f"\n🔄 ALGORITHM GENERATION - Current spreadsheet structure:")
+            print(f"   📊 Shape: {current_df.shape[0]} rows × {current_df.shape[1]} columns")
+            print(f"   📋 Columns: {list(current_df.columns)}")
+            print(f"   📈 Data sample: {current_df.head(2).values.tolist() if len(current_df) > 0 else 'Empty'}")
             
             last_error_msg = None
             

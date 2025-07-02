@@ -26,13 +26,24 @@ export function renderSpreadsheet(data) { // data is currentData from main.js
             currentSheetIndex = 0;
         }
         renderSheetTabs(workbookSheets, currentSheetIndex);
-        renderSingleSheet(workbookSheets[currentSheetIndex]);
+        
+        // Pass modified_cells to the active sheet if available
+        const activeSheet = workbookSheets[currentSheetIndex];
+        if (data.modified_cells && data.modified_cells.length > 0) {
+            activeSheet.modified_cells = data.modified_cells;
+        }
+        renderSingleSheet(activeSheet);
     } else {
-        // Single sheet fallback
-        workbookSheets = [{ name: data.metadata?.sheetName || 'Sheet1', data: data.data }];
+        // Single sheet fallback - ensure modified_cells are passed through
+        const singleSheet = { 
+            name: data.metadata?.sheetName || 'Sheet1', 
+            data: data.data,
+            modified_cells: data.modified_cells || []
+        };
+        workbookSheets = [singleSheet];
         currentSheetIndex = 0;
         renderSheetTabs(workbookSheets, 0);
-        renderSingleSheet(workbookSheets[0]);
+        renderSingleSheet(singleSheet);
     }
 }
 
@@ -161,6 +172,7 @@ function renderSingleSheet(sheetObj) {
     window.hotInstance = new Handsontable(spreadsheetDataContainer, settings);
 
     if (sheetObj.modified_cells && sheetObj.modified_cells.length > 0) {
+        console.log(`Triggering highlighting for ${sheetObj.modified_cells.length} modified cells:`, sheetObj.modified_cells);
         highlightModifiedCells(sheetObj.modified_cells);
     }
 }
@@ -268,29 +280,230 @@ function generateExcelColHeaders(count) {
     return headers;
 }
 
-function highlightModifiedCells(modifiedCells) {
-    if (!window.hotInstance || !modifiedCells || modifiedCells.length === 0) return;
+/**
+ * Animate scrolling through modified cells for better UX
+ * @param {Object} hotInstance - The Handsontable instance
+ * @param {Array} cells - Array of [row, col] coordinates
+ */
+async function animateScrollThroughCells(hotInstance, cells) {
+    if (!hotInstance || cells.length === 0) return;
     
-    console.log(`Highlighting ${modifiedCells.length} modified cells`);
+    console.log(`📜 Starting scroll animation through ${cells.length} modified cells`);
     
-    // Add highlighting to all modified cells
-    for (const [row, col] of modifiedCells) {
-        const td = window.hotInstance.getCell(row, col);
-        if (td) {
-            td.classList.add('modified');
+    // Sort cells by row then column for logical scrolling order
+    const sortedCells = [...cells].sort((a, b) => {
+        if (a[0] !== b[0]) return a[0] - b[0]; // Sort by row first
+        return a[1] - b[1]; // Then by column
+    });
+    
+    // For large numbers of cells, group nearby cells and only scroll to representative ones
+    let cellsToScrollTo = sortedCells;
+    if (sortedCells.length > 10) {
+        cellsToScrollTo = optimizeScrollPath(sortedCells);
+        console.log(`📊 Optimized scroll path: ${sortedCells.length} → ${cellsToScrollTo.length} stops`);
+    }
+    
+    // Calculate timing based on number of cells to scroll to
+    const maxScrollTime = 2000; // Maximum time to spend scrolling (2 seconds)
+    const minDelayPerCell = 120; // Minimum time per cell (120ms)
+    const delayPerCell = Math.max(minDelayPerCell, Math.min(600, maxScrollTime / cellsToScrollTo.length));
+    
+    let previousFocusCell = null;
+    
+    for (let i = 0; i < cellsToScrollTo.length; i++) {
+        const [row, col] = cellsToScrollTo[i];
+        
+        if (typeof row !== 'number' || typeof col !== 'number') continue;
+        if (row < 0 || col < 0) continue;
+        
+        try {
+            // Remove previous focus styling
+            if (previousFocusCell) {
+                const prevTd = hotInstance.getCell(previousFocusCell[0], previousFocusCell[1]);
+                if (prevTd) {
+                    prevTd.classList.remove('scroll-focus');
+                }
+            }
+            
+            // Scroll to the cell smoothly
+            hotInstance.scrollViewportTo(row, col, true, true);
+            
+            // Add special focus styling for current cell
+            const currentTd = hotInstance.getCell(row, col);
+            if (currentTd) {
+                currentTd.classList.add('scroll-focus');
+            }
+            
+            // Briefly select the cell to draw extra attention
+            hotInstance.selectCell(row, col, row, col, false);
+            
+            console.log(`📍 Scrolled to cell [${row}, ${col}] (${i + 1}/${cellsToScrollTo.length})`);
+            
+            previousFocusCell = [row, col];
+            
+            // Wait before moving to the next cell (except for the last one)
+            if (i < cellsToScrollTo.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, delayPerCell));
+            }
+        } catch (error) {
+            console.warn(`Could not scroll to cell [${row}, ${col}]:`, error);
         }
     }
     
-    // Remove highlighting after 4 seconds (longer duration for schema transformations)
+    // Clean up the last focus styling
     setTimeout(() => {
-        for (const [row, col] of modifiedCells) {
-            const td = window.hotInstance.getCell(row, col);
-            if (td) {
-                td.classList.remove('modified');
+        if (previousFocusCell) {
+            try {
+                const lastTd = hotInstance.getCell(previousFocusCell[0], previousFocusCell[1]);
+                if (lastTd) {
+                    lastTd.classList.remove('scroll-focus');
+                }
+            } catch (error) {
+                // Ignore errors in cleanup
             }
         }
-        console.log('Cell highlighting removed');
-    }, 4000);
+    }, 400);
+    
+    console.log(`✅ Completed scroll animation through all ${cellsToScrollTo.length} scroll stops`);
+    
+    // If there are multiple cells, show a brief overview at the end
+    if (cellsToScrollTo.length > 1) {
+        setTimeout(() => {
+            try {
+                // Scroll to show the first few modified cells in view
+                const firstCell = cellsToScrollTo[0];
+                hotInstance.scrollViewportTo(firstCell[0], firstCell[1], true, true);
+                
+                // Clear selection after the animation
+                setTimeout(() => {
+                    hotInstance.deselectCell();
+                }, 300);
+            } catch (error) {
+                console.warn('Could not complete final scroll positioning:', error);
+            }
+        }, 200);
+    } else if (cellsToScrollTo.length === 1) {
+        // For single cell, just clear selection after a brief moment
+        setTimeout(() => {
+            try {
+                hotInstance.deselectCell();
+            } catch (error) {
+                // Ignore errors
+            }
+        }, 600);
+    }
+}
+
+/**
+ * Optimize scroll path for large numbers of modified cells
+ * Groups nearby cells and selects representative cells to scroll to
+ * @param {Array} sortedCells - Array of [row, col] coordinates sorted by position
+ * @returns {Array} Optimized array of cells to scroll to
+ */
+function optimizeScrollPath(sortedCells) {
+    if (sortedCells.length <= 10) return sortedCells;
+    
+    const optimized = [];
+    const groupDistance = 5; // Group cells within 5 rows/columns
+    
+    for (let i = 0; i < sortedCells.length; i++) {
+        const currentCell = sortedCells[i];
+        
+        // Always include the first cell
+        if (i === 0) {
+            optimized.push(currentCell);
+            continue;
+        }
+        
+        // Check if this cell is far enough from the last included cell
+        const lastIncluded = optimized[optimized.length - 1];
+        const rowDiff = Math.abs(currentCell[0] - lastIncluded[0]);
+        const colDiff = Math.abs(currentCell[1] - lastIncluded[1]);
+        
+        // Include cell if it's far enough away or if it's the last cell
+        if (rowDiff >= groupDistance || colDiff >= groupDistance || i === sortedCells.length - 1) {
+            optimized.push(currentCell);
+        }
+    }
+    
+    return optimized;
+}
+
+function highlightModifiedCells(modifiedCells) {
+    if (!modifiedCells || modifiedCells.length === 0) return;
+    
+    console.log(`🎨 Processing ${modifiedCells.length} modified cells:`, modifiedCells);
+    
+    // Function to scroll through cells first, then apply highlighting
+    const scrollThenHighlight = async (hotInstance, cells) => {
+        if (!hotInstance) return;
+        
+        // Show status message for the entire modification process
+        updateStatus('Applying Modifications', 'processing');
+        
+        // First, animate scrolling through the modified cells (without highlighting)
+        if (cells.length > 0) {
+            await animateScrollThroughCells(hotInstance, cells);
+        }
+        
+        // After scrolling is complete, highlight all modified cells
+        let highlightedCount = 0;
+        for (const [row, col] of cells) {
+            if (typeof row !== 'number' || typeof col !== 'number') continue;
+            if (row < 0 || col < 0) continue;
+            
+            try {
+                const td = hotInstance.getCell(row, col);
+                if (td) {
+                    td.classList.add('modified');
+                    highlightedCount++;
+                }
+            } catch (error) {
+                console.warn(`Could not highlight cell [${row}, ${col}]:`, error);
+            }
+        }
+        
+        console.log(`✨ Successfully highlighted ${highlightedCount} cells after scrolling`);
+        
+        // Update status when highlighting is applied and keep "Applying Modifications" for the duration
+        updateStatus('Applying Modifications', 'processing');
+        
+        // Remove highlighting after 3 seconds (instead of 2)
+        setTimeout(() => {
+            let removedCount = 0;
+            for (const [row, col] of cells) {
+                if (typeof row !== 'number' || typeof col !== 'number') continue;
+                if (row < 0 || col < 0) continue;
+                
+                try {
+                    const td = hotInstance.getCell(row, col);
+                    if (td) {
+                        td.classList.remove('modified');
+                        removedCount++;
+                    }
+                } catch (error) {
+                    // Cell might be out of bounds, skip silently
+                }
+            }
+            console.log(`🎨 Cell highlighting removed (${removedCount} cells)`);
+            
+            // Only update status to "Ready" after highlighting is completely removed
+            updateStatus(`Applied ${highlightedCount} modifications`, 'success');
+            setTimeout(() => updateStatus('Ready', 'active'), 1000);
+        }, 3000);
+    };
+    
+    // Apply scrolling then highlighting to the main spreadsheet (left side)
+    if (window.hotInstance) {
+        console.log('Applying scroll-then-highlight to main spreadsheet');
+        scrollThenHighlight(window.hotInstance, modifiedCells);
+    }
+    
+    // Also apply to the editable instance in split view if it exists
+    if (window.editableHotInstance) {
+        console.log('Applying scroll-then-highlight to editable spreadsheet (split view)');
+        scrollThenHighlight(window.editableHotInstance, modifiedCells);
+    }
 }
 
 export async function loadSpreadsheetData(sessionId) {
@@ -545,4 +758,54 @@ export function isSplitViewEnabled() {
 // Add getter for the editable instance
 export function getEditableInstance() {
     return editableHotInstance;
+}
+
+// Export highlighting function for use by other modules
+export { highlightModifiedCells };
+
+// Utility function to manually highlight specific cells
+export function highlightCells(cells) {
+    if (!cells || !Array.isArray(cells) || cells.length === 0) return;
+    
+    // Convert cells to the expected format [row, col] if needed
+    const formattedCells = cells.map(cell => {
+        if (Array.isArray(cell) && cell.length >= 2) {
+            return [cell[0], cell[1]];
+        } else if (typeof cell === 'object' && cell.row !== undefined && cell.col !== undefined) {
+            return [cell.row, cell.col];
+        }
+        return null;
+    }).filter(cell => cell !== null);
+    
+    if (formattedCells.length > 0) {
+        highlightModifiedCells(formattedCells);
+    }
+}
+
+// Make highlighting functions available globally for testing
+if (typeof window !== 'undefined') {
+    window.testHighlighting = function(row = 0, col = 0) {
+        console.log(`Testing scroll-then-highlight on cell [${row}, ${col}]`);
+        highlightCells([[row, col]]);
+    };
+    
+    window.testMultipleHighlighting = function() {
+        console.log('Testing scroll-then-highlight on multiple cells: [0,0], [1,1], [2,2]');
+        highlightCells([[0, 0], [1, 1], [2, 2]]);
+    };
+    
+    window.testManyHighlighting = function() {
+        console.log('Testing scroll-then-highlight optimization with many cells');
+        const manyCells = [];
+        for (let i = 0; i < 25; i++) {
+            manyCells.push([Math.floor(i / 5) * 3, (i % 5) * 2]);
+        }
+        highlightCells(manyCells);
+    };
+    
+    window.testScatteredHighlighting = function() {
+        console.log('Testing scroll-then-highlight with scattered cells across the spreadsheet');
+        const scatteredCells = [[0, 0], [5, 3], [10, 1], [15, 4], [20, 2], [25, 5]];
+        highlightCells(scatteredCells);
+    };
 }
