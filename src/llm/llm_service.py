@@ -9,6 +9,7 @@ import re
 from typing import Dict, Any
 import google.generativeai as genai
 from dotenv import load_dotenv
+from src.llm.token_manager import token_manager
 
 def _serialize_for_json(obj):
     """
@@ -109,6 +110,9 @@ class LLMService:
                 )
                 final_script = self._call_gemini_simple_api(code_prompt)
                 
+                # Print token summary for this command
+                self.print_final_token_summary()
+                
                 return final_script
                 
             except Exception as e:
@@ -116,6 +120,8 @@ class LLMService:
                 last_error_msg = error_msg
                 
                 if attempt == max_attempts - 1:
+                    # Print token summary even for failed attempts
+                    self.print_final_token_summary()
                     return self.handle_api_error(Exception(f"Failed to generate working script after {max_attempts} attempts. Last error: {error_msg}"))
         
         return self.handle_api_error(Exception("Unexpected error in simple script generation"))
@@ -155,6 +161,9 @@ class LLMService:
                 
                 print("✓ Complex script generated successfully")
                 
+                # Print token summary for this command
+                self.print_final_token_summary()
+                
                 return final_script
                 
             except Exception as e:
@@ -164,6 +173,8 @@ class LLMService:
                 
                 if attempt == max_attempts - 1:
                     print(f"\nALL {max_attempts} COMPLEX ATTEMPTS FAILED")
+                    # Print token summary even for failed attempts
+                    self.print_final_token_summary()
                     return self.handle_api_error(Exception(f"Failed to generate working script after {max_attempts} attempts. Last error: {error_msg}"))
                 
                 print(f"RETRYING... ({attempt + 2}/{max_attempts})")
@@ -201,25 +212,27 @@ DO NOT import modules other than pandas and numpy, which are already imported.
 6. Output ONLY the Python code - no other text
 7. Ensure your code handles potential errors gracefully
 
-Important notes on cell references:
-- When the user references specific cells with # notation, they're using Excel-style references
-- For a single cell (like A1), use df.iloc[0, 0] (zero-indexed)
-- For a column (like column A), use df.iloc[:, 0]
-- For a row (like row 1), use df.iloc[0, :]
-- For cell ranges (like A1:C3), use df.iloc[0:3, 0:3]
-- For column ranges (like A:C), use df.iloc[:, 0:3]
-- For row ranges (like 1:3), use df.iloc[0:3, :]
-- Remember that Excel-style references use 1-based indexing for rows but df.iloc uses 0-based indexing
-- Multiple selections may be indicated with commas (like A1, B2, C3)
+Important notes on DataFrame structure and indexing:
+- CRITICAL: All rows in the spreadsheet are treated as regular data rows - there are no special header rows.
+- The very first visible row in the grid (row #1) is at df.iloc[0], regardless of what data it contains
+- When user says "row #1", they mean the first visible row in the spreadsheet (df.iloc[0])
+- When user says "row #2", they mean the second visible row in the spreadsheet (df.iloc[1])
+- The DataFrame uses 0-based indexing, while the user interface uses 1-based row numbering
+- Simple conversion: row #N in user interface → df.iloc[N-1] in code
+- When user says "delete row #1", use: df = df.drop(index=0).reset_index(drop=True)
+- When user says "delete row #2", use: df = df.drop(index=1).reset_index(drop=True)
+- For column references: Column A = df.iloc[:, 0], Column B = df.iloc[:, 1], etc.
+- Always reset the index after dropping rows to maintain consecutive indexing
 
 Cell reference conversion examples:
+- "Delete row #1" → df = df.drop(index=0).reset_index(drop=True)
+- "Delete row #3" → df = df.drop(index=2).reset_index(drop=True)
+- "Delete rows #1 and #2" → df = df.drop(index=[0, 1]).reset_index(drop=True)
 - A1 = df.iloc[0, 0]
 - B2 = df.iloc[1, 1] 
 - Column A = df.iloc[:, 0]
-- Row 5 = df.iloc[4, :]
+- Row 1 (first row) = df.iloc[0, :]
 - A1:C3 = df.iloc[0:3, 0:3]
-- A:C = df.iloc[:, 0:3]
-- 1:5 = df.iloc[0:5, :]
 </instructions>
 
 Provide only the Python code needed to execute the requested modification:"""
@@ -285,8 +298,20 @@ Sample data: {json.dumps(data_sample)}
 </requirements>
 
 <cell_reference_guide>
-When handling cell references with # notation:
-- Single cell (A1): df.iloc[0, 0] (remember 0-based indexing)
+Important notes on DataFrame structure and indexing:
+- CRITICAL: All rows in the spreadsheet are treated as regular data rows - there are no special header rows.
+- The very first visible row in the grid (row #1) is at df.iloc[0], regardless of what data it contains
+- When user says "row #1", they mean the first visible row in the spreadsheet (df.iloc[0])
+- When user says "row #2", they mean the second visible row in the spreadsheet (df.iloc[1])
+- The DataFrame uses 0-based indexing, while the user interface uses 1-based row numbering
+- Simple conversion: row #N in user interface → df.iloc[N-1] in code
+- Always reset_index(drop=True) after dropping rows to maintain consecutive indexing
+
+Cell reference examples:
+- "Delete row #1" → df = df.drop(index=0).reset_index(drop=True)
+- "Delete row #2" → df = df.drop(index=1).reset_index(drop=True) 
+- "Delete rows #1 and #2" → df = df.drop(index=[0, 1]).reset_index(drop=True)
+- Single cell (A1): df.iloc[0, 0] (first row, first column) 
 - Column (A): df.iloc[:, 0] 
 - Row (1): df.iloc[0, :]
 - Range (A1:C3): df.iloc[0:3, 0:3]
@@ -308,6 +333,7 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
             )
             
             response = model.generate_content(prompt)
+            token_manager.set_token_usage(token_manager.extract_token_usage(response))
             
             if hasattr(response, 'text') and response.text and response.text.strip():
                 return self._extract_script(response.text)
@@ -324,9 +350,42 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
             error_msg = str(e)
             raise Exception(f"Gemini simple API failed: {error_msg}")
 
+    def get_last_token_usage(self):
+        """
+        Get the last Gemini token usage stats.
+        Returns:
+            dict or None
+        """
+        return token_manager.get_token_usage()
+
+    def print_final_token_summary(self):
+        """
+        Print final token summary - delegates to token_manager for compatibility
+        """
+        token_manager.print_token_usage()
+
+    def get_total_token_usage(self):
+        """
+        Get total token usage stats - delegates to token_manager
+        """
+        return token_manager.get_total_token_usage()
+
+    def reset_token_usage(self):
+        """
+        Reset token usage counters - delegates to token_manager
+        """
+        token_manager.reset_token_usage()
+
     def _process_cell_references(self, command: str) -> str:
         """
-        Process cell references in the command text
+        Process cell references in the command text to ensure proper mapping
+        between frontend display (Excel-style) and backend DataFrame indices.
+        
+        IMPORTANT: Every visible row in the grid is treated as a normal row.
+        Row 1 is always the first visible row in the grid, even if it contains headers.
+        
+        Frontend shows: Row 1, 2, 3... (user visible, starting with first visible row)
+        Backend uses:   Index 0, 1, 2... (DataFrame indices)
         
         Args:
             command: The original command text
@@ -334,9 +393,50 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
         Returns:
             str: Processed command with cell references handled
         """
-        # For now, just return the command as-is
-        # This method can be enhanced later to handle specific cell reference processing
-        return command
+        import re
+        
+        processed_command = command
+        
+        # Handle row references like "row #1", "rows #1", "row #2", etc.
+        # Convert user-visible row numbers to DataFrame indices (subtract 1)
+        def replace_row_ref(match):
+            row_num = int(match.group(1))
+            # Simple 1-based to 0-based conversion (row #N → index N-1)
+            # No special handling for header rows - every visible row counts
+            df_index = row_num - 1  # Convert to 0-based index
+            return f"row index {df_index}"
+        
+        # Pattern to match "row #N" or "rows #N"
+        processed_command = re.sub(r'rows?\s*#(\d+)', replace_row_ref, processed_command, flags=re.IGNORECASE)
+        
+        # Handle range references like "rows #1 and #2", "rows #1-#3"
+        def replace_row_range(match):
+            start_row = int(match.group(1))
+            end_row = int(match.group(2))
+            # Direct 1-based to 0-based conversion
+            start_index = start_row - 1
+            end_index = end_row - 1
+            return f"row indices {start_index} to {end_index}"
+        
+        # Pattern to match "rows #N and #M" or "rows #N-#M"
+        processed_command = re.sub(r'rows?\s*#(\d+)\s+(?:and|to|-)\s*#(\d+)', replace_row_range, processed_command, flags=re.IGNORECASE)
+        
+        # Handle multiple rows like "rows #1, #2 and #3"
+        def replace_multiple_rows(match):
+            row_nums = re.findall(r'#(\d+)', match.group(0))
+            # Direct 1-based to 0-based conversion for all row numbers
+            indices = [str(int(num) - 1) for num in row_nums]
+            return f"row indices {', '.join(indices)}"
+        
+        # Pattern to match multiple row references with commas
+        processed_command = re.sub(r'rows?\s*(?:#\d+[,\s]*)+(?:and\s*)?#\d+', replace_multiple_rows, processed_command, flags=re.IGNORECASE)
+        
+        print(f"🔧 [LLM] Cell reference processing:")
+        print(f"   Original: {command}")
+        print(f"   Processed: {processed_command}")
+        print(f"   NOTE: Row references are mapped directly (row #N → index N-1) with no special handling for header rows")
+        
+        return processed_command
 
     def _call_gemini_thinking_api(self, prompt: str) -> str:
         try:
@@ -348,7 +448,8 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
             )
             
             response = model.generate_content(prompt)
-
+            token_manager.set_token_usage(token_manager.extract_token_usage(response))
+            
             # Try to get .text if available and non-empty
             if hasattr(response, 'text') and response.text and response.text.strip():
                 return response.text
@@ -402,6 +503,7 @@ Sample data: {json.dumps(data_sample)}
 Use code execution to verify your solution works before providing the final answer."""
             
             response = model.generate_content(execution_prompt)
+            token_manager.set_token_usage(token_manager.extract_token_usage(response))
             
             # Extract the final script
             if hasattr(response, 'text') and response.text and response.text.strip():
@@ -533,6 +635,9 @@ df['LLM_ERROR'] = "Script generation failed. Please try a different command."
                     print("⚠️  ALGORITHM VALIDATION WARNINGS:")
                     print(validation_warnings)
                 
+                # Print token summary for universal algorithm generation
+                self.print_final_token_summary()
+                
                 return final_script
                 
             except Exception as e:
@@ -585,7 +690,6 @@ CRITICAL: The goal is to create a universal algorithm that will normalize and or
         return prompt
 
     def _create_algorithm_generation_prompt(self, action_plan: str, left_data: list, right_data: list, full_left_rows: int, full_left_cols: int, thinking_response: str, last_error_msg: str = None) -> str:
-        """Create a prompt for generating the universal algorithm"""
         prompt = f"""Based on the previous analysis, generate a Python script that implements a universal algorithm to transform the entire left spreadsheet.
 
 <action_plan>
@@ -634,8 +738,6 @@ Right spreadsheet sample ({len(right_data)} rows - this is the desired output st
 </key_objectives>
 
 CRITICAL REMINDER: Your algorithm will be applied to a DataFrame with {full_left_rows} rows. Make sure your code works on the complete dataset, not just the sample you see here. DO NOT limit processing to the first N rows - process ALL {full_left_rows} rows.
-
-**IMPORTANT**: If your algorithm uses methods like df.head(), df.iloc[:sample_size], or similar row-limiting operations, you are doing it WRONG. The algorithm must process the entire DataFrame with ALL {full_left_rows} rows.
 
 **COMMON MISTAKE TO AVOID**: Do not create an output that matches the size of the right spreadsheet sample ({len(right_data)} rows). The right spreadsheet is just a template showing the desired structure. Your algorithm should transform ALL {full_left_rows} rows of the left spreadsheet into this structure, not just {len(right_data)} rows.
 
@@ -909,6 +1011,9 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
             )
             
             response = model.generate_content(correction_prompt)
+            
+            # Track token usage
+            token_manager.set_token_usage(token_manager.extract_token_usage(response))
             
             if response.text:
                 return response.text.strip()

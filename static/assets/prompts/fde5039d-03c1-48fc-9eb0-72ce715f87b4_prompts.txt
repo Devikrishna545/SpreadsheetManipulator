@@ -1,0 +1,3 @@
+Delete all empty rows and columns. Delete all rows containing "Totals" and "Net difference". Delete row #1. Create 2 new columns on the left. Move the "Main account" string to the first cell of column #A. Move the "Name" string to the first cell of column #B. Except for column #A and column #B, delete all other instances of "Main account" and "Name" strings.
+Delete all empty rows and columns.
+Delete all rows containing "Totals" and "Net difference".

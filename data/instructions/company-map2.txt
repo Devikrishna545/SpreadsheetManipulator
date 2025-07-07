@@ -1,0 +1,6 @@
+Move all cells in the range C32:D60 to enter in the new range A2:B30.
+Delete all duplicate cells and keep only the first instance of the duplicates.
+Delete rows E32:F35.
+Delete row 30.
+Duplicate cell A3 into cell A2.
+Duoplicate cell B3 into cell B2.

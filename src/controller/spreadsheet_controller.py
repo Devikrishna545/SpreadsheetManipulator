@@ -6,6 +6,7 @@ Main controller for spreadsheet operations
 
 import os
 import uuid
+import logging
 import pandas as pd
 from werkzeug.datastructures import FileStorage
 from typing import Dict, Any, List
@@ -17,6 +18,8 @@ from src.controller.script_executor import ScriptExecutor
 from src.controller.file_manager import FileManager
 from src.controller.script_manager import ScriptManager
 from src.controller.schema_generator import SchemaGenerator
+from src.model.spreadsheet_parser import SpreadsheetParser
+from src.llm.token_manager import token_manager
 
 class SpreadsheetController:
     """
@@ -35,12 +38,14 @@ class SpreadsheetController:
         self.script_dir = os.path.join('src', 'script')
         self.script_executor = ScriptExecutor(script_dir=self.script_dir)
         self.script_manager = ScriptManager(script_dir=self.script_dir)
+        self.logger = logging.getLogger(__name__)
         self.file_manager = FileManager(
             upload_dir=os.path.join('static', 'uploads'),
             download_dir=os.path.join('static', 'downloads'),
             json_dir=os.path.join('static', 'json')
         )
         self.schema_generator = SchemaGenerator()
+        self.parser = SpreadsheetParser()
     
     def upload_spreadsheet(self, file: FileStorage) -> str:
         """
@@ -63,28 +68,35 @@ class SpreadsheetController:
         file_id = str(uuid.uuid4())
         file_path = self.file_manager.save_uploaded_file(file, file_id)
         
-        # Parse file
-        df = None
-        sheets = None
-        if file_path.endswith('.xlsx') or file_path.endswith('.xls'):
-            excel = pd.ExcelFile(file_path)
-            if len(excel.sheet_names) > 1:
-                sheets = []
-                for sheet_name in excel.sheet_names:
-                    sheet_df = excel.parse(sheet_name)
-                    sheets.append({'name': sheet_name, 'data': sheet_df})
-                df = sheets[0]['data']
-            else:
-                df = pd.read_excel(file_path)
-        elif file_path.endswith('.csv'):
-            df = pd.read_csv(file_path)
+        # Parse file to extract clean data with comprehensive handling
+        try:
+            self.logger.info(f"Starting comprehensive parsing for file: {file.filename}")
+            df, sheets, original_file_type = self.parser.parse_file(file_path)
+            
+            # Get parsing summary for logging
+            summary = self.parser.get_parsing_summary(df, sheets)
+            self.logger.info(f"Parsing completed: {summary}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to parse file {file.filename}: {str(e)}")
+            raise ValueError(f"Failed to parse file: {str(e)}")
         
-        # Check if df is None
-        if df is None:
-            raise ValueError(f"Unsupported file format: {file_path}")
+        # Check if df is None or empty
+        if df is None or df.empty:
+            raise ValueError("No data found in the uploaded file")
+            
+        # Convert sheets format for compatibility
+        if sheets:
+            processed_sheets = []
+            for sheet_info in sheets:
+                processed_sheets.append({
+                    'name': sheet_info['name'],
+                    'data': sheet_info['data']
+                })
+            sheets = processed_sheets
             
         # Create spreadsheet object
-        spreadsheet = Spreadsheet(file_id, file.filename, df, file_path)
+        spreadsheet = Spreadsheet(file_id, file.filename, df, file_path, original_file_type)
         # Attach workbook sheets if present
         if sheets:
             spreadsheet.workbook_sheets = sheets
@@ -135,18 +147,15 @@ class SpreadsheetController:
         if hasattr(spreadsheet, 'workbook_sheets') and spreadsheet.workbook_sheets:
             sheets_data = []
             for sheet in spreadsheet.workbook_sheets:
-                df_copy = sheet['data'].copy()
-                for col in df_copy.columns:
-                    if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-                        df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-                data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
+                # Use the same data preparation method for consistency
+                sheet_data = self._prepare_spreadsheet_data_for_frontend(sheet['data'])
                 sheets_data.append({
                     'name': sheet['name'],
-                    'data': data,
+                    'data': sheet_data,
                     'metadata': {
                         'sheetName': sheet['name'],
-                        'rows': len(df_copy),
-                        'columns': len(df_copy.columns)
+                        'rows': len(sheet['data']),
+                        'columns': len(sheet['data'].columns)
                     }
                 })
             return {
@@ -158,24 +167,11 @@ class SpreadsheetController:
                 'metadata': spreadsheet.get_metadata()
             }
         
-        # Prepare view data with datetime handling
-        df_copy = spreadsheet.get_data().copy()
-        
-        # Convert datetime columns to strings for JSON serialization
-        for col in df_copy.columns:
-            if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-                df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-        
-        # Always return data as a 2D array (list of lists), ignore headers
-        # Replace NaN, inf, -inf with None for JSON serialization
-        data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
-        col_count = len(df_copy.columns)
-        # Do not return headers at all
-        # headers = df_copy.columns.tolist()
+        # Prepare view data with headers as first row to match backend structure
+        data = self._prepare_spreadsheet_data_for_frontend(spreadsheet.get_data())
         
         return {
             'data': data,
-            # 'headers': headers,  # REMOVE THIS LINE
             'metadata': spreadsheet.get_metadata(),
             'can_undo': history.can_undo(),
             'can_redo': history.can_redo(),
@@ -225,17 +221,17 @@ class SpreadsheetController:
         
         # Generate script using LLM with appropriate processing mode
         script = self.llm_service.generate_script(spreadsheet_json, command, use_advanced_processing)
-        
+
         # Save the generated script using ScriptManager
         script_id = self.script_manager.save_script(script, {
             'command': command,
             'session_id': session_id,
             'use_advanced_processing': use_advanced_processing
         })
-        
+
         # Store generated script
         session.set_generated_script(script)
-        
+
         # Execute script on spreadsheet data using appropriate method
         # PASS CURRENT DATAFRAME (not from spreadsheet object) to ensure latest structure
         if use_advanced_processing:
@@ -260,7 +256,9 @@ class SpreadsheetController:
         new_spreadsheet = Spreadsheet(
             current_spreadsheet.file_id,
             current_spreadsheet.original_filename,
-            new_df
+            new_df,
+            None,  # file_path
+            current_spreadsheet.original_file_type  # Preserve original file type
         )
         
         # Add to history
@@ -269,15 +267,8 @@ class SpreadsheetController:
         # Update session spreadsheet
         session.update_spreadsheet(new_spreadsheet)
         
-        # Prepare view data with datetime handling
-        df_copy = new_df.copy()
-        
-        # Convert datetime columns to strings for JSON serialization
-        for col in df_copy.columns:
-            if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-                df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-        # Replace NaN, inf, -inf with None for JSON serialization
-        data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
+        # Prepare view data with headers as first row to match backend structure
+        data = self._prepare_spreadsheet_data_for_frontend(new_df)
         
         return {
             'data': data,
@@ -314,18 +305,8 @@ class SpreadsheetController:
         # Update session
         session.update_spreadsheet(previous_spreadsheet)
         
-        # Prepare view data with datetime handling
-        df = previous_spreadsheet.get_data()
-        df_copy = df.copy()
-        
-        # Convert datetime columns to strings for JSON serialization
-        for col in df_copy.columns:
-            if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-                df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-        # Replace NaN, inf, -inf with None for JSON serialization
-        data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
-        # Do not return headers at all
-        # headers = df_copy.columns.tolist()
+        # Prepare view data with headers as first row to match backend structure
+        data = self._prepare_spreadsheet_data_for_frontend(previous_spreadsheet.get_data())
         
         return {
             'data': data,
@@ -362,23 +343,12 @@ class SpreadsheetController:
         # Update session
         session.update_spreadsheet(next_spreadsheet)
         
-        # Prepare view data with datetime handling
-        df = next_spreadsheet.get_data()
-        df_copy = df.copy()
-        
-        # Convert datetime columns to strings for JSON serialization
-        for col in df_copy.columns:
-            if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-                df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-        # Replace NaN, inf, -inf with None for JSON serialization
-        data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
-        # Do not return headers at all
-        # headers = df_copy.columns.tolist()
+        # Prepare view data with headers as first row to match backend structure
+        data = self._prepare_spreadsheet_data_for_frontend(next_spreadsheet.get_data())
         
         # Since we've already verified history is not None, we can safely call these methods
         return {
             'data': data,
-            # 'headers': headers,  # REMOVE THIS LINE
             'metadata': next_spreadsheet.get_metadata(),
             'can_undo': history.can_undo(),
             'can_redo': history.can_redo(),
@@ -387,7 +357,7 @@ class SpreadsheetController:
     
     def download_spreadsheet(self, session_id: str) -> tuple:
         """
-        Generate a downloadable spreadsheet file
+        Generate a downloadable spreadsheet file in the original format
 
         Args:
             session_id: Session ID
@@ -409,14 +379,21 @@ class SpreadsheetController:
         if not spreadsheet:
             raise ValueError("No spreadsheet data found")
             
-        # Determine output format based on original file
-        original_ext = os.path.splitext(spreadsheet.original_filename)[1].lower()
-        format_type = 'xlsx' if original_ext in ['.xlsx', '.xls'] else 'csv'
+        # Save to download directory in original format
+        download_path = spreadsheet.save(self.file_manager.download_dir)
         
-        # Save to download directory
-        download_path = spreadsheet.save(self.file_manager.download_dir, format_type)
+        # Generate appropriate filename with original extension
+        original_ext = spreadsheet.original_file_type
+        if not original_ext.startswith('.'):
+            original_ext = '.' + original_ext
+            
+        # Create filename maintaining original extension
+        base_name = os.path.splitext(spreadsheet.original_filename)[0]
+        download_filename = f"{base_name}{original_ext}"
         
-        return download_path, spreadsheet.original_filename
+        self.logger.info(f"Generated download file: {download_path} (original type: {original_ext})")
+        
+        return download_path, download_filename
     
     def cleanup_session(self, session_id: str) -> None:
         """
@@ -540,18 +517,14 @@ class SpreadsheetController:
             spreadsheet.file_id,
             spreadsheet.original_filename,
             df,
-            getattr(spreadsheet, 'file_path', None)
+            getattr(spreadsheet, 'file_path', None),
+            getattr(spreadsheet, 'original_file_type', None)  # Preserve original file type
         )
         history.add_state(new_spreadsheet)
         session.update_spreadsheet(new_spreadsheet)
 
-        # Prepare view data with datetime handling
-        df_copy = df.copy()
-        for col in df_copy.columns:
-            if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-                df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-        # Replace NaN, inf, -inf with None for JSON serialization
-        data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
+        # Prepare view data with headers as first row to match backend structure
+        data = self._prepare_spreadsheet_data_for_frontend(df)
 
         return {
             'data': data,
@@ -622,7 +595,9 @@ class SpreadsheetController:
             new_spreadsheet = Spreadsheet(
                 current_spreadsheet.file_id,
                 current_spreadsheet.original_filename,
-                transformed_df
+                transformed_df,
+                None,  # file_path
+                current_spreadsheet.original_file_type  # Preserve original file type
             )
             
             # Add to history
@@ -631,15 +606,8 @@ class SpreadsheetController:
             # Update session spreadsheet
             session.update_spreadsheet(new_spreadsheet)
             
-            # Prepare view data with datetime handling (similar to process_command)
-            df_copy = transformed_df.copy()
-            
-            # Convert datetime columns to strings for JSON serialization
-            for col in df_copy.columns:
-                if pd.api.types.is_datetime64_any_dtype(df_copy[col]):
-                    df_copy[col] = df_copy[col].dt.strftime('%Y-%m-%d %H:%M:%S').fillna('')
-            # Replace NaN, inf, -inf with None for JSON serialization
-            data = df_copy.replace({float('nan'): None, float('inf'): None, float('-inf'): None, pd.NA: None}).values.tolist()
+            # Prepare view data with headers as first row to match backend structure
+            data = self._prepare_spreadsheet_data_for_frontend(transformed_df)
             
             return {
                 'data': data,
@@ -849,7 +817,9 @@ class SpreadsheetController:
                             new_spreadsheet = Spreadsheet(
                                 current_spreadsheet.file_id,
                                 current_spreadsheet.original_filename,
-                                modified_df
+                                modified_df,
+                                None,  # file_path
+                                current_spreadsheet.original_file_type  # Preserve original file type
                             )
                             history.add_state(new_spreadsheet)
                             session.update_spreadsheet(new_spreadsheet)
@@ -914,3 +884,36 @@ class SpreadsheetController:
             error_msg = f"Universal algorithm generation/execution failed: {str(e)}"
             print(f"ERROR: {error_msg}")
             raise RuntimeError(error_msg)
+
+    def _prepare_spreadsheet_data_for_frontend(self, df: pd.DataFrame) -> List[List]:
+        """
+        Prepare DataFrame data for frontend display with preprocessed data.
+        Since data is preprocessed, all content is already plain text values.
+        No headers are added - all rows are treated as data rows.
+        
+        Args:
+            df: The pandas DataFrame to prepare (already preprocessed)
+            
+        Returns:
+            List[List]: 2D array with all data rows (no header row added)
+        """
+        if df is None or df.empty:
+            return []
+            
+        # Create a copy for processing
+        df_copy = df.copy()
+        
+        # Ensure all data is string type and clean
+        for col in df_copy.columns:
+            df_copy[col] = df_copy[col].astype(str).fillna('').replace('nan', '')
+        
+        # Get the data rows directly (no headers since data is preprocessed)
+        data_rows = df_copy.values.tolist()
+        
+        print(f"🔍 [FRONTEND DATA PREP] Preprocessed data (no headers added):")
+        print(f"   - Total rows: {len(data_rows)}")
+        print(f"   - Columns: {len(df_copy.columns) if not df_copy.empty else 0}")
+        print(f"   - First row sample: {data_rows[0][:5] if data_rows else 'No data'}{'...' if data_rows and len(data_rows[0]) > 5 else ''}")
+        print(f"   - All content is preprocessed plain text")
+        
+        return data_rows

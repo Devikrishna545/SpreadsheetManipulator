@@ -57,13 +57,23 @@ function renderSingleSheet(sheetObj) {
         window.hotInstance.destroy();
     }
 
-    const columnCount = sheetObj.data[0] ? sheetObj.data[0].length : 0;
+    // Use all data without extracting headers - show headers as normal data row
+    const fullData = sheetObj.data;
+    
+    console.log('🔧 Frontend data processing:');
+    console.log('   - Full data rows:', fullData.length);
+    console.log('   - First row (headers):', fullData.length > 0 ? fullData[0].slice(0, 5) : 'No data', '...');
+    console.log('   - Second row:', fullData.length > 1 ? fullData[1].slice(0, 5) : 'No data', '...');
+
+    // Generate Excel-style column letters for display (A, B, C, etc.)
+    const columnCount = fullData.length > 0 ? fullData[0].length : 0;
     const alphabeticHeaders = generateExcelColHeaders(columnCount);
 
+    // Use only Excel-style column headers (A, B, C)
     const settings = {
-        data: sheetObj.data,
+        data: fullData, // Use all data including the header row
         rowHeaders: true,
-        colHeaders: alphabeticHeaders,
+        colHeaders: alphabeticHeaders, // Just use Excel-style headers
         licenseKey: 'non-commercial-and-evaluation',
         stretchH: 'all',
         readOnly: true,
@@ -96,7 +106,7 @@ function renderSingleSheet(sheetObj) {
                 const changeData = {
                     type: 'cell',
                     changes: changes.map(([row, prop, oldValue, newValue]) => ({
-                        row,
+                        row: row + 1, // Adjust for headers row that was removed from frontend display
                         col: typeof prop === 'string' ? this.propToCol(prop) : prop,
                         oldValue,
                         newValue
@@ -112,7 +122,7 @@ function renderSingleSheet(sheetObj) {
                 pendingChanges.push({
                     type: 'row',
                     action: 'create',
-                    index,
+                    index: index + 1, // Adjust for headers row
                     amount
                 });
                 submitPendingChanges();
@@ -124,7 +134,7 @@ function renderSingleSheet(sheetObj) {
                 pendingChanges.push({
                     type: 'row',
                     action: 'remove',
-                    index,
+                    index: index + 1, // Adjust for headers row
                     amount
                 });
                 submitPendingChanges();
@@ -434,6 +444,10 @@ function highlightModifiedCells(modifiedCells) {
     
     console.log(`🎨 Processing ${modifiedCells.length} modified cells:`, modifiedCells);
     
+    // No need to adjust cell coordinates anymore since we're not removing header row
+    const adjustedCells = modifiedCells;
+    console.log(`🔧 Using original coordinates for frontend display:`, adjustedCells.slice(0, 5), '...');
+    
     // Function to scroll through cells first, then apply highlighting
     const scrollThenHighlight = async (hotInstance, cells) => {
         if (!hotInstance) return;
@@ -496,13 +510,13 @@ function highlightModifiedCells(modifiedCells) {
     // Apply scrolling then highlighting to the main spreadsheet (left side)
     if (window.hotInstance) {
         console.log('Applying scroll-then-highlight to main spreadsheet');
-        scrollThenHighlight(window.hotInstance, modifiedCells);
+        scrollThenHighlight(window.hotInstance, adjustedCells);
     }
     
     // Also apply to the editable instance in split view if it exists
     if (window.editableHotInstance) {
         console.log('Applying scroll-then-highlight to editable spreadsheet (split view)');
-        scrollThenHighlight(window.editableHotInstance, modifiedCells);
+        scrollThenHighlight(window.editableHotInstance, adjustedCells);
     }
 }
 

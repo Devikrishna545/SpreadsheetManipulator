@@ -50,6 +50,35 @@ body.dark-theme {
     margin-right: 5px;
 }
 
+/* Column header styling for dual-line headers (Excel letter + column name) */
+.column-name-header {
+    display: block;
+    font-size: 10px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+    line-height: 1.2;
+    margin-top: 2px;
+}
+
+/* Make column headers taller to accommodate both rows */
+.handsontable .htCore th {
+    padding: 1px 2px 4px 2px;
+    height: auto;
+    min-height: 40px;
+    vertical-align: top;
+    position: relative;
+}
+
+/* Make sure column resize handle appears at the bottom */
+.handsontable .manualColumnResizer {
+    bottom: 0;
+    top: auto;
+    height: 15px;
+}
+
 /* Advanced processing indicator */
 .schema-buttons .btn[title*="Transform"] {
     position: relative;

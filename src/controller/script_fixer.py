@@ -9,7 +9,9 @@ import traceback
 from typing import Tuple, Optional, Dict, Any
 import pandas as pd
 from src.llm.llm_service import LLMService
+from src.llm.token_manager import token_manager
 from src.controller.script_tester import ScriptTester  # Add this import
+import logging
 
 class ScriptFixer:
     """
@@ -20,13 +22,18 @@ class ScriptFixer:
     def __init__(self):
         """Initialize the script fixer with LLM service for corrections."""
         self.llm_service = LLMService()
-        self.script_tester = ScriptTester()  # Add this line
+        self.script_tester = ScriptTester()
         self.max_retries = 5
-    
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
     def fix_and_execute_script(self, script: str, spreadsheet_df: pd.DataFrame, 
                               command: str, security_manager) -> Tuple[pd.DataFrame, list, bool]:
         """
-        Execute a script with automatic error correction.
+        Execute a script with comprehensive automated error correction pipeline.
+        
+        Flow:
+        1. Sandbox test → 2. LLM fix (if errors) → 3. Manual fix (if LLM fails) 
+        → 4. Security check → 5. LLM security fix (if needed) → 6. Execute
         
         Args:
             script: The Python script to execute
@@ -37,78 +44,202 @@ class ScriptFixer:
         Returns:
             Tuple[pd.DataFrame, list, bool]: (modified_df, modified_cells, success)
         """
-        last_error = None
+        print("🏭 COMPREHENSIVE AUTOMATED ERROR CORRECTION PIPELINE")
+        print("=" * 70)
+        
         current_script = script
-        previous_scripts = set()  # Track previous scripts to avoid infinite loops
+        original_script = script
         
-        # First, try to validate and fix with the script tester
-        is_valid, error_message, fixed_script = self.script_tester.test_script(current_script, spreadsheet_df.head(5))
+        # === PHASE 1: SANDBOX TESTING AND SCRIPT FIXING ===
+        print("\n📋 PHASE 1: Sandbox Testing and Script Correction")
+        print("-" * 50)
         
-        if not is_valid and fixed_script:
-            print(f"⚠️ Script validation issue detected: {error_message}")
-            print("🔧 Applying automatic fix from script tester...")
-            current_script = fixed_script
-            print("✅ Script automatically fixed by tester")
+        # Step 1: Test in sandbox environment
+        execution_success, execution_error = self._test_script_in_sandbox(current_script, spreadsheet_df)
         
-        for attempt in range(self.max_retries):
-            try:
-                print(f"⚙️  Executing script (attempt {attempt + 1}/{self.max_retries})...")
+        if not execution_success:
+            print(f"🔧 Sandbox execution failed: {execution_error}")
+
+            # Try a manual fix for common errors before resorting to LLM
+            if "name 'row_index' is not defined" in str(execution_error):
+                print("🤖 Attempting manual fix for 'row_index' NameError by wrapping in a loop...")
+                indented_script = "    " + current_script.strip().replace("\n", "\n    ")
+                fixed_script = f"for row_index in range(len(df)):\n{indented_script}"
                 
-                # Validate script security
-                if not security_manager.validate_script(current_script):
-                    raise ValueError("Script validation failed due to security concerns")
+                test_success, test_error = self._test_script_in_sandbox(fixed_script, spreadsheet_df)
+                if test_success:
+                    print("✅ Manual loop wrap fix successful!")
+                    current_script = fixed_script
+                    execution_success = True
+                else:
+                    print(f"⚠️ Manual loop wrap fix failed: {test_error}. Proceeding with LLM.")
+            
+            if not execution_success:
+                # Step 2: Attempt LLM-based fix for execution errors
+                print("🤖 Attempting LLM-based error correction...")
+                llm_fixed_script = self._fix_script_with_llm(
+                    current_script, execution_error, "", command, spreadsheet_df
+                )
                 
-                # Execute the script
-                modified_df, modified_cells = self._execute_simple_script(current_script, spreadsheet_df)
+                if llm_fixed_script:
+                    print("✓ LLM provided a fix, testing...")
+                    llm_success, llm_error = self._test_script_in_sandbox(llm_fixed_script, spreadsheet_df)
+                    
+                    if llm_success:
+                        print("✅ LLM fix successful!")
+                        current_script = llm_fixed_script
+                        execution_success = True
+                    else:
+                        print(f"⚠️ LLM fix still has errors: {llm_error}")
+                        
+                        # Step 3: Try manual deterministic fixes as fallback
+                        print("🔧 Attempting manual deterministic fixes...")
+                        manual_fixed_script = self._apply_manual_fixes(llm_fixed_script, llm_error, spreadsheet_df)
+                        
+                        if manual_fixed_script:
+                            manual_success, manual_error = self._test_script_in_sandbox(manual_fixed_script, spreadsheet_df)
+                            if manual_success:
+                                print("✅ Manual fix successful!")
+                                current_script = manual_fixed_script
+                                execution_success = True
+                            else:
+                                print(f"❌ Manual fix also failed: {manual_error}")
+                        else:
+                            print("❌ No manual fix available")
+                else:
+                    print("⚠️ LLM could not provide a fix, trying manual fixes...")
+                    
+                    # Step 3: Try manual deterministic fixes directly
+                    manual_fixed_script = self._apply_manual_fixes(current_script, execution_error, spreadsheet_df)
+                    
+                    if manual_fixed_script:
+                        manual_success, manual_error = self._test_script_in_sandbox(manual_fixed_script, spreadsheet_df)
+                        if manual_success:
+                            print("✅ Manual fix successful!")
+                            current_script = manual_fixed_script
+                            execution_success = True
+                        else:
+                            print(f"❌ Manual fix failed: {manual_error}")
+                    else:
+                        print("❌ No manual fix available")
+        else:
+            print("✅ Script passed sandbox testing")
+        
+        # If still not working after all fixes, return failure
+        if not execution_success:
+            print("💥 PHASE 1 FAILED: Could not fix script execution errors")
+            logging.error(f"Script fixing failed after all attempts. Original: {original_script}, Final error: {execution_error}")
+            return spreadsheet_df, [], False
+        
+        # === PHASE 2: SECURITY VALIDATION AND FIXING ===
+        print("\n🔒 PHASE 2: Security Validation and Correction")
+        print("-" * 50)
+        
+        security_attempts = 0
+        max_security_attempts = 5
+        
+        while security_attempts < max_security_attempts:
+            security_attempts += 1
+            print(f"🔍 Security check attempt {security_attempts}/{max_security_attempts}")
+            
+            if security_manager.validate_script(current_script):
+                print("✅ Security validation passed!")
+                break
+            else:
+                print(f"⚠️ Security validation failed (attempt {security_attempts})")
                 
-                # If we get here, execution was successful
-                print(f"✅ Script executed successfully - {len(modified_cells)} cells modified")
-                return modified_df, modified_cells, True
-                
-            except Exception as e:
-                last_error = e
-                error_msg = str(e)
-                error_traceback = traceback.format_exc()
-                
-                print(f"❌ Script execution failed (attempt {attempt + 1}): {error_msg}")
-                
-                if attempt < self.max_retries - 1:
-                    # Check if we've seen this script before
-                    if current_script in previous_scripts:
-                        print("❌ LLM is repeating the same incorrect fix")
+                if security_attempts < max_security_attempts:
+                    print("🤖 Requesting LLM to fix security issues...")
+                    security_fixed_script = self._fix_script_with_llm(
+                        current_script, 
+                        "Script failed security validation. Please ensure the script only uses allowed operations and imports.",
+                        "", 
+                        command, 
+                        spreadsheet_df
+                    )
+                    
+                    if security_fixed_script and security_fixed_script != current_script:
+                        print("✓ LLM provided security fix, testing...")
+                        # Test that the security fix still works functionally
+                        security_test_success, security_test_error = self._test_script_in_sandbox(security_fixed_script, spreadsheet_df)
+                        
+                        if security_test_success:
+                            current_script = security_fixed_script
+                            print("✓ Security fix maintains functionality")
+                        else:
+                            print(f"⚠️ Security fix broke functionality: {security_test_error}")
+                            # Try to fix the broken security fix
+                            double_fixed = self._fix_script_with_llm(
+                                security_fixed_script, security_test_error, "", command, spreadsheet_df
+                            )
+                            if double_fixed:
+                                double_test_success, _ = self._test_script_in_sandbox(double_fixed, spreadsheet_df)
+                                if double_test_success:
+                                    current_script = double_fixed
+                                    print("✓ Double-fix successful")
+                    else:
+                        print("❌ LLM could not provide security fix")
                         break
+                else:
+                    print("💥 PHASE 2 FAILED: Maximum security fix attempts reached")
+                    logging.error(f"Security validation failed after {max_security_attempts} attempts")
+                    return spreadsheet_df, [], False
+        
+        # === PHASE 3: FINAL EXECUTION AND LOGIC VALIDATION ===
+        print("\n🚀 PHASE 3: Final Execution & Logic Validation")
+        print("-" * 50)
+        
+        logic_fix_attempts = 0
+        max_logic_fix_attempts = 2
+
+        while logic_fix_attempts < max_logic_fix_attempts:
+            try:
+                modified_df, modified_cells = self._execute_final_script(current_script, spreadsheet_df)
+                
+                if len(modified_cells) > 0:
+                    print(f"✅ PIPELINE SUCCESS: Script executed successfully - {len(modified_cells)} cell(s) modified")
+                    return modified_df, modified_cells, True
+                
+                # Logic error detected
+                logic_fix_attempts += 1
+                print(f"⚠️ LOGIC ERROR: Script ran but made no changes. Attempting fix {logic_fix_attempts}/{max_logic_fix_attempts}")
+                
+                if logic_fix_attempts <= max_logic_fix_attempts:
+                    error_message = "The script executed without syntax errors but resulted in zero modifications. This suggests a logic error. Please analyze the user\'s command and the script\'s logic to ensure it correctly modifies the dataframe as intended."
                     
-                    previous_scripts.add(current_script)
+                    fixed_script = self._fix_script_with_llm(
+                        current_script, error_message, "", command, spreadsheet_df
+                    )
                     
-                    # Try to fix with script tester first
-                    is_valid, error_message, fixed_script = self.script_tester.test_script(current_script, spreadsheet_df.head(5))
-                    
-                    if fixed_script:
-                        print(f"🔧 Script tester generated a fix: {error_message}")
+                    if fixed_script and fixed_script != current_script:
+                        print("✓ LLM provided a logic fix, re-validating...")
+                        
+                        # Test the new script
+                        test_success, test_error = self._test_script_in_sandbox(fixed_script, spreadsheet_df)
+                        if not test_success:
+                            print(f"💥 Logic fix failed sandbox test: {test_error}")
+                            # End of the line for this attempt
+                            break
+
+                        # Security check the new script
+                        if not security_manager.validate_script(fixed_script):
+                            print("💥 Logic fix failed security validation.")
+                            # End of the line for this attempt
+                            break
+                            
+                        print("✅ Logic fix passed all validation. Retrying execution.")
+                        print(f"📝 Logic-corrected script preview:\n\n{fixed_script[:1000000]}\n")
                         current_script = fixed_script
                     else:
-                        # If script tester couldn't fix it, try LLM
-                        print(f"🔧 Attempting to fix script with LLM...")
-                        print(f"🔍 Error details: {error_msg}")
-                        print(f"📝 Current script length: {len(current_script)} chars")
-                        
-                        corrected_script = self._fix_script_with_llm(
-                            current_script, error_msg, error_traceback, command, spreadsheet_df
-                        )
-                        
-                        if corrected_script is None or corrected_script.strip() == current_script.strip():
-                            print("❌ Unable to generate meaningful script correction")
-                            break
-                        
-                        current_script = corrected_script
-                        print(f"🔧 New corrected script generated (length: {len(current_script)} chars)")
-                else:
-                    print(f"❌ Max retry attempts ({self.max_retries}) reached")
-        
-        # If we get here, all attempts failed
-        print(f"❌ Script execution failed after {self.max_retries} attempts")
-        print(f"Final error: {last_error}")
-        
+                        print("❌ LLM could not provide a logic fix. Aborting.")
+                        break
+                
+            except Exception as e:
+                print(f"💥 PHASE 3 FAILED: Final execution error: {e}")
+                logging.error(f"Final execution failed: {e}", exc_info=True)
+                return spreadsheet_df, [], False
+
+        print("💥 PIPELINE FAILED: Could not produce a working script after all attempts.")
         return spreadsheet_df, [], False
     
     def _execute_simple_script(self, script: str, spreadsheet_df: pd.DataFrame) -> Tuple[pd.DataFrame, list]:
@@ -228,8 +359,19 @@ class ScriptFixer:
             exec(script, exec_globals)
         except NameError as e:
             if "isinstance" in str(e):
-                print(f"🔍 isinstance not found in builtins. Available: {list(exec_globals['__builtins__'].keys())}")
+                # This is a fallback if 'isinstance' is missing from the sandbox
+                print("🔧 WARNING: 'isinstance' not found. Attempting to inject and retry.")
+                exec_globals['__builtins__']['isinstance'] = isinstance
+                try:
+                    exec(script, exec_globals)
+                except Exception as retry_e:
+                    print(f"💥 Retry after injecting 'isinstance' failed: {retry_e}")
+                    raise e from retry_e
+            else:
+                raise e
+        except Exception as e:
             raise e
+
         
         # Get the modified dataframe
         modified_df = exec_globals['df']
@@ -253,7 +395,8 @@ class ScriptFixer:
     def _fix_script_with_llm(self, script: str, error_msg: str, error_traceback: str, 
                            command: str, spreadsheet_df: pd.DataFrame) -> Optional[str]:
         """
-        Use LLM to fix a script based on the error encountered.
+        Use LLM to intelligently fix a script based on the error encountered.
+        Enhanced for automated debugging system.
         
         Args:
             script: The failing script
@@ -266,62 +409,79 @@ class ScriptFixer:
             Optional[str]: Fixed script or None if fixing failed
         """
         try:
+            print("🤖 Requesting LLM script correction...")
+            
             # Prepare context for LLM
             columns_info = f"Columns: {list(spreadsheet_df.columns)}"
             shape_info = f"Shape: {spreadsheet_df.shape[0]} rows, {spreadsheet_df.shape[1]} columns"
+            sample_data = spreadsheet_df.head(3).to_string() if len(spreadsheet_df) > 0 else "Empty DataFrame"
             
-            # Create a prompt for script correction with enhanced context
+            # Enhanced prompt for automated debugging
             correction_prompt = f"""
-You are a Python script debugging expert. Fix the following script that failed to execute.
+You are an expert Python script debugger in an automated error correction system. Your task is to fix the failing script below.
 
-CONTEXT:
-- Original Command: {command}
-- DataFrame Info: {columns_info}, {shape_info}
-- Error: {error_msg}
+=== CONTEXT ===
+Original User Command: {command}
+DataFrame Structure: {columns_info}, {shape_info}
 
-CURRENT FAILING SCRIPT:
+Sample Data:
+{sample_data}
+
+=== ERROR INFORMATION ===
+Error Message: {error_msg}
+{f"Full Traceback: {error_traceback}" if error_traceback else ""}
+
+=== FAILING SCRIPT ===
 ```python
 {script}
 ```
 
-EXECUTION ENVIRONMENT:
-The script runs with these available variables and functions:
-- df: pandas DataFrame (the main data)
-- pd: pandas library
-- np: numpy library
-- isinstance, type, len, str, int, float, bool: Python built-ins
-- pd.notna(), pd.isna(): pandas null checking functions
+=== EXECUTION ENVIRONMENT ===
+Available in execution environment:
+- df: pandas DataFrame (the main spreadsheet data)
+- pd: pandas module
+- np: numpy module  
+- Standard Python built-ins: len, str, int, float, bool, isinstance, type, max, min, sum, range, enumerate, zip, etc.
+- Exception types: Exception, ValueError, TypeError, IndexError, KeyError, AttributeError
 
-COMMON ERROR FIXES:
-1. "name 'isinstance' is not defined" → isinstance is available, ensure proper usage
-2. "name '__import__' is not defined" → avoid using __import__, use available libraries
-3. Column access errors → use df.columns.get_loc('column_name') for indices
-4. Index errors → check bounds with len(df) and len(df.columns)
+=== DEBUGGING INSTRUCTIONS ===
+1. ANALYZE the error message carefully
+2. IDENTIFY the root cause (syntax, logic, data access, security, etc.)
+3. FIX the issue while preserving the original intent
+4. ENSURE compatibility with the DataFrame structure
+5. USE only the available environment listed above
+6. RETURN only clean Python code without explanations or markdown
 
-REQUIREMENTS:
-1. Fix the specific error: {error_msg}
-2. Use ONLY the available functions and libraries listed above
-3. Keep the original logic intact, just fix the technical issues
-4. Return ONLY the corrected Python code, no explanations
+=== COMMON ERROR PATTERNS & FIXES ===
+- Syntax errors: Add missing colons, parentheses, indentation
+- NameError: Use available built-ins only (isinstance, not __import__)
+- IndexError: Check bounds with len(df), len(df.columns)
+- Column access: Use df[column_name] or df.iloc[row, col]
+- Security violations: Remove forbidden imports/functions
+- Incomplete blocks: Add missing code (e.g., df.drop(index, inplace=True) for deletions)
 
-CORRECTED SCRIPT:"""
+Generate the corrected script:"""
             
             # Get corrected script from LLM
             corrected_script = self.llm_service.generate_script_correction(correction_prompt)
+            
+            # Print token usage summary
+            token_manager.print_token_usage()
             
             # Clean up the response (remove markdown formatting if present)
             corrected_script = self._clean_script_response(corrected_script)
             
             if corrected_script and corrected_script.strip():
-                print("🔧 Script correction generated")
-                print(f"📝 Corrected script preview: {corrected_script[:100]}...")
+                print("✅ LLM generated script correction")
+                print(f"📝 Corrected script preview:\n\n{corrected_script[:1000000]}\n")
                 return corrected_script
             else:
                 print("❌ LLM returned empty correction")
                 return None
                 
         except Exception as e:
-            print(f"❌ Error during script correction: {e}")
+            print(f"❌ Error during LLM script correction: {e}")
+            logging.error(f"LLM correction failed: {e}", exc_info=True)
             return None
     
     def _clean_script_response(self, response: str) -> str:
@@ -349,3 +509,70 @@ CORRECTED SCRIPT:"""
                 response = response[start:end]
         
         return response.strip()
+    
+    def _test_script_in_sandbox(self, script: str, spreadsheet_df: pd.DataFrame) -> Tuple[bool, str]:
+        """
+        Test script execution in a safe sandbox environment
+        
+        Args:
+            script: Script to test
+            spreadsheet_df: DataFrame to test with
+            
+        Returns:
+            Tuple[bool, str]: (success, error_message)
+        """
+        try:
+            print(f"🧪 Testing script in sandbox...")
+            
+            # Use a small sample for testing to avoid performance issues
+            test_df = spreadsheet_df.head(10).copy()
+            
+            # Execute the script in sandbox
+            _, _ = self._execute_simple_script(script, test_df)
+            
+            print("✅ Sandbox test passed")
+            return True, ""
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Sandbox test failed: {error_msg}")
+            return False, error_msg
+    
+    def _apply_manual_fixes(self, script: str, error_msg: str, spreadsheet_df: pd.DataFrame) -> Optional[str]:
+        """
+        Apply deterministic manual fixes for common script errors
+        
+        Args:
+            script: The failing script
+            error_msg: Error message from execution
+            spreadsheet_df: DataFrame being processed
+            
+        Returns:
+            Optional[str]: Fixed script or None if no fix available
+        """
+        print("🔧 Applying manual deterministic fixes...")
+        
+        # Use the script_tester for deterministic fixes
+        is_valid, tester_error, fixed_script = self.script_tester.test_script(script, spreadsheet_df.head(5))
+        
+        if fixed_script:
+            print("✓ Script tester provided a manual fix")
+            return fixed_script
+        
+        # Additional manual fixes can be added here
+        print("❌ No manual fixes available")
+        return None
+    
+    def _execute_final_script(self, script: str, spreadsheet_df: pd.DataFrame) -> Tuple[pd.DataFrame, list]:
+        """
+        Execute the final validated script on the full dataset
+        
+        Args:
+            script: The validated script
+            spreadsheet_df: The full DataFrame
+            
+        Returns:
+            Tuple[pd.DataFrame, list]: Modified DataFrame and list of modified cells
+        """
+        print("🚀 Executing final validated script on full dataset...")
+        return self._execute_simple_script(script, spreadsheet_df)

@@ -1,0 +1,9 @@
+Delete all empty rows and columns.
+Move aall cell in the range #c23:#D62 to enter in the new range #A1:#B30
+Delete all empty rows and columns.
+Move all cells in the range #C23:#D62 to enter in the new range #A1:#B30.
+Delkete all duplicate cells and keep only the first instance of the duplicates.
+Delete all empty rows and columns.
+Move all cells in the range #C23:#D62 to enter in the new range #A1:#B30.
+Delete all duplicate cells and keep only the first instance of the duplicates
+Delete rows #A31:#B35

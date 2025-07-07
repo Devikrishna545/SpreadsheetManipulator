@@ -1,0 +1,6 @@
+Delete all empty rows and columns.
+Delete all rows containing "Totals" and "Net difference".
+Delete row #1.
+delete column header
+delete row #1
+Delete column header

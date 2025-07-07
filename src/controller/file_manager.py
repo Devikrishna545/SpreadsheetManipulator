@@ -6,6 +6,7 @@ Handles file operations for uploads and downloads
 
 import os
 import uuid
+import json
 from werkzeug.utils import secure_filename
 from typing import Optional, Any
 from werkzeug.datastructures import FileStorage

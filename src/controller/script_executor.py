@@ -14,8 +14,7 @@ from src.controller.security_manager import SecurityManager
 from src.controller.script_manager import ScriptManager
 from src.controller.file_manager import FileManager
 from src.controller.script_tester import ScriptTester
-# PLACEHOLDER: Schema generator import removed
-import re
+from src.llm.token_manager import token_manager
 
 class ScriptExecutor:
     """
@@ -33,7 +32,6 @@ class ScriptExecutor:
         self.script_dir = script_dir or os.path.join('src', 'script')
         self.script_manager = ScriptManager(self.script_dir)
         self.script_tester = ScriptTester()
-        # PLACEHOLDER: Schema generator initialization removed
     
     def refresh_spreadsheet_structure(self, session_id: str) -> pd.DataFrame:
         """
@@ -101,13 +99,65 @@ class ScriptExecutor:
         if len(spreadsheet_df) > 0:
             print(f"   - Sample data (first row): {spreadsheet_df.iloc[0].tolist()}")
         
-        # Validate script for security
+        # Step 3: Test and fix script using script tester and fixer pipeline
+        print("🔧 Testing script with ScriptTester...")
+        is_valid, error_message, fixed_script = self.script_tester.test_script(script, spreadsheet_df.head(5))
+        
+        if not is_valid:
+            print(f"⚠️  Script validation failed: {error_message}")
+            if fixed_script:
+                print("🔧 ScriptTester provided a fix, using it...")
+                script = fixed_script
+                # Re-test the fixed script
+                is_valid, error_message, _ = self.script_tester.test_script(script, spreadsheet_df.head(5))
+                if is_valid:
+                    print("✅ Fixed script passes validation")
+                else:
+                    print(f"⚠️  Fixed script still has issues: {error_message}")
+                    # Try ScriptFixer for more advanced fixing
+                    print("🔧 Using ScriptFixer for advanced error correction...")
+                    from src.controller.script_fixer import ScriptFixer
+                    script_fixer = ScriptFixer()
+                    
+                    # Create a dummy command for context
+                    dummy_command = "User command requiring script execution"
+                    fixed_df, modified_cells, success = script_fixer.fix_and_execute_script(
+                        script, spreadsheet_df, dummy_command, self.security_manager
+                    )
+                    
+                    if success:
+                        print("✅ ScriptFixer successfully executed the script")
+                        return fixed_df, modified_cells
+                    else:
+                        print("❌ ScriptFixer could not fix the script")
+                        raise ValueError(f"Script could not be fixed: {error_message}")
+            else:
+                print("❌ No automatic fix available from ScriptTester")
+                # Try ScriptFixer for advanced fixing
+                print("🔧 Using ScriptFixer for advanced error correction...")
+                from src.controller.script_fixer import ScriptFixer
+                script_fixer = ScriptFixer()
+                
+                # Create a dummy command for context
+                dummy_command = "User command requiring script execution"
+                fixed_df, modified_cells, success = script_fixer.fix_and_execute_script(
+                    script, spreadsheet_df, dummy_command, self.security_manager
+                )
+                
+                if success:
+                    print("✅ ScriptFixer successfully executed the script")
+                    return fixed_df, modified_cells
+                else:
+                    print("❌ ScriptFixer could not fix the script")
+                    raise ValueError(f"Script validation and fixing failed: {error_message}")
+        
+        # Validate script for security (after fixing)
         if not self.security_manager.validate_script(script):
             error_msg = "Script validation failed due to security concerns. See server logs for details."
             print(f"❌ Security validation failed: {error_msg}")
             raise ValueError(error_msg)
         
-        print("✓ Security validation passed")
+        print("✅ Script validation passed")
         
         # --- UNIVERSALITY PATCH: Validate script universality before execution ---
         is_universal = self._validate_script_universality(script)
@@ -541,6 +591,78 @@ class ScriptExecutor:
         """Get the last execution error for retry purposes"""
         return getattr(self, '_last_error', '')
 
+    def execute_simple_script(self, script: str, spreadsheet_df: pd.DataFrame, command: str, file_manager: Optional[FileManager] = None, session_id: Optional[str] = None) -> Tuple[pd.DataFrame, List[List[int]]]:
+        """
+        Execute a simple Python script (without universality transformations) with error handling
+
+        Args:
+            script: The Python script to execute
+            spreadsheet_df: The pandas DataFrame containing spreadsheet data
+            command: The original user command
+            file_manager: Optional FileManager to save script for reference
+            session_id: Optional session ID for structure tracking
+
+        Returns:
+            Tuple[pd.DataFrame, List[List[int]]]: Modified DataFrame and list of modified cells
+        """
+        print(f"\n{'='*60}")
+        print("🔧 SIMPLE SCRIPT EXECUTION STARTING")
+        print(f"{'='*60}")
+        print(f"Original command: {command}")
+        print("-" * 60)
+
+        # Step 1: Refresh spreadsheet structure if session_id is provided
+        if session_id:
+            print("🔄 Checking for updated spreadsheet structure...")
+            # Note: In practice, the controller should pass the most current DataFrame
+            print(f"📊 Using provided DataFrame: {spreadsheet_df.shape[0]} rows, {spreadsheet_df.shape[1]} columns")
+        
+        # Step 2: Display current structure for debugging
+        print(f"📊 Current spreadsheet structure:")
+        print(f"   - Shape: {spreadsheet_df.shape}")
+        print(f"   - Columns: {list(spreadsheet_df.columns)}")
+        if len(spreadsheet_df) > 0:
+            print(f"   - Sample data (first row): {spreadsheet_df.iloc[0].tolist()}")
+        
+        # Step 3: Execute script in sandbox with comprehensive error handling
+        print("\n🧪 Testing script in sandbox environment...")
+        from src.controller.script_fixer import ScriptFixer
+        script_fixer = ScriptFixer()
+        
+        # Use script_fixer to handle the entire error correction pipeline
+        modified_df, modified_cells, success = script_fixer.fix_and_execute_script(
+            script, spreadsheet_df.copy(), command, self.security_manager
+        )
+        
+        if not success:
+            error_msg = "Script execution failed after comprehensive error correction attempts. See server logs for details."
+            print(f"❌ Final execution failed: {error_msg}")
+            
+            # In case of failure, raise an exception instead of modifying the DataFrame
+            raise RuntimeError(error_msg)
+        
+        # At the end of execution, print Gemini token usage if available
+        self._print_gemini_token_usage()
+        
+        return modified_df, modified_cells
+
+    def _print_gemini_token_usage(self):
+        """
+        Print Gemini token usage summary if available.
+        This method delegates to the global token_manager.
+        """
+        token_manager.print_token_usage()
+
+    def set_gemini_token_usage(self, token_usage: dict):
+        """
+        Set Gemini token usage stats for reporting.
+        This method delegates to the global token_manager.
+        
+        Args:
+            token_usage: Dict with token usage details
+        """
+        token_manager.set_token_usage(token_usage)
+
     def _preprocess_script_for_universal_execution(self, script: str, df: pd.DataFrame) -> str:
         """
         Preprocess the script to convert hardcoded iloc operations to universal patterns
@@ -811,117 +933,36 @@ class ScriptExecutor:
         print(f"✅ Extended transformation: added {len(additional_modifications)} additional cell modifications")
         
         return result_df, all_modified_cells
-
-    def execute_simple_script(self, script: str, spreadsheet_df: pd.DataFrame, command: str, file_manager: Optional[FileManager] = None, session_id: Optional[str] = None) -> Tuple[pd.DataFrame, List[List[int]]]:
-        """
-        Execute a simple script for AI Command Interface without universal transformation patterns.
-        Uses specialized error correction with up to 5 retry attempts.
-
-        Args:
-            script: The Python script generated by LLM
-            spreadsheet_df: The pandas DataFrame containing spreadsheet data
-            command: The original user command for error correction context
-            file_manager: Optional FileManager to save script for reference
-            session_id: Optional session ID for structure refresh
-
-        Returns:
-            Tuple[pd.DataFrame, List[List[int]]]: Modified DataFrame and list of modified cells
-        """
-        from src.controller.script_fixer import ScriptFixer
         
-        print(f"\n{'='*60}")
-        print("🚀 SIMPLE SCRIPT EXECUTION STARTING")
-        print(f"{'='*60}")
-        print("-" * 60)
+        # Extend patterns to unmodified rows
+        additional_modifications = []
         
-        # Step 1: Display current spreadsheet structure for LLM context awareness
-        print(f"🔍 CURRENT SPREADSHEET STRUCTURE ANALYSIS:")
-        print(f"   📊 Shape: {spreadsheet_df.shape[0]} rows × {spreadsheet_df.shape[1]} columns")
-        print(f"   📋 Columns: {list(spreadsheet_df.columns)}")
-        print(f"   🔢 Column count: {len(spreadsheet_df.columns)}")
-        print(f"   🗂️ Row count: {len(spreadsheet_df)}")
-        
-        # Display sample data structure
-        if len(spreadsheet_df) > 0:
-            print(f"   📄 First few rows:")
-            for i in range(min(3, len(spreadsheet_df))):
-                row_data = [str(val)[:20] + "..." if len(str(val)) > 20 else str(val) for val in spreadsheet_df.iloc[i].tolist()]
-                print(f"      Row {i}: {row_data}")
-        
-        # Check for empty cells or data patterns
-        total_cells = spreadsheet_df.shape[0] * spreadsheet_df.shape[1]
-        empty_cells = spreadsheet_df.isna().sum().sum()
-        print(f"   📈 Data completeness: {((total_cells - empty_cells) / total_cells * 100):.1f}% filled")
-        
-        # Analyze column data types
-        print(f"   🏷️ Column data types:")
-        for col in spreadsheet_df.columns:
-            dtype_info = str(spreadsheet_df[col].dtype)
-            non_null_count = spreadsheet_df[col].count()
-            print(f"      {col}: {dtype_info} ({non_null_count}/{len(spreadsheet_df)} non-null)")
-        
-        print("-" * 60)
-        
-        # Pre-validate script with script tester using updated structure
-        print("🔍 PRE-VALIDATION: Testing script against current spreadsheet structure...")
-        is_valid, error_message, fixed_script = self.script_tester.test_script(script, spreadsheet_df.head(10))  # Use more rows for better testing
-        
-        if not is_valid and fixed_script:
-            print(f"⚠️ Script validation issue detected: {error_message}")
-            print("🔧 Applying automatic fix...")
-            script = fixed_script
-            print("✅ Script automatically fixed by tester")
-        elif not is_valid:
-            print(f"❌ Script validation failed: {error_message}")
-            print(f"🚨 CRITICAL: Script is incompatible with current spreadsheet structure")
-            print(f"    Current structure: {spreadsheet_df.shape[0]} rows × {spreadsheet_df.shape[1]} columns")
-            print(f"    Columns: {list(spreadsheet_df.columns)}")
-            raise ValueError(f"Script validation failed: {error_message}")
-        else:
-            print("✅ Script validation passed - compatible with current structure")
-        
-        # Validate script for security
-        if not self.security_manager.validate_script(script):
-            error_msg = "Script validation failed due to security concerns. See server logs for details."
-            print(f"❌ Security validation failed: {error_msg}")
-            raise ValueError(error_msg)
-        
-        print("✓ Security validation passed")
-        
-        # Create a unique ID for this script
-        import uuid
-        script_id = str(uuid.uuid4())[:8]
-        
-        # Save script to src/script directory
-        script_dir = self.script_dir
-        os.makedirs(script_dir, exist_ok=True)
-        script_path = os.path.join(script_dir, f"script_{script_id}.py")
-        with open(script_path, 'w', encoding='utf-8') as f:
-            f.write(script)
+        for col_idx, row_patterns in col_patterns.items():
+            if not row_patterns:
+                continue
             
-        print(f"💾 Script saved: {script_id}")
+            # Find the most common value in this column's transformations
+            values = list(row_patterns.values())
+            non_empty_values = [v for v in values if not pd.isna(v) and v != '' and v is not None]
             
-        # Save script metadata to json directory for reference if file_manager is provided
-        if file_manager:
-            file_manager.save_json_data({
-                'script': script,
-                'script_id': script_id,
-                'timestamp': str(pd.Timestamp.now()),
-                'command': command,
-                'columns': spreadsheet_df.columns.tolist(),
-                'rows': len(spreadsheet_df)
-            }, f"script_{script_id}")
-            print(f"📊 Script metadata saved")
+            if non_empty_values:
+                # Use the most frequent value as the pattern
+                most_common_value = max(set(non_empty_values), key=non_empty_values.count)
+                
+                # Apply this value to all rows that haven't been modified
+                modified_rows_in_col = set(row_idx for row_idx, c_idx in modified_cells if c_idx == col_idx)
+                
+                for row_idx in range(len(result_df)):
+                    if row_idx not in modified_rows_in_col:
+                        # Check if this cell is empty or needs updating
+                        current_value = result_df.iloc[row_idx, col_idx]
+                        if pd.isna(current_value) or current_value == '' or current_value is None:
+                            result_df.iloc[row_idx, col_idx] = most_common_value
+                            additional_modifications.append([row_idx, col_idx])
         
-        print(f"📊 Original data: {spreadsheet_df.shape[0]} rows, {spreadsheet_df.shape[1]} columns")
+        # Update modified cells list
+        all_modified_cells = modified_cells + additional_modifications
         
-        # Use script fixer for execution with error correction
-        script_fixer = ScriptFixer()
-        modified_df, modified_cells, success = script_fixer.fix_and_execute_script(
-            script, spreadsheet_df, command, self.security_manager
-        )
+        print(f"✅ Extended transformation: added {len(additional_modifications)} additional cell modifications")
         
-        if not success:
-            raise ValueError("Script execution failed after all retry attempts")
-        
-        return modified_df, modified_cells
+        return result_df, all_modified_cells

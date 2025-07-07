@@ -1,5 +1,3 @@
-// Specific to "sample.xlsx" spreadsheet.
-
 Delete all empty rows and columns.
 Delete all rows containing "Totals" and "Net difference".
 Delete rows #1 and #2.
@@ -18,11 +16,3 @@ If there are empty cells below any cell containing an account number, copy that 
 If there are empty cells below any cell containing an account name, copy that account name into all the empty cells below it. Examples of account names are "Other intangible assets" and "Acc. depreciation leasehold right" etc.
 Delete all rows which only have content in cells under columns #A and #B.
 Delete cells #A2 and #B2.
-
-// Specific to "All Ledger 2023-24.xlsx" spreadsheet.
-
-// Specific to "Dump 2.xlsx" spreadsheet.
-
-// Specific to "FY22 TB as of 11.5.24.xlsx" spreadsheet.
-
-// Specific to "GL Dump-.xlsx" spreadsheet.

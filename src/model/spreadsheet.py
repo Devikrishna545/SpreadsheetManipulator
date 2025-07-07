@@ -15,7 +15,7 @@ class Spreadsheet:
     Represents a spreadsheet with data and operations
     """
     
-    def __init__(self, file_id: str, original_filename: str, data_df: Optional[pd.DataFrame] = None, file_path: Optional[str] = None):
+    def __init__(self, file_id: str, original_filename: str, data_df: Optional[pd.DataFrame] = None, file_path: Optional[str] = None, original_file_type: Optional[str] = None):
         """
         Initialize a spreadsheet
 
@@ -24,15 +24,26 @@ class Spreadsheet:
             original_filename: Original name of the uploaded file
             data_df: Pandas DataFrame containing the spreadsheet data
             file_path: Path to the spreadsheet file on disk
+            original_file_type: Original file extension (.xlsx, .xls, .csv)
         """
         self.file_id = file_id
         self.original_filename = original_filename
         self.data_df = data_df
         self.file_path = file_path
+        self.original_file_type = original_file_type or os.path.splitext(original_filename)[1].lower()
+        
+        # For preprocessed data, generate column names since we don't use headers
+        if data_df is not None:
+            column_names = [f"Column_{i}" for i in range(len(data_df.columns))]
+        else:
+            column_names = []
+            
         self.metadata = {
             'filename': original_filename,
-            'columns': data_df.columns.tolist() if data_df is not None else [],
-            'rows': len(data_df) if data_df is not None else 0
+            'columns': column_names,
+            'rows': len(data_df) if data_df is not None else 0,
+            'is_preprocessed': True,  # Flag to indicate this is preprocessed data
+            'original_file_type': self.original_file_type
         }
     
     def get_data(self) -> Optional[pd.DataFrame]:
@@ -52,7 +63,9 @@ class Spreadsheet:
             data_df: New DataFrame
         """
         self.data_df = data_df
-        self.metadata['columns'] = data_df.columns.tolist()
+        # Generate column names for preprocessed data
+        column_names = [f"Column_{i}" for i in range(len(data_df.columns))]
+        self.metadata['columns'] = column_names
         self.metadata['rows'] = len(data_df)
     
     def get_metadata(self) -> Dict[str, Any]:
@@ -149,13 +162,13 @@ class Spreadsheet:
             
         return cls(file_id, original_filename, df)
     
-    def save(self, save_dir: str, format: str = 'xlsx') -> str:
+    def save(self, save_dir: str, format: str = None) -> str:
         """
-        Save spreadsheet to file
+        Save spreadsheet to file in the original format or specified format
 
         Args:
             save_dir: Directory to save the file to
-            format: File format (xlsx, csv)
+            format: File format (xlsx, csv) - if None, uses original file type
 
         Returns:
             str: Path to the saved file
@@ -165,12 +178,32 @@ class Spreadsheet:
             
         os.makedirs(save_dir, exist_ok=True)
         
-        file_path = os.path.join(save_dir, f"{self.file_id}.{format}")
+        # Use original file type if format not specified
+        if format is None:
+            # Determine format from original file type
+            if self.original_file_type.lower() in ['.xlsx', '.xls']:
+                format = 'xlsx'
+                file_extension = '.xlsx'
+            elif self.original_file_type.lower() == '.csv':
+                format = 'csv'
+                file_extension = '.csv'
+            else:
+                # Default to CSV for unknown types
+                format = 'csv'
+                file_extension = '.csv'
+        else:
+            file_extension = f'.{format}'
+        
+        file_path = os.path.join(save_dir, f"{self.file_id}{file_extension}")
+        
+        # Use the SpreadsheetParser to save in the original format
+        from src.model.spreadsheet_parser import SpreadsheetParser
+        parser = SpreadsheetParser()
         
         if format == 'xlsx':
-            self.data_df.to_excel(file_path, index=False)
+            parser.save_as_original_format(self.data_df, file_path, '.xlsx')
         elif format == 'csv':
-            self.data_df.to_csv(file_path, index=False)
+            parser.save_as_original_format(self.data_df, file_path, '.csv')
         else:
             raise ValueError(f"Unsupported format: {format}")
         

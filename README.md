@@ -4,7 +4,8 @@ A Flask application that helps accountants automatically edit spreadsheets using
 
 ## Features
 
-- Upload spreadsheets in various formats (Excel, CSV)
+- **Enhanced Spreadsheet Processing**: Comprehensive preprocessing handles all Excel/CSV customizations (merged cells, formatting, etc.)
+- Upload spreadsheets in various formats (Excel, CSV) with robust error handling
 - View uploaded spreadsheets in the browser
 - Issue natural language commands to modify spreadsheets
 - LLM generates Python scripts to perform modifications
@@ -13,6 +14,19 @@ A Flask application that helps accountants automatically edit spreadsheets using
 - Undo/Redo functionality for all modifications
 - Download modified spreadsheets
 - Automatic cleanup of files after download
+
+### Enhanced Spreadsheet Processing
+
+The application now includes comprehensive preprocessing that handles all types of spreadsheet customizations:
+
+- **Merged Cells**: Properly handles merged cells, rows, and columns
+- **Group Headers**: Processes complex header structures and nested data
+- **Formatting Issues**: Removes all formatting that can cause parsing problems
+- **Multiple Encodings**: Automatically detects CSV encodings and delimiters
+- **Error Recovery**: Multiple fallback methods ensure files always process
+- **Data Cleaning**: Comprehensive cleaning removes artifacts and normalizes data
+
+See [PREPROCESSING_ENHANCEMENTS.md](PREPROCESSING_ENHANCEMENTS.md) for detailed technical information.
 
 ### Manual Schema Transformation
 

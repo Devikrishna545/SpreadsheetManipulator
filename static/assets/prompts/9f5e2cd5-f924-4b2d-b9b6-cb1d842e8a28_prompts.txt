@@ -1,0 +1,2 @@
+Delete all empty rows and columns.
+Delete all empty rows and columns.
