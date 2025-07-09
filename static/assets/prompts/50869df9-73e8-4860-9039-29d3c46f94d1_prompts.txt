@@ -1,3 +1,0 @@
-Delete all empty rows and columns.
-Move all cells in the range C23:D62 to enter in the new range A1:B30.
-Delete rows A31:B35.

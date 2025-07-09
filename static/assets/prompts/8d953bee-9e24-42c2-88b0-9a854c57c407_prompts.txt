@@ -1,5 +1,0 @@
-Delete all empty rows and columns.
-Create 2 new columns to the left.
-Move all cells in the range C23:D62 to enter in the new range A1:B30.
-Delete all duplicate cells and keep only the first instance of the duplicates.
-Delete rows A31:B35.

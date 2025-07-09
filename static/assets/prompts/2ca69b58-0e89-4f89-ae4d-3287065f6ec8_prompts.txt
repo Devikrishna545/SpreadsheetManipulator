@@ -1,8 +1,0 @@
-Delete all empty rows and columns.
-Delete all rows containing "Totals" and "Net difference".
-Create 2 new columns to the left of column #A.
-Move the "Main account" string to the first cell of column #A.
-Move the "Name" string to the first cell of column #B.
-Except for column #A and column #B, delete all other instances of "Main account" and "Name" strings.
-Move all instances of an account number string to be in a cell with the same cell number, but under column #A. An account number is any 6 digit number in any cell under column #C. Examples of account numbers are "013015", "013000" etc.
-Move all instances of an account name string to be in a cell with the same cell number, but under column #B. An account name is any string in a cell on the same row with an account number. An account number is any 6 digit number in any cell under column #A. Examples of account numbers are "013015", "013000" etc. DO NOT DELETE ANYTHING UNDER COLUMN #A.

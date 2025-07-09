@@ -501,11 +501,26 @@ if len(df) > 0:
         print(f"🔧 [SCRIPT TESTER] Fixing index out of bounds error for DataFrame with {len(sample_df)} rows")
         
         # This fix is specifically for loops that drop rows
-        if "df.drop" in script and "for" in script and "range(len(df))" in script:
+        if "df.drop" in script and "for" in script:
             print("   Applying reverse-iteration fix for row deletion loop")
-            # Replace forward loop with a reverse loop
-            fixed_script = script.replace("range(len(df))", "range(len(df) - 1, -1, -1)")
-            return fixed_script
+            
+            # Pattern 1: range(start, len(df)) -> range(len(df)-1, start-1, -1)
+            import re
+            range_pattern = r'range\((\d+), len\(df\)\)'
+            match = re.search(range_pattern, script)
+            if match:
+                start_index = int(match.group(1))
+                old_range = f"range({start_index}, len(df))"
+                new_range = f"range(len(df)-1, {start_index-1}, -1)"
+                fixed_script = script.replace(old_range, new_range)
+                print(f"   ✓ Fixed: {old_range} -> {new_range}")
+                return fixed_script
+            
+            # Pattern 2: range(len(df)) -> range(len(df)-1, -1, -1)
+            if "range(len(df))" in script:
+                fixed_script = script.replace("range(len(df))", "range(len(df) - 1, -1, -1)")
+                print("   ✓ Fixed: range(len(df)) -> range(len(df) - 1, -1, -1)")
+                return fixed_script
             
         return script
     

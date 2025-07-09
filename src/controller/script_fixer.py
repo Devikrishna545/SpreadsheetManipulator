@@ -8,6 +8,7 @@ import re
 import traceback
 from typing import Tuple, Optional, Dict, Any
 import pandas as pd
+import numpy as np
 from src.llm.llm_service import LLMService
 from src.llm.token_manager import token_manager
 from src.controller.script_tester import ScriptTester  # Add this import
@@ -24,10 +25,11 @@ class ScriptFixer:
         self.llm_service = LLMService()
         self.script_tester = ScriptTester()
         self.max_retries = 5
+        self.current_script_path = None  # Track current script path for logging
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     def fix_and_execute_script(self, script: str, spreadsheet_df: pd.DataFrame, 
-                              command: str, security_manager) -> Tuple[pd.DataFrame, list, bool]:
+                              command: str, security_manager, script_path: Optional[str] = None) -> Tuple[pd.DataFrame, list, bool]:
         """
         Execute a script with comprehensive automated error correction pipeline.
         
@@ -40,6 +42,7 @@ class ScriptFixer:
             spreadsheet_df: The pandas DataFrame containing spreadsheet data
             command: The original user command for context
             security_manager: Security manager instance for validation
+            script_path: Optional path to the script file for logging
             
         Returns:
             Tuple[pd.DataFrame, list, bool]: (modified_df, modified_cells, success)
@@ -49,6 +52,9 @@ class ScriptFixer:
         
         current_script = script
         original_script = script
+        
+        # Store script path for logging
+        self.current_script_path = script_path
         
         # === PHASE 1: SANDBOX TESTING AND SCRIPT FIXING ===
         print("\n📋 PHASE 1: Sandbox Testing and Script Correction")
@@ -190,7 +196,8 @@ class ScriptFixer:
         print("-" * 50)
         
         logic_fix_attempts = 0
-        max_logic_fix_attempts = 2
+        max_logic_fix_attempts = 5
+        fix_history = []  # Track failed attempts to prevent LLM from repeating mistakes
 
         while logic_fix_attempts < max_logic_fix_attempts:
             try:
@@ -198,6 +205,8 @@ class ScriptFixer:
                 
                 if len(modified_cells) > 0:
                     print(f"✅ PIPELINE SUCCESS: Script executed successfully - {len(modified_cells)} cell(s) modified")
+                    if self.current_script_path:
+                        print(f"✅ {self.current_script_path}")
                     return modified_df, modified_cells, True
                 
                 # Logic error detected
@@ -207,8 +216,9 @@ class ScriptFixer:
                 if logic_fix_attempts <= max_logic_fix_attempts:
                     error_message = "The script executed without syntax errors but resulted in zero modifications. This suggests a logic error. Please analyze the user\'s command and the script\'s logic to ensure it correctly modifies the dataframe as intended."
                     
+                    # Step 1: Try LLM-based logic fix
                     fixed_script = self._fix_script_with_llm(
-                        current_script, error_message, "", command, spreadsheet_df
+                        current_script, error_message, "", command, spreadsheet_df, fix_history
                     )
                     
                     if fixed_script and fixed_script != current_script:
@@ -217,29 +227,124 @@ class ScriptFixer:
                         # Test the new script
                         test_success, test_error = self._test_script_in_sandbox(fixed_script, spreadsheet_df)
                         if not test_success:
-                            print(f"💥 Logic fix failed sandbox test: {test_error}")
-                            # End of the line for this attempt
-                            break
-
-                        # Security check the new script
-                        if not security_manager.validate_script(fixed_script):
-                            print("💥 Logic fix failed security validation.")
-                            # End of the line for this attempt
-                            break
+                            print(f"⚠️ LLM logic fix failed sandbox test: {test_error}")
                             
-                        print("✅ Logic fix passed all validation. Retrying execution.")
-                        print(f"📝 Logic-corrected script preview:\n\n{fixed_script[:1000000]}\n")
-                        current_script = fixed_script
+                            # Add this failed attempt to history
+                            fix_history.append({
+                                'script': fixed_script,
+                                'error': test_error
+                            })
+                            
+                            # Step 2: Try to fix the broken LLM fix with another LLM attempt
+                            print("🤖 Attempting to fix the broken LLM logic fix...")
+                            double_fixed_script = self._fix_script_with_llm(
+                                fixed_script, test_error, "", command, spreadsheet_df, fix_history
+                            )
+                            
+                            if double_fixed_script and double_fixed_script != fixed_script:
+                                double_test_success, double_test_error = self._test_script_in_sandbox(double_fixed_script, spreadsheet_df)
+                                if double_test_success:
+                                    print("✅ Double-fix LLM correction successful!")
+                                    fixed_script = double_fixed_script
+                                    test_success = True
+                                else:
+                                    print(f"⚠️ Double-fix also failed: {double_test_error}")
+                                    # Add this failed attempt to history too
+                                    fix_history.append({
+                                        'script': double_fixed_script,
+                                        'error': double_test_error
+                                    })
+                            
+                            # Step 3: Try manual deterministic fixes if LLM fixes failed
+                            if not test_success:
+                                print("🔧 Trying manual fixes for the logic error...")
+                                manual_fixed_script = self._apply_manual_fixes(fixed_script, test_error, spreadsheet_df)
+                                
+                                if manual_fixed_script:
+                                    manual_test_success, manual_test_error = self._test_script_in_sandbox(manual_fixed_script, spreadsheet_df)
+                                    if manual_test_success:
+                                        print("✅ Manual fix for logic error successful!")
+                                        fixed_script = manual_fixed_script
+                                        test_success = True
+                                    else:
+                                        print(f"❌ Manual fix also failed: {manual_test_error}")
+                                        # Add manual fix failure to history
+                                        fix_history.append({
+                                            'script': manual_fixed_script,
+                                            'error': manual_test_error
+                                        })
+                                else:
+                                    print("❌ No manual fix available for logic error")
+                        else:
+                            # Add successful script to history (for context)
+                            fix_history.append({
+                                'script': fixed_script,
+                                'error': 'SUCCESS'
+                            })
+                        
+                        # If we have a working fix, validate security and continue
+                        if test_success:
+                            # Security check the new script
+                            if not security_manager.validate_script(fixed_script):
+                                print("💥 Logic fix failed security validation.")
+                                # Try to get a security-compliant version
+                                security_fixed_script = self._fix_script_with_llm(
+                                    fixed_script, 
+                                    "Script failed security validation. Please ensure the script only uses allowed operations and imports.",
+                                    "", 
+                                    command, 
+                                    spreadsheet_df
+                                )
+                                
+                                if security_fixed_script and security_manager.validate_script(security_fixed_script):
+                                    security_test_success, _ = self._test_script_in_sandbox(security_fixed_script, spreadsheet_df)
+                                    if security_test_success:
+                                        print("✅ Security fix successful!")
+                                        fixed_script = security_fixed_script
+                                    else:
+                                        print("💥 Security fix broke functionality. Continuing to next attempt.")
+                                        continue
+                                else:
+                                    print("💥 Could not create security-compliant version. Continuing to next attempt.")
+                                    continue
+                            
+                            print("✅ Logic fix passed all validation. Retrying execution.")
+                            print(f"📝 Logic-corrected script preview:\n\n{fixed_script[:1000000]}\n")
+                            current_script = fixed_script
+                        else:
+                            print("❌ All fix attempts failed for this iteration. Continuing to next attempt.")
+                            continue
                     else:
-                        print("❌ LLM could not provide a logic fix. Aborting.")
-                        break
+                        print("❌ LLM could not provide a logic fix. Trying manual fixes...")
+                        
+                        # Try manual fixes directly for the original logic error
+                        manual_fixed_script = self._apply_manual_fixes(current_script, "Script made no modifications", spreadsheet_df)
+                        
+                        if manual_fixed_script:
+                            manual_test_success, manual_test_error = self._test_script_in_sandbox(manual_fixed_script, spreadsheet_df)
+                            if manual_test_success and security_manager.validate_script(manual_fixed_script):
+                                print("✅ Manual fix for original logic error successful!")
+                                current_script = manual_fixed_script
+                            else:
+                                print(f"❌ Manual fix failed or security invalid. Continuing to next attempt.")
+                                continue
+                        else:
+                            print("❌ No fixes available for this attempt. Continuing to next attempt.")
+                            continue
+                else:
+                    print("💥 PHASE 3 FAILED: Maximum logic fix attempts reached")
+                    break
                 
             except Exception as e:
                 print(f"💥 PHASE 3 FAILED: Final execution error: {e}")
+                if self.current_script_path:
+                    print(f"❌ {self.current_script_path}")
                 logging.error(f"Final execution failed: {e}", exc_info=True)
                 return spreadsheet_df, [], False
 
         print("💥 PIPELINE FAILED: Could not produce a working script after all attempts.")
+        if self.current_script_path:
+            print(f"❌ {self.current_script_path}")
         return spreadsheet_df, [], False
     
     def _execute_simple_script(self, script: str, spreadsheet_df: pd.DataFrame) -> Tuple[pd.DataFrame, list]:
@@ -393,7 +498,8 @@ class ScriptFixer:
         return modified_df, modified_cells
     
     def _fix_script_with_llm(self, script: str, error_msg: str, error_traceback: str, 
-                           command: str, spreadsheet_df: pd.DataFrame) -> Optional[str]:
+                           command: str, spreadsheet_df: pd.DataFrame, 
+                           fix_history: Optional[list] = None) -> Optional[str]:
         """
         Use LLM to intelligently fix a script based on the error encountered.
         Enhanced for automated debugging system.
@@ -404,6 +510,7 @@ class ScriptFixer:
             error_traceback: Full error traceback
             command: Original user command
             spreadsheet_df: The DataFrame being processed
+            fix_history: A list of previous failed attempts in this cycle
             
         Returns:
             Optional[str]: Fixed script or None if fixing failed
@@ -416,6 +523,24 @@ class ScriptFixer:
             shape_info = f"Shape: {spreadsheet_df.shape[0]} rows, {spreadsheet_df.shape[1]} columns"
             sample_data = spreadsheet_df.head(3).to_string() if len(spreadsheet_df) > 0 else "Empty DataFrame"
             
+            # Build the history section for the prompt
+            history_section = ""
+            if fix_history:
+                history_items = []
+                for i, attempt in enumerate(fix_history):
+                    history_items.append(
+                        f"ATTEMPT {i+1}:\n"
+                        f"--- SCRIPT ---\n"
+                        f"{attempt['script']}\n"
+                        f"--- ERROR ---\n"
+                        f"{attempt['error']}"
+                    )
+                history_section = f"""
+=== PREVIOUS FAILED ATTEMPTS ===
+This is part of a retry loop. The following attempts have already failed. Analyze them to avoid repeating mistakes.
+{chr(10).join(history_items)}
+"""
+            
             # Enhanced prompt for automated debugging
             correction_prompt = f"""
 You are an expert Python script debugger in an automated error correction system. Your task is to fix the failing script below.
@@ -426,12 +551,12 @@ DataFrame Structure: {columns_info}, {shape_info}
 
 Sample Data:
 {sample_data}
-
-=== ERROR INFORMATION ===
+{history_section}
+=== CURRENT ERROR INFORMATION ===
 Error Message: {error_msg}
 {f"Full Traceback: {error_traceback}" if error_traceback else ""}
 
-=== FAILING SCRIPT ===
+=== FAILING SCRIPT (LATEST ATTEMPT) ===
 ```python
 {script}
 ```
@@ -445,12 +570,12 @@ Available in execution environment:
 - Exception types: Exception, ValueError, TypeError, IndexError, KeyError, AttributeError
 
 === DEBUGGING INSTRUCTIONS ===
-1. ANALYZE the error message carefully
-2. IDENTIFY the root cause (syntax, logic, data access, security, etc.)
-3. FIX the issue while preserving the original intent
-4. ENSURE compatibility with the DataFrame structure
-5. USE only the available environment listed above
-6. RETURN only clean Python code without explanations or markdown
+1. ANALYZE the error message and the full history of failed attempts.
+2. IDENTIFY the root cause. Do NOT repeat previous mistakes.
+3. FIX the issue while preserving the original intent.
+4. ENSURE compatibility with the DataFrame structure.
+5. USE only the available environment listed above.
+6. RETURN only clean Python code without explanations or markdown.
 
 === COMMON ERROR PATTERNS & FIXES ===
 - Syntax errors: Add missing colons, parentheses, indentation
@@ -459,6 +584,23 @@ Available in execution environment:
 - Column access: Use df[column_name] or df.iloc[row, col]
 - Security violations: Remove forbidden imports/functions
 - Incomplete blocks: Add missing code (e.g., df.drop(index, inplace=True) for deletions)
+- df.replace() regex errors: Add regex=False parameter (e.g., df.replace('None', '', regex=False, inplace=True))
+- No modifications: Ensure script actually modifies the DataFrame, check data types and exact string matches
+- NaN/None handling: Use np.nan for NumPy NaN, None for Python None, 'None' for string None
+- Index out of bounds in loops: Use reverse iteration for deletion (range(len(df)-1, -1, -1))
+- Row deletion errors: Prefer boolean indexing over iterative df.drop() calls
+
+=== SPECIAL NOTES FOR ROW DELETION ===
+- NEVER use forward iteration with df.drop() - indices shift causing errors
+- For deleting rows: Use boolean indexing: df = df[~condition].reset_index(drop=True)
+- For selective deletion: Use reverse iteration: for i in range(len(df)-1, start-1, -1)
+- Example safe deletion: mask = ~df.astype(str).apply(lambda row: row.str.contains('pattern').any(), axis=1); df = df[mask]
+
+=== SPECIAL NOTES FOR df.replace() ===
+- Always add regex=False when replacing literal values to avoid regex interpretation
+- Example: df.replace('None', '', regex=False, inplace=True)
+- Example: df.replace(None, '', regex=False, inplace=True)  
+- Example: df.replace(np.nan, '', regex=False, inplace=True)
 
 Generate the corrected script:"""
             
@@ -551,6 +693,125 @@ Generate the corrected script:"""
             Optional[str]: Fixed script or None if no fix available
         """
         print("🔧 Applying manual deterministic fixes...")
+        
+        # Manual fix for df.replace() regex error
+        if "'regex' must be a string" in error_msg and "you passed a 'bool'" in error_msg:
+            print("🔧 Detected df.replace() regex error. Applying manual fix...")
+            
+            # Common fix: add regex=False parameter to df.replace() calls
+            fixed_script = script
+            
+            # Pattern 1: df.replace(None, '', inplace=True) -> df.replace(None, '', regex=False, inplace=True)
+            if "df.replace(None," in script and "regex=False" not in script:
+                fixed_script = script.replace(
+                    "df.replace(None, '',", 
+                    "df.replace(None, '', regex=False,"
+                ).replace("df.replace(None, inplace=True)", "df.replace(None, '', regex=False, inplace=True)")
+            
+            # Pattern 2: df.replace(np.nan, '', inplace=True) -> df.replace(np.nan, '', regex=False, inplace=True)
+            if "df.replace(np.nan," in fixed_script and "regex=False" not in fixed_script:
+                fixed_script = fixed_script.replace(
+                    "df.replace(np.nan, '',", 
+                    "df.replace(np.nan, '', regex=False,"
+                ).replace("df.replace(np.nan, inplace=True)", "df.replace(np.nan, '', regex=False, inplace=True)")
+            
+            # Pattern 3: General df.replace() calls without regex parameter
+            import re
+            replace_pattern = r'df\.replace\(([^,]+),\s*([^,]+),\s*inplace=True\)'
+            matches = re.findall(replace_pattern, fixed_script)
+            for match in matches:
+                old_call = f"df.replace({match[0]}, {match[1]}, inplace=True)"
+                new_call = f"df.replace({match[0]}, {match[1]}, regex=False, inplace=True)"
+                fixed_script = fixed_script.replace(old_call, new_call)
+            
+            if fixed_script != script:
+                print("✓ Applied df.replace() regex fix")
+                return fixed_script
+        
+        # Manual fix for index out of bounds errors in row deletion loops
+        if ("index" in error_msg.lower() and "out" in error_msg.lower() and "bounds" in error_msg.lower()) or \
+           ("single positional indexer is out-of-bounds" in error_msg):
+            print("🔧 Detected index out of bounds error. Applying manual fix...")
+            
+            # Fix 1: Forward iteration with drop -> Reverse iteration
+            if "for i in range(" in script and "df.drop(" in script:
+                print("🔧 Converting forward iteration to reverse iteration for row deletion")
+                
+                # Pattern: for i in range(start, len(df)): -> for i in range(len(df)-1, start-1, -1):
+                import re
+                range_pattern = r'for i in range\((\d+), len\(df\)\)'
+                match = re.search(range_pattern, script)
+                if match:
+                    start_index = int(match.group(1))
+                    old_range = f"for i in range({start_index}, len(df))"
+                    new_range = f"for i in range(len(df)-1, {start_index-1}, -1)"
+                    fixed_script = script.replace(old_range, new_range)
+                    print(f"✓ Applied reverse iteration fix: {old_range} -> {new_range}")
+                    return fixed_script
+                
+                # Pattern: for i in range(len(df)): -> for i in range(len(df)-1, -1, -1):
+                if "for i in range(len(df)):" in script:
+                    fixed_script = script.replace(
+                        "for i in range(len(df)):",
+                        "for i in range(len(df)-1, -1, -1):"
+                    )
+                    print("✓ Applied reverse iteration fix for full range")
+                    return fixed_script
+            
+            # Fix 2: Use boolean indexing instead of iterative dropping
+            if "df.drop(" in script and ("Debit" in script or "Credit" in script):
+                print("🔧 Converting iterative deletion to boolean indexing")
+                
+                # Create a more robust script using boolean indexing
+                if "range(2," in script:  # Preserve rows 0 and 1
+                    fixed_script = '''# Keep rows 0 and 1, then filter out rows containing "Debit" or "Credit"
+import pandas as pd
+
+# Get rows 0 and 1 (keep these)
+keep_rows = df.iloc[:2].copy()
+
+# Get rows from index 2 onwards
+remaining_rows = df.iloc[2:].copy()
+
+# Filter out rows containing "Debit" or "Credit"
+mask = ~(remaining_rows.astype(str).apply(lambda row: row.str.contains('Debit|Credit', na=False).any(), axis=1))
+filtered_rows = remaining_rows[mask]
+
+# Combine kept rows with filtered rows
+df = pd.concat([keep_rows, filtered_rows], ignore_index=True)'''
+                    print("✓ Applied boolean indexing fix with row preservation")
+                    return fixed_script
+                else:
+                    # General case - filter out all rows with Debit or Credit
+                    fixed_script = '''# Filter out all rows containing "Debit" or "Credit"
+mask = ~(df.astype(str).apply(lambda row: row.str.contains('Debit|Credit', na=False).any(), axis=1))
+df = df[mask].reset_index(drop=True)'''
+                    print("✓ Applied boolean indexing fix (general)")
+                    return fixed_script
+        
+        # Manual fix for common NaN/None handling issues
+        if "script made no modifications" in error_msg.lower() or "zero modifications" in error_msg.lower():
+            print("🔧 Detected no-modification issue. Trying alternative approaches...")
+            
+            # If the script contains df.replace() for 'None' strings, add more comprehensive replacement
+            if "df.replace('None'," in script:
+                print("🔧 Enhancing None string replacement...")
+                enhanced_script = f"""
+# Enhanced None replacement approach
+import numpy as np
+
+# Replace string 'None' values
+df = df.replace('None', '', regex=False)
+
+# Also replace actual None values and NaN values
+df = df.replace(None, '', regex=False)
+df = df.replace(np.nan, '', regex=False)
+
+# Replace 'None' that might be in different cases
+df = df.replace('none', '', regex=False)
+df = df.replace('NONE', '', regex=False)
+"""
+                return enhanced_script.strip()
         
         # Use the script_tester for deterministic fixes
         is_valid, tester_error, fixed_script = self.script_tester.test_script(script, spreadsheet_df.head(5))

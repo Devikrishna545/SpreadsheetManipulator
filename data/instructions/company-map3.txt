@@ -1,6 +1,0 @@
-Déplacer toutes les cellules de la plage C32:D60 vers la nouvelle plage A2:B30.
-Supprimer toutes les cellules en double et conserver uniquement la première occurrence.
-Supprimer les lignes E32:F35.
-Supprimer la ligne 30.
-Dupliquer la cellule A3 dans la cellule A2.
-Dupliquer la cellule B3 dans la cellule B2.

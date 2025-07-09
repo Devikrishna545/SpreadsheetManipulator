@@ -39,10 +39,17 @@ class ScriptManager:
         script_id = str(uuid.uuid4())[:8]
         timestamp = datetime.now().isoformat()
         
+        # Prepare metadata section
+        metadata_section = ""
+        if metadata:
+            metadata_section = f"""
+Metadata: {metadata}
+"""
+        
         # Prepare script content with metadata as comments
         script_content = f"""\"\"\"
 Auto-generated script {script_id}
-Generated on: {timestamp}
+Generated on: {timestamp}{metadata_section}
 \"\"\"
 {script}
 """
@@ -53,7 +60,7 @@ Generated on: {timestamp}
             f.write(script_content)
             
         return script_id
-        
+    
     def get_script(self, script_id: str) -> Optional[str]:
         """
         Get a script by ID
@@ -71,6 +78,33 @@ Generated on: {timestamp}
         with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
             
+    def get_script_metadata(self, script_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Extract metadata from a script file
+        
+        Args:
+            script_id: The ID of the script
+            
+        Returns:
+            Optional[Dict[str, Any]]: Metadata if found, None otherwise
+        """
+        script_content = self.get_script(script_id)
+        if not script_content:
+            return None
+        
+        # Try to extract metadata from the docstring
+        try:
+            lines = script_content.split('\n')
+            for line in lines:
+                if line.strip().startswith('Metadata:'):
+                    metadata_str = line.strip()[10:]  # Remove 'Metadata: '
+                    import ast
+                    return ast.literal_eval(metadata_str)
+        except:
+            pass
+        
+        return None
+        
     def list_scripts(self) -> Dict[str, str]:
         """
         List all available scripts

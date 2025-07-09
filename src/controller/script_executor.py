@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import json
 import re
+from datetime import datetime
 from typing import Tuple, List, Dict, Any, Optional, Hashable
 from src.controller.security_manager import SecurityManager
 from src.controller.script_manager import ScriptManager
@@ -122,7 +123,7 @@ class ScriptExecutor:
                     # Create a dummy command for context
                     dummy_command = "User command requiring script execution"
                     fixed_df, modified_cells, success = script_fixer.fix_and_execute_script(
-                        script, spreadsheet_df, dummy_command, self.security_manager
+                        script, spreadsheet_df, dummy_command, self.security_manager, script_relative_path
                     )
                     
                     if success:
@@ -141,7 +142,7 @@ class ScriptExecutor:
                 # Create a dummy command for context
                 dummy_command = "User command requiring script execution"
                 fixed_df, modified_cells, success = script_fixer.fix_and_execute_script(
-                    script, spreadsheet_df, dummy_command, self.security_manager
+                    script, spreadsheet_df, dummy_command, self.security_manager, script_relative_path
                 )
                 
                 if success:
@@ -179,6 +180,7 @@ class ScriptExecutor:
             f.write(script)
             
         print(f"💾 Script saved: {script_id}")
+        script_relative_path = f"src/script/script_{script_id}.py"
             
         # Save script metadata to json directory for reference if file_manager is provided
         if file_manager:
@@ -223,6 +225,7 @@ class ScriptExecutor:
             )
 
             print(f"✅ Script executed successfully - {len(modified_cells)} cells modified")
+            print(f"✅ {script_relative_path}")
             
             # Enhanced validation for dataset completeness
             if len(spreadsheet_df) > 100:  # Only for larger datasets
@@ -244,6 +247,7 @@ class ScriptExecutor:
         except Exception as e:
             error_msg = str(e)
             print(f"❌ Script execution failed: {error_msg}")
+            print(f"❌ {script_relative_path}")
             
             # --- ENHANCED PATCH: If error is 'iloc cannot enlarge its target object', analyze and expand DataFrame ---
             if 'iloc cannot enlarge its target object' in error_msg:
@@ -295,9 +299,11 @@ class ScriptExecutor:
                         new_df=modified_df
                     )
                     print("✅ Enhanced patched execution successful")
+                    print(f"✅ {script_relative_path}")
                     return modified_df, modified_cells
                 except Exception as e2:
                     print(f"❌ Enhanced patched execution failed: {e2}")
+                    print(f"❌ {script_relative_path}")
                     raise RuntimeError(f"Script execution failed after enhanced patch: {e2}")
             # Return the original DataFrame without modifications instead of adding error column
             raise RuntimeError(f"Script execution failed: {error_msg}")
@@ -629,9 +635,28 @@ class ScriptExecutor:
         from src.controller.script_fixer import ScriptFixer
         script_fixer = ScriptFixer()
         
+        # Create a unique ID for this script to generate the path
+        import uuid
+        script_id = str(uuid.uuid4())[:8]
+        script_relative_path = f"src/script/script_{script_id}.py"
+        
+        # Save script to src/script directory for reference
+        script_dir = self.script_dir
+        os.makedirs(script_dir, exist_ok=True)
+        script_path = os.path.join(script_dir, f"script_{script_id}.py")
+        with open(script_path, 'w', encoding='utf-8') as f:
+            script_content = f"""\"\"\"
+Auto-generated script {script_id}
+Generated on: {datetime.now().isoformat()}
+Command: {command}
+\"\"\"
+{script}
+"""
+            f.write(script_content)
+        
         # Use script_fixer to handle the entire error correction pipeline
         modified_df, modified_cells, success = script_fixer.fix_and_execute_script(
-            script, spreadsheet_df.copy(), command, self.security_manager
+            script, spreadsheet_df.copy(), command, self.security_manager, script_relative_path
         )
         
         if not success:

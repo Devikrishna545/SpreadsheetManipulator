@@ -431,3 +431,59 @@ def validate_schema_compatibility(session_id: str, request: dict):
         return {"success": True, "compatibility": compatibility}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# Script Reuse API Endpoints
+@app.get("/script_reuse_stats")
+def get_script_reuse_stats():
+    """
+    Get statistics about script reuse performance
+    """
+    try:
+        stats = controllers.spreadsheet_controller.get_script_reuse_stats()
+        return JSONResponse(content=stats)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/cleanup_script_reuse_data")
+def cleanup_script_reuse_data(max_age_days: int = 30):
+    """
+    Clean up old script reuse data
+    """
+    try:
+        cleanup_results = controllers.spreadsheet_controller.cleanup_script_reuse_data(max_age_days)
+        return JSONResponse(content=cleanup_results)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/script_reuse_config")
+def get_script_reuse_config():
+    """
+    Get current script reuse configuration
+    """
+    try:
+        config = {
+            'enabled': controllers.spreadsheet_controller.script_reuser.model is not None,
+            'similarity_threshold': controllers.spreadsheet_controller.script_reuser.similarity_threshold,
+            'model_name': 'all-MiniLM-L6-v2',
+            'mapping_file': controllers.spreadsheet_controller.script_reuser.mapping_file
+        }
+        return JSONResponse(content=config)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/script_reuse_config")
+def update_script_reuse_config(config: dict):
+    """
+    Update script reuse configuration
+    """
+    try:
+        if 'similarity_threshold' in config:
+            threshold = float(config['similarity_threshold'])
+            if 0.0 <= threshold <= 1.0:
+                controllers.spreadsheet_controller.script_reuser.similarity_threshold = threshold
+            else:
+                raise ValueError("Similarity threshold must be between 0.0 and 1.0")
+        
+        return JSONResponse(content={"success": True, "message": "Configuration updated"})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
