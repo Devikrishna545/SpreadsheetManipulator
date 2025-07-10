@@ -14,6 +14,16 @@ from src.llm.token_manager import token_manager
 from src.controller.script_tester import ScriptTester  # Add this import
 import logging
 
+class ScriptExecutionFailureException(Exception):
+    """
+    Exception raised when script execution fails after going through
+    the complete debugging pipeline (ScriptTester + ScriptFixer)
+    """
+    def __init__(self, command: str, error_details: str):
+        self.command = command
+        self.error_details = error_details
+        super().__init__(f"Failed to execute command '{command}' after debugging pipeline: {error_details}")
+
 class ScriptFixer:
     """
     Handles error correction for simple scripts generated from AI commands.

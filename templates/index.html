@@ -178,6 +178,10 @@
                             <div class="session-item">
                                 <span class="session-label">Upload Commands</span>
                                 <span class="session-value">Alt+C</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Manage Mappings</span>
+                                <span class="session-value">Alt+G</span>
                             </div>                                           
                         </div>
                     </div>
@@ -228,6 +232,10 @@
                                         </button>
                                         <!-- Hidden file input for text commands -->
                                         <input type="file" id="commandFileInput" accept=".txt" style="display: none;" />
+                                        <!-- Manage Mappings Button -->
+                                        <button class="btn btn-sm btn-outline-light" id="manageMappingsBtn" title="Manage Mappings">
+                                            <i class="fas fa-link"></i>
+                                        </button>
                                         <!-- Action Plan Button -->
                                         <button class="btn btn-sm btn-outline-light" id="generateActionPlanBtn" title="Generate & Execute Algorithm">
                                             <i class="fas fa-robot"></i>
@@ -309,6 +317,47 @@
             </div>
         </div>
 
+        <!-- Confirmation Modal -->
+        <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="confirmModalLabel">
+                            <i class="fas fa-question-circle me-2 text-info"></i>Confirmation
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="confirmModalBody">
+                        Are you sure?
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="confirmModalCancelBtn">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="confirmModalConfirmBtn">Confirm</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert Modal -->
+        <div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="alertModalLabel">
+                            <i class="fas fa-info-circle me-2 text-primary"></i>Information
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="alertModalBody">
+                        Information message.
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Action Plan Modal -->
         <div class="modal fade" id="actionPlanModal" tabindex="-1" aria-labelledby="actionPlanModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -383,7 +432,139 @@
     <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
     <!-- Your custom scripts -->
     <script type="module" src="{{ url_for('static', path='js/main.js') }}"></script>
-    <script type="module" src="{{ url_for('static', path='js/prompts.js') }}"></script>   
+    <script type="module" src="{{ url_for('static', path='js/prompts.js') }}"></script>
+
+    <!-- Mapping Management Modal -->
+    <div class="modal fade" id="mappingManagementModal" tabindex="-1" aria-labelledby="mappingManagementModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="mappingManagementModalLabel">
+                        <i class="fas fa-link me-2"></i>Mapping Management
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Mapping Statistics -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="card bg-secondary border-dark">
+                                <div class="card-body">
+                                    <h6 class="card-title">Statistics</h6>
+                                    <div class="row" id="mappingStats">
+                                        <div class="col-md-3">
+                                            <small class="text-muted">Active Mappings</small>
+                                            <div id="activeMappingsCount">-</div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted">Total Commands</small>
+                                            <div id="totalCommandsCount">-</div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted">Total Uses</small>
+                                            <div id="totalUsesCount">-</div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted">Last Updated</small>
+                                            <div id="lastUpdatedDate">-</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mapping Actions -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <button class="btn btn-primary btn-sm" id="refreshMappingsBtn">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <button class="btn btn-success btn-sm" id="createNewMappingBtn">
+                                <i class="fas fa-plus"></i> Create New Mapping
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mappings Table -->
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Spreadsheet</th>
+                                    <th>Command File</th>
+                                    <th>Commands</th>
+                                    <th>Uses</th>
+                                    <th>Created</th>
+                                    <th>Last Used</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mappingsTableBody">
+                                <!-- Mappings will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- No mappings message -->
+                    <div id="noMappingsMessage" class="text-center text-muted py-5" style="display: none;">
+                        <i class="fas fa-unlink fa-3x mb-3"></i>
+                        <h5>No mappings found</h5>
+                        <p>Create a mapping to automatically execute commands when spreadsheets are uploaded.</p>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Mapping Modal -->
+    <div class="modal fade" id="createMappingModal" tabindex="-1" aria-labelledby="createMappingModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="createMappingModalLabel">
+                        <i class="fas fa-plus me-2"></i>Create New Mapping
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createMappingForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="mappingSpreadsheetName" class="form-label">Spreadsheet Name</label>
+                                    <input type="text" class="form-control bg-dark text-light border-secondary" 
+                                           id="mappingSpreadsheetName" placeholder="e.g., sample.xlsx" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="mappingCommandFile" class="form-label">Command File</label>
+                                    <input type="file" class="form-control bg-dark text-light border-secondary" 
+                                           id="mappingCommandFile" accept=".txt" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="mappingCommands" class="form-label">Commands Preview</label>
+                            <textarea class="form-control bg-dark text-light border-secondary" 
+                                      id="mappingCommands" rows="10" readonly 
+                                      placeholder="Select a command file to preview commands..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveMappingBtn" disabled>
+                        <i class="fas fa-save"></i> Create Mapping
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+   
 </body>
-</html>
 </html>

@@ -1,4 +1,5 @@
 import { showLoading, hideLoading, showError, updateStatus, showMainInterface, updateSessionInfo, showAlgorithmLoading } from './uiInteractions.js';
+import { showConfirm } from './modalUtils.js';
 import { resetApplicationState } from './main.js'; // Assuming main.js will export this
 
 export async function handleFileUpload(event, fileInput) {
@@ -63,6 +64,12 @@ export async function processCommand(sessionId, command) {
         
         if (!response.ok) {
             const errorData = await response.json();
+            
+            // Handle script execution failure specially
+            if (response.status === 422 && errorData.detail?.error === 'SCRIPT_EXECUTION_FAILED') {
+                throw new Error(`SCRIPT_EXECUTION_FAILED: ${errorData.detail.message}`);
+            }
+            
             throw new Error(errorData.detail || 'Failed to process command');
         }
         
@@ -72,7 +79,17 @@ export async function processCommand(sessionId, command) {
         return data;
     } catch (error) {
         updateStatus('Error', 'error');
-        showError(error.message);
+        
+        // Check if this is a script execution failure
+        if (error.message.startsWith('SCRIPT_EXECUTION_FAILED:')) {
+            // Extract the user-friendly message
+            const userMessage = error.message.replace('SCRIPT_EXECUTION_FAILED: ', '');
+            showError(userMessage);
+            // Throw the error to stop sequential processing
+            throw new Error('SCRIPT_EXECUTION_FAILED');
+        } else {
+            showError(error.message);
+        }
         return null;
     } finally {
         hideLoading();
@@ -140,11 +157,21 @@ export function downloadSpreadsheet(sessionId) {
                     a.download = filename;
                     document.body.appendChild(a);
                     a.click();
-                    setTimeout(() => {
+                    setTimeout(async () => {
                         document.body.removeChild(a);
                         window.URL.revokeObjectURL(url);
                         // Show session cleanup dialog after download
-                        if (confirm('Your session has been completed. The spreadsheet and all related data have been cleaned up. Click OK to return to the start page.')) {
+                        const shouldReload = await showConfirm(
+                            'Your session has been completed. The spreadsheet and all related data have been cleaned up.',
+                            'Session Complete',
+                            {
+                                confirmText: 'Return to Start',
+                                cancelText: 'Stay Here',
+                                confirmClass: 'btn-primary'
+                            }
+                        );
+                        
+                        if (shouldReload) {
                             window.location.reload();
                         } else {
                             resetApplicationState();
@@ -194,5 +221,84 @@ export async function generateAndExecuteAlgorithm(sessionId, actionPlan, leftDat
         return null;
     } finally {
         hideLoading();
+    }
+}
+
+// Mapping-related API functions
+export async function createMapping(spreadsheetFilename, commandFilename, commands) {
+    try {
+        const response = await fetch('/create_mapping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                spreadsheet_filename: spreadsheetFilename,
+                command_filename: commandFilename,
+                commands: commands
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to create mapping');
+        }
+        
+        return await response.json();
+    } catch (error) {
+        showError(`Error creating mapping: ${error.message}`);
+        return null;
+    }
+}
+
+export async function getAllMappings() {
+    try {
+        const response = await fetch('/mappings');
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to get mappings');
+        }
+        
+        return await response.json();
+    } catch (error) {
+        showError(`Error getting mappings: ${error.message}`);
+        return null;
+    }
+}
+
+export async function deleteMapping(mappingId) {
+    try {
+        const response = await fetch(`/mapping/${mappingId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to delete mapping');
+        }
+        
+        return await response.json();
+    } catch (error) {
+        showError(`Error deleting mapping: ${error.message}`);
+        return null;
+    }
+}
+
+export async function updateMapping(mappingId, updates) {
+    try {
+        const response = await fetch(`/mapping/${mappingId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to update mapping');
+        }
+        
+        return await response.json();
+    } catch (error) {
+        showError(`Error updating mapping: ${error.message}`);
+        return null;
     }
 }

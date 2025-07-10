@@ -16,6 +16,7 @@ from src.controller.script_manager import ScriptManager
 from src.controller.file_manager import FileManager
 from src.controller.script_tester import ScriptTester
 from src.llm.token_manager import token_manager
+from src.controller.script_fixer import ScriptExecutionFailureException
 
 class ScriptExecutor:
     """
@@ -304,9 +305,9 @@ class ScriptExecutor:
                 except Exception as e2:
                     print(f"❌ Enhanced patched execution failed: {e2}")
                     print(f"❌ {script_relative_path}")
-                    raise RuntimeError(f"Script execution failed after enhanced patch: {e2}")
+                    raise ScriptExecutionFailureException("Script execution", f"Script execution failed after enhanced patch: {e2}")
             # Return the original DataFrame without modifications instead of adding error column
-            raise RuntimeError(f"Script execution failed: {error_msg}")
+            raise ScriptExecutionFailureException("Script execution", f"Script execution failed: {error_msg}")
     
     def validate_script_safety(self, script: str) -> bool:
         """
@@ -464,7 +465,7 @@ class ScriptExecutor:
                     f"in the DataFrame, not just a subset."
                 )
                 print(f"❌ VALIDATION FAILED: {error_msg}")
-                raise RuntimeError(error_msg)
+                raise ScriptExecutionFailureException("Universal algorithm validation", error_msg)
             
             # Enhanced validation: check if modifications seem limited to first few rows only
             if len(modified_cells) > 0:
@@ -493,7 +494,7 @@ class ScriptExecutor:
                                 f"This indicates the algorithm is fundamentally flawed and not universal."
                             )
                             print(f"❌ {error_msg}")
-                            raise RuntimeError(error_msg)
+                            raise ScriptExecutionFailureException("Universal algorithm validation", error_msg)
                         else:
                             print("✅ Pattern extension successful - transformation now covers more of the dataset")
                 
@@ -517,7 +518,7 @@ class ScriptExecutor:
                             f"For a dataset this large, the algorithm should process most/all rows."
                         )
                         print(f"❌ {error_msg}")
-                        raise RuntimeError(error_msg)
+                        raise ScriptExecutionFailureException("Universal algorithm validation", error_msg)
                     else:
                         print("✅ Pattern extension successful - more rows now processed")
                 
@@ -532,7 +533,7 @@ class ScriptExecutor:
                         f"A complete universal algorithm should populate all cells with appropriate data."
                     )
                     print(f"❌ {error_msg}")
-                    raise RuntimeError(error_msg)
+                    raise ScriptExecutionFailureException("Universal algorithm validation", error_msg)
                 
                 if max_modified_row < original_row_count * 0.3:  # If modifications in less than 30% of data
                     warning_msg = (
@@ -547,7 +548,7 @@ class ScriptExecutor:
                     f"This suggests the algorithm failed to process any data."
                 )
                 print(f"❌ {error_msg}")
-                raise RuntimeError(error_msg)
+                raise ScriptExecutionFailureException("Universal algorithm validation", error_msg)
             
             # Additional check: ensure no large blocks of unchanged data remain
             if original_row_count > 20:
@@ -571,7 +572,7 @@ class ScriptExecutor:
                             f"cannot be properly extended to process the entire dataset."
                         )
                         print(f"❌ {error_msg}")
-                        raise RuntimeError(error_msg)
+                        raise ScriptExecutionFailureException("Universal algorithm validation", error_msg)
                     else:
                         print("✅ Pattern extension successful - last quarter now has modifications")
             
@@ -663,8 +664,8 @@ Command: {command}
             error_msg = "Script execution failed after comprehensive error correction attempts. See server logs for details."
             print(f"❌ Final execution failed: {error_msg}")
             
-            # In case of failure, raise an exception instead of modifying the DataFrame
-            raise RuntimeError(error_msg)
+            # In case of failure, raise a specific script execution failure exception
+            raise ScriptExecutionFailureException(command, error_msg)
         
         # At the end of execution, print Gemini token usage if available
         self._print_gemini_token_usage()
@@ -874,7 +875,8 @@ Command: {command}
         """
         # Check if result has reasonable size
         if len(result_df) < len(original_df) * 0.9:
-            raise RuntimeError(
+            raise ScriptExecutionFailureException(
+                "Result validation",
                 f"Result has {len(result_df)} rows vs original {len(original_df)} rows. "
                 f"The transformation may have lost data."
             )

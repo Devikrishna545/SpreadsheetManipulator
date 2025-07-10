@@ -21,6 +21,7 @@ from src.controller.script_reuser import ScriptReuser
 from src.controller.schema_generator import SchemaGenerator
 from src.model.spreadsheet_parser import SpreadsheetParser
 from src.llm.token_manager import token_manager
+from src.controller.script_fixer import ScriptExecutionFailureException
 
 class SpreadsheetController:
     """
@@ -39,7 +40,6 @@ class SpreadsheetController:
         self.script_dir = os.path.join('src', 'script')
         self.script_executor = ScriptExecutor(script_dir=self.script_dir)
         self.script_manager = ScriptManager(script_dir=self.script_dir)
-        self.script_reuser = ScriptReuser(similarity_threshold=0.8)  # 8/10 = 0.8
         self.logger = logging.getLogger(__name__)
         self.file_manager = FileManager(
             upload_dir=os.path.join('static', 'uploads'),
@@ -48,6 +48,7 @@ class SpreadsheetController:
         )
         self.schema_generator = SchemaGenerator()
         self.parser = SpreadsheetParser()
+        self.script_reuser = ScriptReuser()
     
     def upload_spreadsheet(self, file: FileStorage) -> str:
         """
@@ -182,19 +183,9 @@ class SpreadsheetController:
     
     def process_command(self, session_id: str, command: str, use_advanced_processing: bool = False) -> Dict[str, Any]:
         """
-        Process a user command with script reuse optimization.
-        
-        New flow:
-        1. -> Prompt
-        2. -> Prompt similarity check
-        3. -> If similarity > 0.8 -> Reuse previous script
-        4. -> If similarity < 0.8 -> Send prompt to LLM
-        5. -> Sandbox test LLM generated script
-        6. -> If errors -> LLM fix
-        7. -> If LLM fix fail -> Manual fix
-        8. -> Security check
-        9. -> If security check fail -> LLM security fix
-        10. -> Execute
+        Process a user command through LLM, always using the latest spreadsheet structure.
+        Ensures that after every prompt, the backend operates on the most current DataFrame,
+        and updates the session/history after every script execution.
 
         Args:
             session_id: Session ID
@@ -221,39 +212,35 @@ class SpreadsheetController:
         # This ensures we have the latest structure including any manual user changes
         current_df = current_spreadsheet.get_data()
 
-        # --- Log structure before processing ---
-        print(f"\n🔄 [PRE-PROMPT] Ensuring up-to-date spreadsheet structure before processing:")
+        # --- NEW: Log and validate structure before LLM prompt ---
+        print(f"\n🔄 [PRE-PROMPT] Ensuring up-to-date spreadsheet structure before LLM processing:")
         print(f"   - Shape: {current_df.shape[0]} rows × {current_df.shape[1]} columns")
         print(f"   - Columns: {list(current_df.columns)}")
         print(f"   - Data types: {dict(current_df.dtypes)}")
-        print(f"   - Head preview:\n{current_df.head(3)}")
+        print(f"   - Head preview:\n{current_df.head(5)}")
         
-        # STEP 2: Check for similar prompts (NEW SCRIPT REUSE LOGIC)
-        print(f"\n🔍 [STEP 2] Checking for similar prompts for script reuse...")
+        # --- NEW: Check for script reuse before generating new script ---
+        print(f"\n🔍 [SCRIPT REUSE] Checking for similar prompts...")
         similar_mapping = self.script_reuser.find_similar_prompt(command, current_df)
         
         if similar_mapping:
-            print(f"✅ [SCRIPT REUSE] Found similar prompt with similarity >= 0.8")
-            print(f"   - Original prompt: {similar_mapping['prompt'][:50]}...")
-            print(f"   - Current prompt: {command[:50]}...")
-            print(f"   - Reusing script ID: {similar_mapping['script_id']}")
-            
-            # STEP 3: Try to reuse the existing script
+            print(f"✅ [SCRIPT REUSE] Found similar prompt! Attempting to reuse script...")
             try:
-                new_df, modified_cells, success = self.script_reuser.reuse_script(
+                # Try to reuse the existing script
+                reused_df, modified_cells, reuse_success = self.script_reuser.reuse_script(
                     similar_mapping, current_df, self.file_manager, session_id
                 )
                 
-                if success:
-                    print(f"✅ [SCRIPT REUSE] Successfully reused script!")
+                if reuse_success:
+                    print(f"🎉 [SCRIPT REUSE] Successfully reused script!")
                     
-                    # Create new spreadsheet state
+                    # Create new spreadsheet state with reused results
                     new_spreadsheet = Spreadsheet(
                         current_spreadsheet.file_id,
                         current_spreadsheet.original_filename,
-                        new_df,
+                        reused_df,
                         None,  # file_path
-                        current_spreadsheet.original_file_type  # Preserve original file type
+                        current_spreadsheet.original_file_type
                     )
                     
                     # Add to history
@@ -263,25 +250,21 @@ class SpreadsheetController:
                     session.update_spreadsheet(new_spreadsheet)
                     
                     # Prepare view data with headers as first row to match backend structure
-                    data = self._prepare_spreadsheet_data_for_frontend(new_df)
+                    data = self._prepare_spreadsheet_data_for_frontend(reused_df)
                     
                     return {
                         'data': data,
                         'metadata': new_spreadsheet.get_metadata(),
                         'can_undo': history.can_undo(),
                         'can_redo': history.can_redo(),
-                        'modified_cells': modified_cells,
-                        'reused_script': True  # Indicate script was reused
+                        'modified_cells': modified_cells
                     }
                 else:
-                    print(f"❌ [SCRIPT REUSE] Failed to reuse script, falling back to LLM")
-                    
+                    print(f"❌ [SCRIPT REUSE] Script reuse failed, falling back to LLM generation...")
             except Exception as e:
-                print(f"❌ [SCRIPT REUSE] Error during script reuse: {e}")
-                print(f"   - Falling back to LLM generation")
-        
-        # STEP 4: No suitable script found, proceed with LLM generation
-        print(f"\n🤖 [STEP 4] No suitable script found (similarity < 0.8), generating new script via LLM...")
+                print(f"❌ [SCRIPT REUSE] Script reuse error: {e}, falling back to LLM generation...")
+        else:
+            print(f"🔄 [SCRIPT REUSE] No similar prompts found, generating new script...")
         
         # Convert spreadsheet to JSON format for LLM and save a copy to static/json
         spreadsheet_json = current_spreadsheet.to_json(save_to_file=True, file_manager=self.file_manager)
@@ -299,9 +282,6 @@ class SpreadsheetController:
         # Store generated script
         session.set_generated_script(script)
 
-        # STEPS 5-10: Execute script through existing pipeline with error handling
-        print(f"\n🔧 [STEPS 5-10] Executing script through comprehensive pipeline...")
-        
         # Execute script on spreadsheet data using appropriate method
         # PASS CURRENT DATAFRAME (not from spreadsheet object) to ensure latest structure
         try:
@@ -322,16 +302,16 @@ class SpreadsheetController:
                     file_manager=self.file_manager,
                     session_id=session_id  # Pass session_id for structure tracking
                 )
-            
-            # If execution was successful, save the mapping for future reuse
-            print(f"✅ [SCRIPT REUSE] Script executed successfully, saving for future reuse")
-            self.script_reuser.save_successful_execution(
-                command, script, script_id, session_id, current_df, use_advanced_processing
-            )
-            
         except Exception as e:
-            print(f"❌ [EXECUTION ERROR] Script execution failed: {e}")
-            raise e
+            # Script execution failed after going through debugging pipeline
+            print(f"❌ [SCRIPT EXECUTION] Command failed after debugging pipeline: {command}")
+            print(f"   Error details: {str(e)}")
+            # Provide clear, actionable error message
+            error_details = str(e)
+            if "ScriptExecutionFailureException" in str(type(e)):
+                # If this is already our custom exception, preserve its details
+                error_details = e.error_details if hasattr(e, 'error_details') else str(e)
+            raise ScriptExecutionFailureException(command, error_details)
         
         # Create new spreadsheet state
         new_spreadsheet = Spreadsheet(
@@ -351,13 +331,22 @@ class SpreadsheetController:
         # Prepare view data with headers as first row to match backend structure
         data = self._prepare_spreadsheet_data_for_frontend(new_df)
         
+        # --- NEW: Save successful execution for future reuse ---
+        try:
+            print(f"💾 [SCRIPT REUSE] Saving successful execution for future reuse...")
+            self.script_reuser.save_successful_execution(
+                command, script, script_id, session_id, current_df, use_advanced_processing
+            )
+            print(f"✅ [SCRIPT REUSE] Successfully saved execution mapping")
+        except Exception as e:
+            print(f"⚠️ [SCRIPT REUSE] Failed to save execution mapping: {e}")
+        
         return {
             'data': data,
             'metadata': new_spreadsheet.get_metadata(),
             'can_undo': history.can_undo(),
             'can_redo': history.can_redo(),
-            'modified_cells': modified_cells,
-            'reused_script': False  # Indicate new script was generated
+            'modified_cells': modified_cells
         }
     
     def undo_modification(self, session_id: str) -> Dict[str, Any]:
@@ -999,43 +988,29 @@ class SpreadsheetController:
         print(f"   - All content is preprocessed plain text")
         
         return data_rows
-    
+
     def get_script_reuse_stats(self) -> Dict[str, Any]:
         """
         Get statistics about script reuse performance
         
         Returns:
-            Dict[str, Any]: Statistics about script reuse
+            Dict[str, Any]: Script reuse statistics
         """
-        stats = self.script_reuser.get_mapping_stats()
-        return {
-            'script_reuse_enabled': stats['model_available'],
-            'total_saved_scripts': stats['total_mappings'],
-            'total_reuses': stats['total_reuses'],
-            'similarity_threshold': stats['avg_similarity_threshold'],
-            'oldest_mapping': stats.get('oldest_mapping', 'N/A'),
-            'newest_mapping': stats.get('newest_mapping', 'N/A'),
-            'token_savings_estimate': stats['total_reuses'] * 1000  # Rough estimate
-        }
+        return self.script_reuser.get_mapping_stats()
     
     def cleanup_script_reuse_data(self, max_age_days: int = 30) -> Dict[str, Any]:
         """
         Clean up old script reuse data
         
         Args:
-            max_age_days: Maximum age of mappings to keep
+            max_age_days: Maximum age of mappings to keep in days
             
         Returns:
             Dict[str, Any]: Cleanup results
         """
-        # Clean up old mappings
-        mapping_cleanup = self.script_reuser.cleanup_old_mappings(max_age_days)
-        
-        # Clean up old scripts
-        script_cleanup = self.script_manager.cleanup_old_scripts(max_age_days * 24)
-        
+        cleaned_count = self.script_reuser.cleanup_old_mappings(max_age_days)
         return {
-            'mappings_cleaned': mapping_cleanup,
-            'scripts_cleaned': script_cleanup,
-            'total_cleaned': mapping_cleanup + script_cleanup
+            'cleaned_mappings': cleaned_count,
+            'max_age_days': max_age_days,
+            'remaining_mappings': len(self.script_reuser.mappings)
         }

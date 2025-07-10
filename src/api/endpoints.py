@@ -19,6 +19,8 @@ import pandas as pd
 from src.controller.spreadsheet_controller import SpreadsheetController
 from src.model.session_manager import SessionManager
 from src.model.prompt_history import PromptHistory
+from src.controller.script_fixer import ScriptExecutionFailureException
+from src.controller.mapping_manager import MappingManager
 
 # Create FastAPI app
 app = FastAPI()
@@ -47,6 +49,9 @@ class HealthResponse(BaseModel):
 class UploadResponse(BaseModel):
     success: bool
     sessionId: str
+    has_mapping: Optional[bool] = False
+    mapped_commands: Optional[List[str]] = None
+    command_count: Optional[int] = 0
 
 class ErrorResponse(BaseModel):
     error: str
@@ -54,20 +59,34 @@ class ErrorResponse(BaseModel):
 class PromptHistoryResponse(BaseModel):
     prompt: Optional[str] = None
 
-# Add this new model class after your existing models
+# Add these new model classes after your existing models
 class TableChangesRequest(BaseModel):
     sessionId: str
     changes: List[Dict[str, Any]]
+
+class CreateMappingRequest(BaseModel):
+    spreadsheet_filename: str
+    command_filename: str
+    commands: List[str]
+
+class MappingResponse(BaseModel):
+    mapping_id: str
+    spreadsheet_filename: str
+    command_filename: str
+    command_count: int
+    created_at: str
+    use_count: int
+    is_active: bool
 
 # PLACEHOLDER: SchemaRequest model removed
 # This model was used for schema-related endpoints that have been removed
 # New implementation will use different request models
 
-# Dependency for controllers
 class Controllers:
     spreadsheet_controller = None
     session_manager = None
     prompt_history = None
+    mapping_manager = None
     PROMPT_FILE = None
 
 controllers = Controllers()
@@ -77,6 +96,7 @@ def init_controllers(controller, manager, history, prompt_file):
     controllers.spreadsheet_controller = controller
     controllers.session_manager = manager
     controllers.prompt_history = history
+    controllers.mapping_manager = MappingManager()
     controllers.PROMPT_FILE = prompt_file
     os.makedirs(os.path.dirname(prompt_file), exist_ok=True)
 
@@ -130,13 +150,35 @@ async def upload_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="No selected file")
     
     try:
+        # Read file content for mapping checks
+        content = await file.read()
+        
+        # Reset file position for the controller
+        file.file.seek(0)
+        
         # Pass the file directly to the controller which now handles FastAPI UploadFile
         session_id = controllers.spreadsheet_controller.upload_spreadsheet(file)
         
-        return UploadResponse(
-            success=True,
-            sessionId=session_id
+        # Check for existing mapping
+        mapped_commands = controllers.mapping_manager.get_commands_for_spreadsheet(
+            file.filename, content
         )
+        
+        response_data = {
+            "success": True,
+            "sessionId": session_id
+        }
+        
+        # If mapping exists, include it in the response
+        if mapped_commands:
+            response_data["has_mapping"] = True
+            response_data["mapped_commands"] = mapped_commands
+            response_data["command_count"] = len(mapped_commands)
+        else:
+            response_data["has_mapping"] = False
+        
+        return response_data
+        
     except ValueError as e:
         # Convert ValueError to HTTPException
         raise HTTPException(status_code=400, detail=str(e))
@@ -174,6 +216,14 @@ def process_command(request: CommandRequest):
             request.sessionId, request.command, use_advanced_processing=False
         )
         return spreadsheet_view
+    except ScriptExecutionFailureException as e:
+        # Special handling for script execution failures after debugging pipeline
+        raise HTTPException(status_code=422, detail={
+            "error": "SCRIPT_EXECUTION_FAILED",
+            "message": f"Failed to understand and execute the command: '{e.command}'. Please rephrase your request and try again.",
+            "command": e.command,
+            "details": e.error_details
+        })
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -371,7 +421,8 @@ async def upload_command_file(
         return {
             "success": True,
             "commands": commands,
-            "count": len(commands)
+            "count": len(commands),
+            "filename": file.filename
         }
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="File encoding not supported. Please use UTF-8 encoded text files.")
@@ -398,6 +449,14 @@ async def generate_algorithm(request: Request):
         
         return result
         
+    except ScriptExecutionFailureException as e:
+        # Special handling for script execution failures after debugging pipeline
+        raise HTTPException(status_code=422, detail={
+            "error": "SCRIPT_EXECUTION_FAILED",
+            "message": f"Failed to understand and execute the algorithm: '{e.command}'. Please rephrase your action plan and try again.",
+            "command": e.command,
+            "details": e.error_details
+        })
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -487,3 +546,126 @@ def update_script_reuse_config(config: dict):
         return JSONResponse(content={"success": True, "message": "Configuration updated"})
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/create_mapping")
+async def create_mapping(request: CreateMappingRequest):
+    """
+    Create a mapping between a spreadsheet and command file
+    """
+    try:
+        mapping_id = controllers.mapping_manager.create_mapping(
+            spreadsheet_filename=request.spreadsheet_filename,
+            command_filename=request.command_filename,
+            commands=request.commands
+        )
+        
+        return {
+            "success": True,
+            "mapping_id": mapping_id,
+            "message": f"Mapping created successfully for '{request.spreadsheet_filename}'"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating mapping: {str(e)}")
+
+@app.get("/mappings")
+async def get_all_mappings():
+    """
+    Get all active mappings
+    """
+    try:
+        mappings = controllers.mapping_manager.get_active_mappings()
+        stats = controllers.mapping_manager.get_mapping_stats()
+        
+        return {
+            "success": True,
+            "mappings": mappings,
+            "stats": stats
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving mappings: {str(e)}")
+
+@app.get("/mapping/{mapping_id}")
+async def get_mapping(mapping_id: str):
+    """
+    Get a specific mapping by ID
+    """
+    try:
+        mapping = controllers.mapping_manager.get_mapping_by_id(mapping_id)
+        if not mapping:
+            raise HTTPException(status_code=404, detail="Mapping not found")
+        
+        return {
+            "success": True,
+            "mapping": mapping
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving mapping: {str(e)}")
+
+@app.put("/mapping/{mapping_id}")
+async def update_mapping(mapping_id: str, request: Request):
+    """
+    Update a mapping
+    """
+    try:
+        data = await request.json()
+        updated = controllers.mapping_manager.update_mapping(mapping_id, **data)
+        
+        if not updated:
+            raise HTTPException(status_code=404, detail="Mapping not found")
+        
+        return {
+            "success": True,
+            "message": "Mapping updated successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating mapping: {str(e)}")
+
+@app.delete("/mapping/{mapping_id}")
+async def delete_mapping(mapping_id: str):
+    """
+    Delete (deactivate) a mapping
+    """
+    try:
+        deleted = controllers.mapping_manager.delete_mapping(mapping_id)
+        
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Mapping not found")
+        
+        return {
+            "success": True,
+            "message": "Mapping deleted successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting mapping: {str(e)}")
+
+@app.get("/check_mapping/{spreadsheet_filename}")
+async def check_mapping(spreadsheet_filename: str):
+    """
+    Check if a mapping exists for a spreadsheet
+    """
+    try:
+        mapping = controllers.mapping_manager.find_mapping_by_spreadsheet(spreadsheet_filename)
+        conflicts = controllers.mapping_manager.check_spreadsheet_conflicts(spreadsheet_filename)
+        
+        if mapping:
+            return {
+                "success": True,
+                "has_mapping": True,
+                "mapping": mapping,
+                "conflicts": conflicts
+            }
+        else:
+            return {
+                "success": True,
+                "has_mapping": False,
+                "mapping": None,
+                "conflicts": conflicts
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error checking mapping: {str(e)}")

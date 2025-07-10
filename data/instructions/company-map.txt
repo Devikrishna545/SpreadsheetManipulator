@@ -11,9 +11,6 @@ Move all instances of an account name string to be in a cell with the same cell 
 Move the contents from cells #C3 - #N3 into cells #C1 - #N1.
 Move the contents from cells #C4 - #O5 into cells #C2 - #O3.
 Check all rows for the following strings "Date", "Journal number", "Voucher", "Posting type", "Ledger account", "Description", "Amount in transaction currency","Amount in accounting currency" and "Amount in reporting currency". With the exception of the first row having the previous data, delete all other rows having that data.
-Check all rows for the following strings "Debit" and "Credit". With the exception of row #2, delete all other rows having that data.
-Delete all empty rows and columns.
-If there are empty cells below any cell containing an account number, copy that account number into all the empty cells below it. Examples of account numbers are "13015", "13000" etc.
-Go through column #B and check for each cell having content. Which ever cell has content, go to column #D and delete its counterpart. For example, if the cell #B5 has data got to cell #D5 and remove the cell content, without removing the cell.
-Clear the content from all cells containing the 'None' value. But don't delete the cells themselves.
+Check for all duplicate instances of rows which have the same values as cell #J2, cell #K2, cell #L2, cell #M2, cell #N2 and cell #O2. Delete all the duplicate rows, only keeping the row with the first set of values (#K2, cell #L2, cell #M2, cell #N2 and cell #O2).
+Go through column #B and check for each cell having content. Which ever cell has content, go to column #D and delete its counterpart. For example, if the cell #B5 has data go to cell #D5 and remove the cell content, without removing the cell.
 If there are empty cells below any cell containing an account name, copy that account name into all the empty cells below it. Examples of account names are "Other intangible assets" and "Acc. depreciation leasehold right" etc.

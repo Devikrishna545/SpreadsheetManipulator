@@ -104,9 +104,8 @@ export function showError(message) {
         errorModalBody.textContent = message;
         errorModal.show();
     } else {
-        // Fallback if modal isn't available
+        // Fallback if modal isn't available - just log to console
         console.error('UI Error:', message);
-        alert(message);
     }
 }
 

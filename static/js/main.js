@@ -3,12 +3,13 @@ import {
     toggleSidebar, toggleFullscreen, updateStatus, resetApplicationUI, 
     updateUndoRedoButtons, showMainInterface, updateSessionInfo 
 } from './uiInteractions.js';
-import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet, generateAndExecuteAlgorithm as apiGenerateAndExecuteAlgorithm }
+import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet, generateAndExecuteAlgorithm as apiGenerateAndExecuteAlgorithm, createMapping as apiCreateMapping, getAllMappings as apiGetAllMappings, deleteMapping as apiDeleteMapping, updateMapping as apiUpdateMapping }
 from './apiService.js';
 import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView, generateActionPlanLog, isSplitViewEnabled, renderSheetTabs, switchSheet } from './spreadsheetHandler.js';
 import { setupShortcutKeys,getCurrentSessionPrompts,resetPromptHistory } from './shortcuts.js';
 import { initCellSelector, clearCellSelector } from './cell-selector.js';
 import { initCellTagger, scanAndHighlightTags } from './cell-tagger.js';
+import { showAlert, showConfirm, showErrorModal } from './modalUtils.js';
 
 // Global state specific to main.js orchestration
 let currentSessionId = null;
@@ -29,6 +30,7 @@ const splitViewBtn = document.getElementById('splitViewBtn'); // Add this line
 const updateSchemaBtn = document.getElementById('updateSchemaBtn'); // Add this for schema button
 const transformSchemaBtn = document.getElementById('transformSchemaBtn'); // Add this for transform button
 const uploadCommandsBtn = document.getElementById('uploadCommandsBtn'); // Add this for upload commands button
+const manageMappingsBtn = document.getElementById('manageMappingsBtn'); // Add this for manage mappings button
 const generateActionPlanBtn = document.getElementById('generateActionPlanBtn');
 const commandFileInput = document.getElementById('commandFileInput'); // Add this for command file input
 
@@ -53,6 +55,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add event listener for uploading command files
     uploadCommandsBtn.addEventListener('click', () => commandFileInput.click());
     commandFileInput.addEventListener('change', uploadCommandFile);
+    
+    // Add event listener for manage mappings button
+    manageMappingsBtn.addEventListener('click', openMappingManagement);
 
     fileInput.addEventListener('change', function() {
         const label = document.querySelector('.file-input-label span');
@@ -77,7 +82,8 @@ document.addEventListener('DOMContentLoaded', function() {
         processCurrentCommand,
         undoLastModification,
         redoLastModification,
-        downloadCurrentSpreadsheet
+        downloadCurrentSpreadsheet,
+        openMappingManagement
         // uploadForm.requestSubmit and fileInput.click are handled directly in shortcuts.js
     });
 
@@ -154,6 +160,30 @@ async function onFileUpload(event) {
     if (result && result.sessionId) {
         currentSessionId = result.sessionId;
         window.currentSessionId = currentSessionId;
+        
+        // Store the uploaded filename globally
+        if (fileInput.files && fileInput.files.length > 0) {
+            window.currentSpreadsheetFilename = fileInput.files[0].name;
+        }
+        
+        // Check if there's a mapping for this spreadsheet
+        if (result.has_mapping && result.mapped_commands && result.mapped_commands.length > 0) {
+            const shouldExecute = await showConfirm(
+                `This spreadsheet has ${result.command_count} mapped commands that can be automatically executed.\n\n` +
+                `Do you want to execute these commands now?`,
+                'Execute Mapped Commands',
+                {
+                    confirmText: 'Execute',
+                    confirmClass: 'btn-primary'
+                }
+            );
+            
+            if (shouldExecute) {
+                updateStatus('Executing mapped commands...', 'processing');
+                await processCommandsSequentially(result.mapped_commands);
+            }
+        }
+        
         // Initial data load after upload
         const initialData = await fetchSpreadsheetData(currentSessionId);
         if (initialData) {
@@ -177,13 +207,22 @@ async function processCurrentCommand() {
     // Highlight any tagged cells one final time before sending - this is where selections should happen
     scanAndHighlightTags();
     
-    const result = await apiProcessCommand(currentSessionId, commandText);
-    if (result) {
-        currentData = result;
-        renderSpreadsheet(currentData);
-        updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
-        commandInput.value = '';
-        resetPromptHistory(); // Reset prompt history navigation state        
+    try {
+        const result = await apiProcessCommand(currentSessionId, commandText);
+        if (result) {
+            currentData = result;
+            renderSpreadsheet(currentData);
+            updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
+            commandInput.value = '';
+            resetPromptHistory(); // Reset prompt history navigation state        
+        }
+    } catch (error) {
+        // Re-throw script execution failures so they can be caught by sequential processing
+        if (error.message === 'SCRIPT_EXECUTION_FAILED') {
+            throw error;
+        }
+        // For other errors, they're already handled by apiService.js
+        console.error('Error in processCurrentCommand:', error);
     }
 }
 
@@ -426,13 +465,6 @@ function getRightSpreadsheetData() {
 // This function previously updated the left spreadsheet with transformed schema data
 // New implementation will use different update mechanisms
 
-// Helper function to show error modal
-function showErrorModal(message) {
-    const errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
-    document.getElementById('errorModalBody').textContent = message;
-    errorModal.show();
-}
-
 // Helper function to show action plan confirmation modal
 function showActionPlanModal(actionPlan, rowCount, onConfirm) {
     // Set the row count in the warning message
@@ -499,7 +531,20 @@ async function uploadCommandFile(event) {
         
         if (result.commands && result.commands.length > 0) {
             updateStatus('Processing commands...', 'processing');
-            await processCommandsSequentially(result.commands);
+            
+            // Store the command file info for mapping creation
+            const commandFileInfo = {
+                filename: result.filename,
+                commands: result.commands
+            };
+            
+            const success = await processCommandsSequentially(result.commands);
+            
+            // Commands executed successfully - no more automatic mapping prompt
+            if (success) {
+                updateStatus('All commands executed successfully!', 'success');
+                setTimeout(() => updateStatus('Ready', 'active'), 3000);
+            }
         } else {
             updateStatus('No commands found in file', 'warning');
             setTimeout(() => updateStatus('Ready', 'active'), 2000);
@@ -541,14 +586,21 @@ async function processCommandsSequentially(commands) {
             console.error('Error processing command:', error);
             failCount++;
             
-            // Continue with next command despite errors
+            // Check if this is a script execution failure - if so, stop processing
+            if (error.message === 'SCRIPT_EXECUTION_FAILED') {
+                console.log('Script execution failed - stopping command processing');
+                updateStatus(`Stopped at command ${i+1}/${commands.length} due to execution failure`, 'error');
+                return; // Stop processing remaining commands
+            }
+            
+            // For other errors, continue with next command
             await new Promise(resolve => setTimeout(resolve, 500));
         }
     }
     
     // Show final status
     updateStatus(`Completed ${successCount}/${commands.length} commands`, 
-                 failCount > 0 ? 'warning' : 'success');
+                 failCount === 0 ? 'success' : 'warning');
     
     // Reset after a delay
     setTimeout(() => updateStatus('Ready', 'active'), 3000);
@@ -628,6 +680,390 @@ function onSheetTabClick(sheetIndex) {
         renderSheetTabs(currentData.sheets, sheetTabContainer, sheetIndex);
     }
 }
+
+// ===== MAPPING MANAGEMENT FUNCTIONS =====
+
+// Open the mapping management modal
+async function openMappingManagement() {
+    const modal = new bootstrap.Modal(document.getElementById('mappingManagementModal'));
+    modal.show();
+    
+    // Load mappings when modal opens
+    await loadMappings();
+    
+    // Add event listeners for mapping management
+    setupMappingEventListeners();
+}
+
+// Setup event listeners for mapping management
+function setupMappingEventListeners() {
+    const refreshBtn = document.getElementById('refreshMappingsBtn');
+    const createNewBtn = document.getElementById('createNewMappingBtn');
+    const commandFileInput = document.getElementById('mappingCommandFile');
+    const saveMappingBtn = document.getElementById('saveMappingBtn');
+    const spreadsheetNameInput = document.getElementById('mappingSpreadsheetName');
+    
+    // Remove existing listeners to prevent duplicates
+    refreshBtn.removeEventListener('click', loadMappings);
+    createNewBtn.removeEventListener('click', openCreateMappingModal);
+    commandFileInput.removeEventListener('change', previewCommandFile);
+    saveMappingBtn.removeEventListener('click', createNewMapping);
+    spreadsheetNameInput.removeEventListener('input', validateMappingForm);
+    
+    // Add fresh listeners
+    refreshBtn.addEventListener('click', loadMappings);
+    createNewBtn.addEventListener('click', openCreateMappingModal);
+    commandFileInput.addEventListener('change', previewCommandFile);
+    saveMappingBtn.addEventListener('click', createNewMapping);
+    spreadsheetNameInput.addEventListener('input', validateMappingForm);
+}
+
+// Load and display all mappings
+async function loadMappings() {
+    try {
+        updateStatus('Loading mappings...', 'processing');
+        
+        const response = await fetch('/mappings');
+        if (!response.ok) {
+            throw new Error('Failed to load mappings');
+        }
+        
+        const data = await response.json();
+        
+        // Update statistics
+        updateMappingStats(data.stats);
+        
+        // Update mappings table
+        updateMappingsTable(data.mappings);
+        
+        updateStatus('Ready', 'active');
+    } catch (error) {
+        showErrorModal(`Error loading mappings: ${error.message}`);
+        updateStatus('Error', 'error');
+    }
+}
+
+// Update mapping statistics display
+function updateMappingStats(stats) {
+    document.getElementById('activeMappingsCount').textContent = stats.active_mappings || 0;
+    document.getElementById('totalCommandsCount').textContent = stats.total_commands || 0;
+    document.getElementById('totalUsesCount').textContent = stats.total_uses || 0;
+    document.getElementById('lastUpdatedDate').textContent = 
+        stats.last_updated ? new Date(stats.last_updated).toLocaleDateString() : 'Never';
+}
+
+// Update mappings table
+function updateMappingsTable(mappings) {
+    const tbody = document.getElementById('mappingsTableBody');
+    const noMappingsMsg = document.getElementById('noMappingsMessage');
+    const table = tbody.closest('table');
+    
+    // Clear existing rows
+    tbody.innerHTML = '';
+    
+    if (!mappings || mappings.length === 0) {
+        table.style.display = 'none';
+        noMappingsMsg.style.display = 'block';
+        return;
+    }
+    
+    table.style.display = 'table';
+    noMappingsMsg.style.display = 'none';
+    
+    mappings.forEach(mapping => {
+        const row = createMappingRow(mapping);
+        tbody.appendChild(row);
+    });
+}
+
+// Create a table row for a mapping
+function createMappingRow(mapping) {
+    const row = document.createElement('tr');
+    
+    const createdDate = mapping.created_at ? new Date(mapping.created_at).toLocaleDateString() : 'Unknown';
+    const lastUsedDate = mapping.last_used ? new Date(mapping.last_used).toLocaleDateString() : 'Never';
+    
+    row.innerHTML = `
+        <td>
+            <span class="fw-bold">${mapping.spreadsheet_filename}</span>
+            <br>
+            <small class="text-muted">${mapping.spreadsheet_hash}</small>
+        </td>
+        <td>${mapping.command_filename}</td>
+        <td>
+            <span class="badge bg-primary">${mapping.command_count}</span>
+            <button class="btn btn-sm btn-outline-info ms-2" onclick="viewMappingCommands('${mapping.mapping_id}')" title="View Commands">
+                <i class="fas fa-eye"></i>
+            </button>
+        </td>
+        <td>
+            <span class="badge bg-success">${mapping.use_count}</span>
+        </td>
+        <td>
+            <small>${createdDate}</small>
+        </td>
+        <td>
+            <small>${lastUsedDate}</small>
+        </td>
+        <td>
+            <button class="btn btn-sm btn-outline-warning me-1" onclick="editMapping('${mapping.mapping_id}')" title="Edit">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteMapping('${mapping.mapping_id}')" title="Delete">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    return row;
+}
+
+// Open create mapping modal
+function openCreateMappingModal() {
+    const createModal = new bootstrap.Modal(document.getElementById('createMappingModal'));
+    createModal.show();
+    
+    // Reset form
+    document.getElementById('createMappingForm').reset();
+    document.getElementById('mappingCommands').value = '';
+    document.getElementById('saveMappingBtn').disabled = true;
+    
+    // Pre-fill spreadsheet name if available
+    const currentSpreadsheetName = getCurrentSpreadsheetName();
+    if (currentSpreadsheetName) {
+        document.getElementById('mappingSpreadsheetName').value = currentSpreadsheetName;
+    }
+    
+    // Re-validate form
+    validateMappingForm();
+}
+
+// Preview command file content
+async function previewCommandFile(event) {
+    const file = event.target.files[0];
+    const commandsTextarea = document.getElementById('mappingCommands');
+    
+    if (!file) {
+        commandsTextarea.value = '';
+        validateMappingForm();
+        return;
+    }
+    
+    try {
+        const text = await file.text();
+        const commands = text.split('\n').filter(line => line.trim());
+        
+        commandsTextarea.value = commands.join('\n');
+        validateMappingForm();
+        
+    } catch (error) {
+        showErrorModal(`Error reading file: ${error.message}`);
+        commandsTextarea.value = '';
+        validateMappingForm();
+    }
+}
+
+// Validate mapping form and enable/disable save button
+function validateMappingForm() {
+    const spreadsheetName = document.getElementById('mappingSpreadsheetName').value.trim();
+    const commandFile = document.getElementById('mappingCommandFile').files[0];
+    const commands = document.getElementById('mappingCommands').value.trim();
+    const saveBtn = document.getElementById('saveMappingBtn');
+    
+    // Enable save button if all required fields are filled
+    saveBtn.disabled = !(spreadsheetName && commandFile && commands);
+}
+
+// Create new mapping
+async function createNewMapping() {
+    const spreadsheetName = document.getElementById('mappingSpreadsheetName').value.trim();
+    const commandFile = document.getElementById('mappingCommandFile').files[0];
+    const commandsText = document.getElementById('mappingCommands').value.trim();
+    const commands = commandsText.split('\n').filter(line => line.trim());
+    
+    if (!spreadsheetName || !commandFile || commands.length === 0) {
+        showErrorModal('Please provide all required information.');
+        return;
+    }
+    
+    try {
+        updateStatus('Checking for conflicts...', 'processing');
+        
+        // Check for existing mappings for this spreadsheet
+        const checkResponse = await fetch(`/check_mapping/${encodeURIComponent(spreadsheetName)}`);
+        if (checkResponse.ok) {
+            const checkData = await checkResponse.json();
+            if (checkData.conflicts && checkData.conflicts.length > 0) {
+                const conflictCount = checkData.conflicts.length;
+                const shouldContinue = await showConfirm(
+                    `Warning: This spreadsheet already has ${conflictCount} existing mapping(s).\n\n` +
+                    `Creating a new mapping will result in multiple mappings for the same spreadsheet.\n\n` +
+                    `Do you want to continue?`,
+                    'Mapping Conflict Warning',
+                    {
+                        confirmText: 'Continue',
+                        confirmClass: 'btn-warning'
+                    }
+                );
+                
+                if (!shouldContinue) {
+                    updateStatus('Mapping creation cancelled', 'warning');
+                    setTimeout(() => updateStatus('Ready', 'active'), 2000);
+                    return;
+                }
+            }
+        }
+        
+        updateStatus('Creating mapping...', 'processing');
+        
+        const result = await apiCreateMapping(spreadsheetName, commandFile.name, commands);
+        
+        if (result && result.success) {
+            // Close create modal
+            const createModal = bootstrap.Modal.getInstance(document.getElementById('createMappingModal'));
+            createModal.hide();
+            
+            // Refresh mappings
+            await loadMappings();
+            
+            updateStatus('Mapping created successfully', 'active');
+            setTimeout(() => updateStatus('Ready', 'active'), 2000);
+        }
+    } catch (error) {
+        showErrorModal(`Error creating mapping: ${error.message}`);
+        updateStatus('Error', 'error');
+    }
+}
+
+// View mapping commands
+async function viewMappingCommands(mappingId) {
+    try {
+        const response = await fetch(`/mapping/${mappingId}`);
+        if (!response.ok) {
+            throw new Error('Failed to load mapping details');
+        }
+        
+        const data = await response.json();
+        const mapping = data.mapping;
+        
+        // Create a simple modal to show commands
+        const commandsText = mapping.commands.join('\n');
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.innerHTML = `
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content bg-dark text-light">
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title">Commands for ${mapping.spreadsheet_filename}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <textarea class="form-control bg-dark text-light border-secondary" rows="15" readonly>${commandsText}</textarea>
+                    </div>
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        const bootstrapModal = new bootstrap.Modal(modal);
+        bootstrapModal.show();
+        
+        // Remove modal after it's hidden
+        modal.addEventListener('hidden.bs.modal', () => {
+            document.body.removeChild(modal);
+        });
+        
+    } catch (error) {
+        showErrorModal(`Error loading mapping commands: ${error.message}`);
+    }
+}
+
+// Edit mapping (placeholder for future implementation)
+function editMapping(mappingId) {
+    showErrorModal('Edit functionality coming soon!');
+}
+
+// Delete mapping
+async function deleteMapping(mappingId) {
+    const confirmed = await showConfirm(
+        'Are you sure you want to delete this mapping? This action cannot be undone.',
+        'Delete Mapping',
+        {
+            confirmText: 'Delete',
+            confirmClass: 'btn-danger'
+        }
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+        updateStatus('Deleting mapping...', 'processing');
+        
+        const result = await apiDeleteMapping(mappingId);
+        
+        if (result && result.success) {
+            await loadMappings();
+            updateStatus('Mapping deleted successfully', 'active');
+            setTimeout(() => updateStatus('Ready', 'active'), 2000);
+        }
+    } catch (error) {
+        showErrorModal(`Error deleting mapping: ${error.message}`);
+        updateStatus('Error', 'error');
+    }
+}
+
+// Create mapping for current session (existing function, keep it)
+async function createMappingForCurrentSession(commandFileInfo) {
+    try {
+        updateStatus('Creating mapping...', 'processing');
+        
+        // Get current spreadsheet filename from session
+        const currentSpreadsheetName = getCurrentSpreadsheetName();
+        
+        if (!currentSpreadsheetName) {
+            showErrorModal('Unable to determine current spreadsheet name for mapping.');
+            return;
+        }
+        
+        const result = await apiCreateMapping(
+            currentSpreadsheetName,
+            commandFileInfo.filename,
+            commandFileInfo.commands
+        );
+        
+        if (result && result.success) {
+            updateStatus('Mapping created successfully', 'active');
+            setTimeout(() => updateStatus('Ready', 'active'), 2000);
+        }
+    } catch (error) {
+        showErrorModal(`Error creating mapping: ${error.message}`);
+        updateStatus('Error', 'error');
+    }
+}
+
+// Helper function to get current spreadsheet name
+function getCurrentSpreadsheetName() {
+    // First try to get from the global variable set during upload
+    if (window.currentSpreadsheetFilename) {
+        return window.currentSpreadsheetFilename;
+    }
+    
+    // Fallback: try to get from currentData metadata
+    if (currentData && currentData.metadata && currentData.metadata.filename) {
+        return currentData.metadata.filename;
+    }
+    
+    return null;
+}
+
+// Make functions available globally for onclick handlers
+window.viewMappingCommands = viewMappingCommands;
+window.editMapping = editMapping;
+window.deleteMapping = deleteMapping;
 
 // Expose the onSheetTabClick function to the global scope for tab clicks
 window.onSheetTabClick = onSheetTabClick;

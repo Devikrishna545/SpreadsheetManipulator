@@ -41,7 +41,7 @@ class ScriptReuser:
     Manages script reuse based on prompt semantic similarity
     """
     
-    def __init__(self, similarity_threshold: float = 0.8):
+    def __init__(self, similarity_threshold: float = 1.0):
         """
         Initialize the script reuser
         
@@ -64,8 +64,24 @@ class ScriptReuser:
         if SEMANTIC_SIMILARITY_AVAILABLE:
             try:
                 print("🔄 ScriptReuser: Loading semantic similarity model...")
-                self.model = SentenceTransformer('all-MiniLM-L6-v2')
-                print("✅ ScriptReuser: Semantic similarity model loaded successfully")
+                
+                # Check for CUDA availability and configure device
+                device = 'cpu'  # Default to CPU
+                if SEMANTIC_SIMILARITY_AVAILABLE:
+                    try:
+                        import torch
+                        if torch.cuda.is_available():
+                            device = 'cuda'
+                            print(f"✅ ScriptReuser: CUDA detected! Using GPU: {torch.cuda.get_device_name(0)}")
+                        else:
+                            print("⚠️ ScriptReuser: CUDA not available, using CPU")
+                    except ImportError:
+                        print("⚠️ ScriptReuser: PyTorch not available, using CPU")
+                
+                # Load model with device specification
+                self.model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
+                print(f"✅ ScriptReuser: Semantic similarity model loaded successfully on {device.upper()}")
+                
             except Exception as e:
                 logging.warning(f"Failed to load sentence transformer model: {e}")
                 print(f"⚠️ ScriptReuser: Failed to load semantic model - {e}")
@@ -157,19 +173,24 @@ class ScriptReuser:
             str: Hash string
         """
         try:
-            # Create hash based on columns, dtypes, and shape
+            # Create hash based on columns, dtypes, and shape with robust type handling
             structure_info = {
-                'columns': list(df.columns),
-                'dtypes': {col: str(dtype) for col, dtype in df.dtypes.items()},
-                'shape': df.shape
+                'columns': [str(col) for col in df.columns],  # Ensure all columns are strings
+                'dtypes': {str(col): str(dtype) for col, dtype in df.dtypes.items()},  # Ensure keys and values are strings
+                'shape': [int(df.shape[0]), int(df.shape[1])]  # Ensure shape values are integers
             }
             
-            # Convert to string and hash
-            structure_str = json.dumps(structure_info, sort_keys=True)
-            return hashlib.md5(structure_str.encode()).hexdigest()
+            # Convert to string and hash with explicit sorting for consistency
+            structure_str = json.dumps(structure_info, sort_keys=True, default=str)
+            return hashlib.md5(structure_str.encode('utf-8')).hexdigest()
         except Exception as e:
             logging.warning(f"Failed to create DataFrame hash: {e}")
-            return ""
+            # Return a basic hash based on shape only as fallback
+            try:
+                basic_hash = f"{df.shape[0]}x{df.shape[1]}_{len(df.columns)}"
+                return hashlib.md5(basic_hash.encode('utf-8')).hexdigest()
+            except:
+                return "fallback_hash"
 
     def find_similar_prompt(self, prompt: str, current_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
         """

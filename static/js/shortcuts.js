@@ -103,6 +103,13 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             return;
         }
         
+        // Alt+G: Open mapping management
+        if (e.altKey && !e.shiftKey && (e.key === 'g' || e.key === 'G')) {
+            e.preventDefault();
+            if (app.openMappingManagement) app.openMappingManagement();
+            return;
+        }
+        
         // Escape: Remove focus from cellSelectorDisplay and highlight it
         if (e.key === 'Escape' && isCellSelectorActive) {
             e.preventDefault();

@@ -2,9 +2,15 @@
  * Cell Selector Module
  * Handles tracking and displaying selected cells in spreadsheet
  */
-// Create a fallback error handler in case uiInteractions isn't loaded
+
+// Import modal utilities
+import { showErrorModal } from './modalUtils.js';
+
+// Create a fallback error handler in case modalUtils isn't loaded
 function showError(message) {
-    if (typeof window.showError === 'function') {
+    if (typeof showErrorModal === 'function') {
+        showErrorModal(message);
+    } else if (typeof window.showError === 'function') {
         window.showError(message);
     } else if (window.bootstrap && bootstrap.Modal) {
         // Try to use bootstrap directly if available
@@ -35,9 +41,8 @@ function showError(message) {
             new bootstrap.Modal(errorModal).show();
         }
     } else {
-        // Fallback to alert if bootstrap isn't available
+        // Fallback to console error only
         console.error('Cell Selector Error:', message);
-        alert(message);
     }
 }
 
