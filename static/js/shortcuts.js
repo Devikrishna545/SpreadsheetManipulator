@@ -10,8 +10,6 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
     const savePromptBtn = document.getElementById('savePromptBtn'); // Add prompt buttons for shortcuts
     const promptLibraryBtn = document.getElementById('promptLibraryBtn');
     const cellSelectorDisplay = document.getElementById('cellSelectorDisplay');
-    const updateSchemaBtn = document.getElementById('updateSchemaBtn');
-    const transformSchemaBtn = document.getElementById('transformSchemaBtn');
     const splitViewBtn = document.getElementById('splitViewBtn');
     const uploadCommandsBtn = document.getElementById('uploadCommandsBtn');
     const commandFileInput = document.getElementById('commandFileInput');
@@ -128,18 +126,6 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
         if (e.altKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
             e.preventDefault();
             if (splitViewBtn && !splitViewBtn.disabled) splitViewBtn.click();
-            return;
-        }
-        // Alt+Shift+U: Update Schema
-        if (e.altKey && e.shiftKey && (e.key === 'u' || e.key === 'U')) {
-            e.preventDefault();
-            if (updateSchemaBtn && !updateSchemaBtn.disabled) updateSchemaBtn.click();
-            return;
-        }
-        // Alt+Shift+T: Transform to Schema
-        if (e.altKey && e.shiftKey && (e.key === 't' || e.key === 'T')) {
-            e.preventDefault();
-            if (transformSchemaBtn && !transformSchemaBtn.disabled) transformSchemaBtn.click();
             return;
         }
         // Alt+C: Upload Commands File

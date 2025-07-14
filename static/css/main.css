@@ -43,13 +43,6 @@ body.dark-theme {
     position: relative; /* For particle container */
 }
 
-/* Schema management buttons */
-.schema-buttons {
-    display: flex;
-    gap: 5px;
-    margin-right: 5px;
-}
-
 /* Column header styling for dual-line headers (Excel letter + column name) */
 .column-name-header {
     display: block;
@@ -77,19 +70,6 @@ body.dark-theme {
     bottom: 0;
     top: auto;
     height: 15px;
-}
-
-/* Advanced processing indicator */
-.schema-buttons .btn[title*="Transform"] {
-    position: relative;
-}
-
-.schema-buttons .btn[title*="Transform"]::after {
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    font-size: 10px;
-    opacity: 0.7;
 }
 
 /* Split view styling */

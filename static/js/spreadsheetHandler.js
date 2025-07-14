@@ -298,6 +298,12 @@ function generateExcelColHeaders(count) {
 async function animateScrollThroughCells(hotInstance, cells) {
     if (!hotInstance || cells.length === 0) return;
     
+    // Check if instance is destroyed before starting animation
+    if (hotInstance.isDestroyed !== undefined && hotInstance.isDestroyed) {
+        console.warn('Cannot animate scroll - Handsontable instance has been destroyed');
+        return;
+    }
+    
     console.log(`📜 Starting scroll animation through ${cells.length} modified cells`);
     
     // Sort cells by row then column for logical scrolling order
@@ -325,6 +331,12 @@ async function animateScrollThroughCells(hotInstance, cells) {
         
         if (typeof row !== 'number' || typeof col !== 'number') continue;
         if (row < 0 || col < 0) continue;
+        
+        // Check if instance is still valid before each operation
+        if (hotInstance.isDestroyed !== undefined && hotInstance.isDestroyed) {
+            console.warn('Animation stopped - Handsontable instance was destroyed');
+            break;
+        }
         
         try {
             // Remove previous focus styling
@@ -364,9 +376,12 @@ async function animateScrollThroughCells(hotInstance, cells) {
     setTimeout(() => {
         if (previousFocusCell) {
             try {
-                const lastTd = hotInstance.getCell(previousFocusCell[0], previousFocusCell[1]);
-                if (lastTd) {
-                    lastTd.classList.remove('scroll-focus');
+                // Check if instance is still valid before cleanup
+                if (hotInstance && hotInstance.isDestroyed !== undefined && !hotInstance.isDestroyed) {
+                    const lastTd = hotInstance.getCell(previousFocusCell[0], previousFocusCell[1]);
+                    if (lastTd) {
+                        lastTd.classList.remove('scroll-focus');
+                    }
                 }
             } catch (error) {
                 // Ignore errors in cleanup
@@ -380,14 +395,19 @@ async function animateScrollThroughCells(hotInstance, cells) {
     if (cellsToScrollTo.length > 1) {
         setTimeout(() => {
             try {
-                // Scroll to show the first few modified cells in view
-                const firstCell = cellsToScrollTo[0];
-                hotInstance.scrollViewportTo(firstCell[0], firstCell[1], true, true);
-                
-                // Clear selection after the animation
-                setTimeout(() => {
-                    hotInstance.deselectCell();
-                }, 300);
+                // Check if instance is still valid before using it
+                if (hotInstance && !hotInstance.isDestroyed && hotInstance.isDestroyed !== undefined) {
+                    // Scroll to show the first few modified cells in view
+                    const firstCell = cellsToScrollTo[0];
+                    hotInstance.scrollViewportTo(firstCell[0], firstCell[1], true, true);
+                    
+                    // Clear selection after the animation
+                    setTimeout(() => {
+                        if (hotInstance && !hotInstance.isDestroyed && hotInstance.isDestroyed !== undefined) {
+                            hotInstance.deselectCell();
+                        }
+                    }, 300);
+                }
             } catch (error) {
                 console.warn('Could not complete final scroll positioning:', error);
             }
@@ -396,7 +416,9 @@ async function animateScrollThroughCells(hotInstance, cells) {
         // For single cell, just clear selection after a brief moment
         setTimeout(() => {
             try {
-                hotInstance.deselectCell();
+                if (hotInstance && !hotInstance.isDestroyed && hotInstance.isDestroyed !== undefined) {
+                    hotInstance.deselectCell();
+                }
             } catch (error) {
                 // Ignore errors
             }
@@ -693,75 +715,6 @@ export function toggleSplitView() {
 // Helper to deep clone a 2D array
 function clone2DArray(arr) {
     return arr.map(row => Array.isArray(row) ? [...row] : []);
-}
-
-// Compare two 2D arrays and generate a simple English log of cell changes
-export function generateActionPlanLog(leftData, rightData) {
-    let actions = [];
-    const rowCount = Math.max(leftData.length, rightData.length);
-    const colCount = Math.max(
-        leftData[0] ? leftData[0].length : 0,
-        rightData[0] ? rightData[0].length : 0
-    );
-    
-    // Track patterns of changes
-    let columnChanges = {};
-    let rowPatterns = [];
-    
-    for (let i = 0; i < rowCount; i++) {
-        const rightRow = rightData[i] || [];
-        if (rightRow.some(cell => cell !== null && cell !== undefined && cell !== '')) {
-            const leftRow = leftData[i] || [];
-            let rowChanges = [];
-            
-            for (let j = 0; j < colCount; j++) {
-                const leftCell = leftRow[j] ?? '';
-                const rightCell = rightRow[j] ?? '';
-                if (leftCell !== rightCell) {
-                    const colLetter = String.fromCharCode(65 + j);
-                    const change = `Cell ${colLetter}${i + 1}: "${leftCell}" → "${rightCell}"`;
-                    actions.push(change);
-                    rowChanges.push({col: j, from: leftCell, to: rightCell});
-                    
-                    // Track column-level patterns
-                    if (!columnChanges[j]) columnChanges[j] = [];
-                    columnChanges[j].push({row: i, from: leftCell, to: rightCell});
-                }
-            }
-            
-            if (rowChanges.length > 0) {
-                rowPatterns.push({row: i, changes: rowChanges});
-            }
-        }
-    }
-    
-    // Add pattern analysis to the action plan
-    if (actions.length > 0) {
-        let patternSummary = "\n\nPattern Analysis:";
-        
-        // Analyze column patterns
-        for (let colIndex in columnChanges) {
-            const colLetter = String.fromCharCode(65 + parseInt(colIndex));
-            const changes = columnChanges[colIndex];
-            if (changes.length > 1) {
-                patternSummary += `\nColumn ${colLetter}: ${changes.length} changes detected`;
-                
-                // Check for common transformation patterns
-                const allEmpty = changes.every(c => c.to === '');
-                const allSame = changes.every(c => c.to === changes[0].to);
-                
-                if (allEmpty) {
-                    patternSummary += " (clearing column)";
-                } else if (allSame) {
-                    patternSummary += ` (setting all to "${changes[0].to}")`;
-                }
-            }
-        }
-        
-        return actions.join('\n') + patternSummary;
-    }
-    
-    return 'No changes detected.';
 }
 
 // Add getter for split view state

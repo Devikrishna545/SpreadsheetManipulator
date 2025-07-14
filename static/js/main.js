@@ -3,9 +3,9 @@ import {
     toggleSidebar, toggleFullscreen, updateStatus, resetApplicationUI, 
     updateUndoRedoButtons, showMainInterface, updateSessionInfo 
 } from './uiInteractions.js';
-import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet, generateAndExecuteAlgorithm as apiGenerateAndExecuteAlgorithm, createMapping as apiCreateMapping, getAllMappings as apiGetAllMappings, deleteMapping as apiDeleteMapping, updateMapping as apiUpdateMapping }
+import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet, createMapping as apiCreateMapping, getAllMappings as apiGetAllMappings, deleteMapping as apiDeleteMapping, updateMapping as apiUpdateMapping }
 from './apiService.js';
-import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView, generateActionPlanLog, isSplitViewEnabled, renderSheetTabs, switchSheet } from './spreadsheetHandler.js';
+import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView, isSplitViewEnabled, renderSheetTabs, switchSheet } from './spreadsheetHandler.js';
 import { setupShortcutKeys,getCurrentSessionPrompts,resetPromptHistory } from './shortcuts.js';
 import { initCellSelector, clearCellSelector } from './cell-selector.js';
 import { initCellTagger, scanAndHighlightTags } from './cell-tagger.js';
@@ -27,11 +27,8 @@ const downloadBtn = document.getElementById('downloadBtn');
 const fullscreenBtn = document.getElementById('fullscreenBtn'); // Already in uiInteractions but listener here
 const sidebarToggleBtn = document.getElementById('sidebarToggleBtn'); // Same as fullscreenBtn
 const splitViewBtn = document.getElementById('splitViewBtn'); // Add this line
-const updateSchemaBtn = document.getElementById('updateSchemaBtn'); // Add this for schema button
-const transformSchemaBtn = document.getElementById('transformSchemaBtn'); // Add this for transform button
 const uploadCommandsBtn = document.getElementById('uploadCommandsBtn'); // Add this for upload commands button
 const manageMappingsBtn = document.getElementById('manageMappingsBtn'); // Add this for manage mappings button
-const generateActionPlanBtn = document.getElementById('generateActionPlanBtn');
 const commandFileInput = document.getElementById('commandFileInput'); // Add this for command file input
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -47,10 +44,6 @@ document.addEventListener('DOMContentLoaded', function() {
     fullscreenBtn.addEventListener('click', toggleFullscreen); // toggleFullscreen is from uiInteractions
     sidebarToggleBtn.addEventListener('click', toggleSidebar); // toggleSidebar is from uiInteractions
     splitViewBtn.addEventListener('click', toggleSplitView); // Add this line for split view button
-    
-    // Add event listeners for schema management buttons
-    updateSchemaBtn.addEventListener('click', updateSchema);
-    transformSchemaBtn.addEventListener('click', transformToSchema);
     
     // Add event listener for uploading command files
     uploadCommandsBtn.addEventListener('click', () => commandFileInput.click());
@@ -308,190 +301,9 @@ export function setCurrentPromptText(text) {
     commandInput.value = text;
 }
 
-// Manual Schema Update - captures schema from right spreadsheet
-function updateSchema() {
-    // Check if split view is active
-    if (!isSplitViewEnabled()) {
-        updateStatus('Split view required for schema functions', 'error');
-        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
-        return;
-    }
-    
-    // Show loading state
-    updateStatus('Capturing schema structure...', 'processing');
-    
-    // Get data from the right spreadsheet
-    const rightData = getRightSpreadsheetData();
-    
-    if (!rightData) {
-        updateStatus('Right spreadsheet data not available', 'error');
-        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
-        return;
-    }
-    
-    // Send to backend for schema capture
-    fetch('/update_schema', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            sessionId: currentSessionId,
-            rightSpreadsheetData: rightData,
-            transformLeft: false
-        }),
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`Server responded with status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            console.log('Schema captured:', data.schema);
-            updateStatus(`Schema captured: ${Object.keys(data.schema.column_patterns).length} column patterns found`, 'success');
-            setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
-        } else {
-            throw new Error(data.error || 'Unknown error occurred');
-        }
-    })
-    .catch(error => {
-        console.error('Error capturing schema:', error);
-        updateStatus(`Error capturing schema: ${error.message}`, 'error');
-        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
-    });
-}
-
-// Manual Schema Transformation - applies right spreadsheet structure to left spreadsheet
-async function transformToSchema() {
-    // Check if split view is active
-    if (!isSplitViewEnabled()) {
-        updateStatus('Split view must be active to use schema functions', 'error');
-        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
-        return;
-    }
-    
-    // Get data from the right spreadsheet
-    const rightData = getRightSpreadsheetData();
-    
-    if (!rightData) {
-        updateStatus('Right spreadsheet data not available', 'error');
-        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
-        return;
-    }
-    
-    // Show confirmation modal using the same modal as action plan
-    const rowCount = currentData?.data?.length || 0;
-    const transformationPlan = `This will transform the entire left spreadsheet (${rowCount} rows) to match the structure shown in the right spreadsheet.
-
-The transformation will:
-- Apply the column structure from the right spreadsheet
-- Detect patterns (constants, sequences, dates, cycles) from the right spreadsheet
-- Transform all ${rowCount} rows according to these patterns
-
-This action cannot be undone easily.`;
-    
-    showActionPlanModal(transformationPlan, rowCount, () => {
-        executeSchemaTransformation(rightData);
-    });
-}
-
-// Separate function to execute the actual transformation
-async function executeSchemaTransformation(rightData) {
-    // Show loading state
-    updateStatus('Transforming left spreadsheet to match schema...', 'processing');
-    
-    try {
-        // Send to backend for transformation
-        const response = await fetch('/update_schema', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                sessionId: currentSessionId,
-                rightSpreadsheetData: rightData,
-                transformLeft: true
-            }),
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Server responded with status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.success !== false) {
-            // Update the current data and render the left spreadsheet with the transformed data
-            currentData = data;
-            renderSpreadsheet(currentData);
-            updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
-            
-            updateStatus('Schema transformation complete', 'success');
-            setTimeout(() => updateStatus('Ready', 'waiting'), 2000);
-        } else {
-            throw new Error(data.error || 'Unknown error occurred');
-        }
-    } catch (error) {
-        console.error('Error transforming spreadsheet:', error);
-        updateStatus(`Error transforming spreadsheet: ${error.message}`, 'error');
-        setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
-    }
-}
-
-// Function to get data from the right spreadsheet
-function getRightSpreadsheetData() {
-    // Check if we're in split view mode
-    const rightContainer = document.getElementById('rightSpreadsheet');
-    if (!rightContainer || !rightContainer.hotInstance) {
-        return null;
-    }
-    
-    const rightHotInstance = rightContainer.hotInstance;
-    
-    // Get data as 2D array (this is what the backend expects)
-    const data = rightHotInstance.getData();
-    
-    // Filter out completely empty rows
-    const filteredData = data.filter(row => 
-        row.some(cell => cell !== null && cell !== undefined && cell !== '')
-    );
-    
-    return filteredData.length > 0 ? filteredData : null;
-}
-
 // PLACEHOLDER: updateLeftSpreadsheet function - functionality removed  
 // This function previously updated the left spreadsheet with transformed schema data
 // New implementation will use different update mechanisms
-
-// Helper function to show action plan confirmation modal
-function showActionPlanModal(actionPlan, rowCount, onConfirm) {
-    // Set the row count in the warning message
-    document.getElementById('actionPlanRowCount').textContent = rowCount;
-    
-    // Set the action plan content
-    document.getElementById('actionPlanContent').textContent = actionPlan;
-    
-    // Create modal instance
-    const actionPlanModal = new bootstrap.Modal(document.getElementById('actionPlanModal'));
-    
-    // Handle proceed button click
-    const proceedBtn = document.getElementById('actionPlanProceedBtn');
-    
-    // Remove any existing event listeners to prevent duplicates
-    const newProceedBtn = proceedBtn.cloneNode(true);
-    proceedBtn.parentNode.replaceChild(newProceedBtn, proceedBtn);
-    
-    // Add new event listener
-    newProceedBtn.addEventListener('click', () => {
-        actionPlanModal.hide();
-        onConfirm();
-    });
-    
-    // Show the modal
-    actionPlanModal.show();
-}
 
 // Add this new function to handle command file uploads
 async function uploadCommandFile(event) {
@@ -540,9 +352,29 @@ async function uploadCommandFile(event) {
             
             const success = await processCommandsSequentially(result.commands);
             
-            // Commands executed successfully - no more automatic mapping prompt
+            // Commands executed successfully - ask if user wants to create a mapping
             if (success) {
                 updateStatus('All commands executed successfully!', 'success');
+                setTimeout(() => updateStatus('Ready', 'active'), 3000);
+                
+                // Ask user if they want to create a mapping
+                const shouldCreateMapping = await showConfirm(
+                    'All commands were executed successfully!\n\n' +
+                    'Would you like to create a mapping between this spreadsheet and the command file?\n\n' +
+                    'This will allow the commands to be automatically executed when this spreadsheet is uploaded in the future.',
+                    'Create Mapping?',
+                    {
+                        confirmText: 'Create Mapping',
+                        cancelText: 'Not Now',
+                        confirmClass: 'btn-success'
+                    }
+                );
+                
+                if (shouldCreateMapping) {
+                    await createMappingFromUpload(commandFileInfo);
+                }
+            } else {
+                updateStatus('Some commands failed to execute', 'warning');
                 setTimeout(() => updateStatus('Ready', 'active'), 3000);
             }
         } else {
@@ -558,10 +390,70 @@ async function uploadCommandFile(event) {
     }
 }
 
+// Create mapping from uploaded command file
+async function createMappingFromUpload(commandFileInfo) {
+    try {
+        const currentSpreadsheetName = getCurrentSpreadsheetName();
+        if (!currentSpreadsheetName) {
+            showErrorModal('Unable to determine current spreadsheet name');
+            return;
+        }
+        
+        updateStatus('Creating mapping...', 'processing');
+        
+        // Check for existing mappings for this spreadsheet
+        const checkResponse = await fetch(`/check_mapping/${encodeURIComponent(currentSpreadsheetName)}`);
+        if (checkResponse.ok) {
+            const checkData = await checkResponse.json();
+            if (checkData.conflicts && checkData.conflicts.length > 0) {
+                const conflictCount = checkData.conflicts.length;
+                const shouldContinue = await showConfirm(
+                    `Warning: This spreadsheet already has ${conflictCount} existing mapping(s).\n\n` +
+                    `Creating a new mapping will result in multiple mappings for the same spreadsheet.\n\n` +
+                    `Do you want to continue?`,
+                    'Mapping Conflict',
+                    {
+                        confirmText: 'Continue',
+                        cancelText: 'Cancel',
+                        confirmClass: 'btn-warning'
+                    }
+                );
+                
+                if (!shouldContinue) {
+                    updateStatus('Mapping creation cancelled', 'warning');
+                    setTimeout(() => updateStatus('Ready', 'active'), 2000);
+                    return;
+                }
+            }
+        }
+        
+        // Create the mapping
+        const response = await apiCreateMapping(
+            currentSpreadsheetName,
+            commandFileInfo.filename,
+            commandFileInfo.commands
+        );
+        
+        if (response && response.success) {
+            updateStatus('Mapping created successfully!', 'success');
+            setTimeout(() => updateStatus('Ready', 'active'), 3000);
+        } else {
+            const errorMsg = response && response.error ? response.error : 'Failed to create mapping';
+            throw new Error(errorMsg);
+        }
+        
+    } catch (error) {
+        console.error('Error creating mapping:', error);
+        showErrorModal(`Failed to create mapping: ${error.message}`);
+        updateStatus('Error', 'error');
+    }
+}
+
 // Function to process commands one by one
 async function processCommandsSequentially(commands) {
     let successCount = 0;
     let failCount = 0;
+    let allSuccess = true;
     
     for (let i = 0; i < commands.length; i++) {
         const command = commands[i].trim();
@@ -585,12 +477,13 @@ async function processCommandsSequentially(commands) {
         } catch (error) {
             console.error('Error processing command:', error);
             failCount++;
+            allSuccess = false;
             
             // Check if this is a script execution failure - if so, stop processing
             if (error.message === 'SCRIPT_EXECUTION_FAILED') {
                 console.log('Script execution failed - stopping command processing');
                 updateStatus(`Stopped at command ${i+1}/${commands.length} due to execution failure`, 'error');
-                return; // Stop processing remaining commands
+                return false; // Return false to indicate failure
             }
             
             // For other errors, continue with next command
@@ -604,57 +497,10 @@ async function processCommandsSequentially(commands) {
     
     // Reset after a delay
     setTimeout(() => updateStatus('Ready', 'active'), 3000);
+    
+    // Return true if all commands executed successfully
+    return allSuccess;
 }
-
-// Add event listener for the new "Generate Action Plan" button
-generateActionPlanBtn.addEventListener('click', async function() {
-    // Get left and right spreadsheet data
-    const leftHot = window.hotInstance;
-    const rightContainer = document.getElementById('rightSpreadsheet');
-    const rightHot = rightContainer && rightContainer.hotInstance ? rightContainer.hotInstance : null;
-    
-    if (!leftHot || !rightHot) {
-        showErrorModal('Both spreadsheets must be visible to generate an action plan. Please enable split view first.');
-        return;
-    }
-    
-    // IMPORTANT: Get full left dataset from currentData, not from the display
-    // The display might be virtualized and not contain all rows
-    const leftData = currentData && currentData.data ? currentData.data : leftHot.getData();
-    const rightData = rightHot.getData();
-    
-    console.log(`Algorithm will process ${leftData.length} rows from left spreadsheet and ${rightData.length} rows from right spreadsheet`);
-    
-    // Generate the action plan
-    const actionPlan = generateActionPlanLog(leftData, rightData);
-    
-    if (actionPlan === 'No changes detected.') {
-        showErrorModal('No changes detected in the right spreadsheet. Please make some modifications first to show the system what changes you want applied to the entire left spreadsheet.');
-        return;
-    }
-    
-    // Show action plan modal for user confirmation
-    showActionPlanModal(actionPlan, leftData.length, async () => {
-        // User confirmed, proceed with algorithm generation
-        try {
-            const result = await apiGenerateAndExecuteAlgorithm(currentSessionId, actionPlan, leftData, rightData);
-            
-            if (result) {
-                // Update the current data and render the spreadsheet with the new changes
-                currentData = result;
-                renderSpreadsheet(currentData);
-                updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
-
-                // Show success message
-                updateStatus('Universal algorithm applied successfully', 'success');
-                setTimeout(() => updateStatus('Ready', 'active'), 3000);
-            }
-        } catch (error) {
-            console.error('Error generating algorithm:', error);
-            showErrorModal(`Error generating algorithm: ${error.message}`);
-        }
-    });
-});
 
 // Add sheet tab rendering and switching
 document.addEventListener('DOMContentLoaded', function() {
@@ -902,6 +748,7 @@ async function createNewMapping() {
                     'Mapping Conflict Warning',
                     {
                         confirmText: 'Continue',
+                        cancelText: 'Not Now',
                         confirmClass: 'btn-warning'
                     }
                 );

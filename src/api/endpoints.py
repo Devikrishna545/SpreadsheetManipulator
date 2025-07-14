@@ -338,50 +338,6 @@ def process_table_changes(request: TableChangesRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/update_schema")
-def update_schema(request: dict):
-    """
-    Manual schema transformation - applies right spreadsheet structure to left spreadsheet
-    without LLM processing. Uses the right spreadsheet as a template.
-    """
-    try:
-        session_id = request.get('sessionId')
-        right_data = request.get('rightSpreadsheetData', [])
-        transform_left = request.get('transformLeft', False)
-        
-        if not session_id:
-            raise HTTPException(status_code=400, detail="Session ID is required")
-        
-        if transform_left:
-            # Apply the right spreadsheet structure to the left spreadsheet
-            result = controllers.spreadsheet_controller.apply_manual_schema_transformation(
-                session_id, right_data
-            )
-            return result
-        else:
-            # Just capture/validate the schema from right spreadsheet
-            schema_info = controllers.spreadsheet_controller.capture_schema_structure(right_data)
-            return {"success": True, "schema": schema_info, "message": "Schema structure captured successfully"}
-            
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@app.post("/transform_to_schema/{session_id}")
-def transform_to_schema(session_id: str, request: dict):
-    """
-    Alias endpoint for manual schema transformation
-    """
-    try:
-        right_data = request.get('rightSpreadsheetData', [])
-        
-        result = controllers.spreadsheet_controller.apply_manual_schema_transformation(
-            session_id, right_data
-        )
-        return result
-        
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
 @app.post("/upload_commands")
 async def upload_command_file(
     file: UploadFile = File(...), 
@@ -428,39 +384,6 @@ async def upload_command_file(
         raise HTTPException(status_code=400, detail="File encoding not supported. Please use UTF-8 encoded text files.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
-
-@app.post("/generate_algorithm")
-async def generate_algorithm(request: Request):
-    """Generate and execute a universal algorithm from an action plan"""
-    try:
-        data = await request.json()
-        session_id = data.get('sessionId')
-        action_plan = data.get('actionPlan')
-        left_spreadsheet_data = data.get('leftSpreadsheetData')
-        right_spreadsheet_data = data.get('rightSpreadsheetData')
-        
-        if not all([session_id, action_plan, left_spreadsheet_data, right_spreadsheet_data]):
-            raise HTTPException(status_code=400, detail="Missing required parameters")
-        
-        # Generate and execute the universal algorithm
-        result = controllers.spreadsheet_controller.generate_and_execute_algorithm(
-            session_id, action_plan, left_spreadsheet_data, right_spreadsheet_data
-        )
-        
-        return result
-        
-    except ScriptExecutionFailureException as e:
-        # Special handling for script execution failures after debugging pipeline
-        raise HTTPException(status_code=422, detail={
-            "error": "SCRIPT_EXECUTION_FAILED",
-            "message": f"Failed to understand and execute the algorithm: '{e.command}'. Please rephrase your action plan and try again.",
-            "command": e.command,
-            "details": e.error_details
-        })
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/generate_schema_json/{session_id}")
 def generate_schema_json(session_id: str):

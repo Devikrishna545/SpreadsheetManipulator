@@ -40,7 +40,7 @@
     padding: 6px 12px; 
     background-color: transparent; 
     border: 1px solid var(--main-accent); 
-    border-radius: 20px;
+    border-radius: 6px; /* More rectangular with circular angles like the User Manual button */
     font-size: 0.8rem;
     font-weight: 500;
     color: var(--main-accent); 
@@ -48,6 +48,10 @@
     position: relative;
     overflow: hidden; 
     box-shadow: 0 0 8px rgba(0,191,255,0.3), inset 0 0 5px rgba(0,191,255,0.2);
+    height: 28px;
+    line-height: 16px;
+    display: inline-flex;
+    align-items: center;
 }
 
 .status-badge::before { 
@@ -567,25 +571,6 @@
     cursor: pointer;
 }
 
-/* Action Plan Modal Styles */
-#actionPlanModal .action-plan-content {
-    background-color: var(--glass-bg-color) !important;
-    border: 1px solid var(--glass-border-color) !important;
-    color: var(--text-primary) !important;
-    font-size: 0.9rem;
-    line-height: 1.4;
-}
-
-#actionPlanModal .alert-warning {
-    background-color: rgba(255, 193, 7, 0.15) !important;
-    border-color: rgba(255, 193, 7, 0.3) !important;
-    color: var(--text-primary) !important;
-}
-
-#actionPlanModal .alert-warning .fas {
-    color: #ffc107 !important;
-}
-
 /* Form Controls (Simplified) */
 .form-control {
     background-color: rgba(0,0,0,0.2);
@@ -666,4 +651,182 @@
     min-height: 36px;
     /* Add a subtle box-shadow for separation */
     box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
+}
+
+/* Mapping Management Modal Improvements */
+#mappingManagementModal .modal-content,
+#createMappingModal .modal-content {
+    background-color: var(--glass-bg-color) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    backdrop-filter: blur(var(--glass-blur-amount));
+    color: var(--text-primary) !important;
+}
+
+#mappingManagementModal .modal-body,
+#createMappingModal .modal-body {
+    color: var(--text-primary) !important;
+    background: transparent !important;
+}
+
+#mappingManagementModal .card,
+#createMappingModal .card {
+    background-color: rgba(0, 191, 255, 0.08) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+#mappingManagementModal .card-title,
+#createMappingModal .card-title {
+    color: var(--main-accent) !important;
+    font-weight: 500 !important;
+}
+
+#mappingManagementModal .table,
+#mappingManagementModal .table-dark,
+#createMappingModal .table,
+#createMappingModal .table-dark {
+    background-color: rgba(0, 0, 0, 0.3) !important;
+    border-color: var(--glass-border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+#mappingManagementModal .table th,
+#mappingManagementModal .table td,
+#mappingManagementModal .table-dark th,
+#mappingManagementModal .table-dark td,
+#createMappingModal .table th,
+#createMappingModal .table td,
+#createMappingModal .table-dark th,
+#createMappingModal .table-dark td {
+    border-color: var(--glass-border-color) !important;
+    color: var(--text-primary) !important;
+    background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+#mappingManagementModal .table thead th,
+#mappingManagementModal .table-dark thead th,
+#createMappingModal .table thead th,
+#createMappingModal .table-dark thead th {
+    background-color: rgba(0, 191, 255, 0.1) !important;
+    color: var(--main-accent) !important;
+    font-weight: 500 !important;
+}
+
+#mappingManagementModal .table-striped tbody tr:nth-of-type(odd),
+#createMappingModal .table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0, 191, 255, 0.05) !important;
+}
+
+#mappingManagementModal .table-hover tbody tr:hover,
+#createMappingModal .table-hover tbody tr:hover {
+    background-color: rgba(0, 191, 255, 0.15) !important;
+}
+
+#mappingManagementModal .text-muted,
+#createMappingModal .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+#mappingManagementModal .badge,
+#createMappingModal .badge {
+    background-color: var(--main-accent) !important;
+    color: var(--base-bg) !important;
+}
+
+#mappingManagementModal .badge.bg-success,
+#createMappingModal .badge.bg-success {
+    background-color: #28a745 !important;
+    color: #ffffff !important;
+}
+
+#mappingManagementModal .badge.bg-primary,
+#createMappingModal .badge.bg-primary {
+    background-color: var(--main-accent) !important;
+    color: var(--base-bg) !important;
+}
+
+#mappingManagementModal .fw-bold,
+#createMappingModal .fw-bold {
+    color: var(--text-primary) !important;
+}
+
+#mappingManagementModal small,
+#createMappingModal small {
+    color: var(--text-secondary) !important;
+}
+
+#mappingManagementModal .form-control,
+#createMappingModal .form-control {
+    background-color: rgba(0, 0, 0, 0.4) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+#mappingManagementModal .form-control:focus,
+#createMappingModal .form-control:focus {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    border-color: var(--main-accent) !important;
+    color: var(--text-primary) !important;
+    box-shadow: 0 0 0 0.15rem rgba(0, 191, 255, 0.25) !important;
+}
+
+#mappingManagementModal .form-control::placeholder,
+#createMappingModal .form-control::placeholder {
+    color: var(--text-muted) !important;
+}
+
+#mappingManagementModal .form-label,
+#createMappingModal .form-label {
+    color: var(--text-primary) !important;
+    font-weight: 500 !important;
+}
+
+/* Button styles for mapping modals */
+#mappingManagementModal .btn-outline-info,
+#createMappingModal .btn-outline-info {
+    border-color: var(--main-accent) !important;
+    color: var(--main-accent) !important;
+}
+
+#mappingManagementModal .btn-outline-info:hover,
+#createMappingModal .btn-outline-info:hover {
+    background-color: var(--main-accent) !important;
+    color: var(--base-bg) !important;
+}
+
+#mappingManagementModal .btn-outline-warning,
+#createMappingModal .btn-outline-warning {
+    border-color: #ffc107 !important;
+    color: #ffc107 !important;
+}
+
+#mappingManagementModal .btn-outline-warning:hover,
+#createMappingModal .btn-outline-warning:hover {
+    background-color: #ffc107 !important;
+    color: var(--base-bg) !important;
+}
+
+#mappingManagementModal .btn-outline-danger,
+#createMappingModal .btn-outline-danger {
+    border-color: #dc3545 !important;
+    color: #dc3545 !important;
+}
+
+#mappingManagementModal .btn-outline-danger:hover,
+#createMappingModal .btn-outline-danger:hover {
+    background-color: #dc3545 !important;
+    color: #ffffff !important;
+}
+
+/* No mappings message styling */
+#noMappingsMessage {
+    color: var(--text-secondary) !important;
+}
+
+#noMappingsMessage .fas {
+    color: var(--text-muted) !important;
+}
+
+#noMappingsMessage h5 {
+    color: var(--text-primary) !important;
 }

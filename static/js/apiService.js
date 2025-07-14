@@ -185,44 +185,8 @@ export function downloadSpreadsheet(sessionId) {
         });
 }
 
-export async function generateAndExecuteAlgorithm(sessionId, actionPlan, leftData, rightData) {
-    if (!sessionId) {
-        showError('No active session. Please upload a spreadsheet first.');
-        return null;
-    }
-    
-    updateStatus('Generating universal algorithm...', 'processing');
-    showAlgorithmLoading('Analyzing action plan and generating universal algorithm...');
-    
-    try {
-        const response = await fetch('/generate_algorithm', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                sessionId, 
-                actionPlan,
-                leftSpreadsheetData: leftData,
-                rightSpreadsheetData: rightData
-            })
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Failed to generate universal algorithm');
-        }
-        
-        const data = await response.json();
-        updateStatus('Universal algorithm executed successfully', 'success');        
-        setTimeout(() => updateStatus('Ready', 'active'), 3000);
-        return data;
-    } catch (error) {
-        updateStatus('Error', 'error');
-        showError(`Algorithm generation failed: ${error.message}`);
-        return null;
-    } finally {
-        hideLoading();
-    }
-}
+// PLACEHOLDER: generateAndExecuteAlgorithm removed
+// This function was removed as part of UI cleanup
 
 // Mapping-related API functions
 export async function createMapping(spreadsheetFilename, commandFilename, commands) {
@@ -245,7 +209,8 @@ export async function createMapping(spreadsheetFilename, commandFilename, comman
         return await response.json();
     } catch (error) {
         showError(`Error creating mapping: ${error.message}`);
-        return null;
+        // Return a consistent error response format instead of null
+        return { success: false, error: error.message };
     }
 }
 
