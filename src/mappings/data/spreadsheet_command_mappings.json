@@ -1,7 +1,7 @@
 {
   "mappings": [
     {
-      "mapping_id": "map_20250710_181521_1",
+      "mapping_id": "map_20250818_082005_1",
       "spreadsheet_filename": "sample2.xlsx",
       "spreadsheet_hash": "sample2.xlsx_c5eef48a",
       "command_filename": "company-map.txt",
@@ -13,7 +13,7 @@
         "Move the \"Main account\" string to the first cell of column #A.",
         "Move the \"Name\" string to the first cell of column #B.",
         "Delete all instances of \"Main account\" and \"Name\" strings on column #C and column #D, only.",
-        "Move all instances of any account number string to be in a cell with the same cell number, but under column #A. An account number is any 5-string number in any cell under column #C. Examples of account numbers are \"13015\", \"13000\" etc. ",
+        "Move all instances of any account number string to be in a cell with the same cell number, but under column #A. An account number is any 5-string number in any cell under column #C. Examples of account numbers are \"13015\", \"13000\" etc.",
         "Clear the content from all cells containing the 'None' value. But don't delete the cells themselves.",
         "Move all instances of an account name string to be in a cell with the same cell number, but under column #B. An account name is any string under column #D, in a cell on the same row with an account number. An account number is any 5-digit number in any cell under column #A. Examples of account numbers are \"13015\", \"13000\" etc.",
         "Move the contents from cells #C3 - #N3 into cells #C1 - #N1.",
@@ -24,13 +24,14 @@
         "If there are empty cells below any cell containing an account name, copy that account name into all the empty cells below it. Examples of account names are \"Other intangible assets\" and \"Acc. depreciation leasehold right\" etc."
       ],
       "command_count": 16,
-      "created_at": "2025-07-10T18:15:21.914316",
-      "last_used": null,
-      "use_count": 0,
-      "is_active": true
+      "created_at": "2025-08-18T08:20:05.973530",
+      "last_used": "2025-08-18T09:40:15.802173",
+      "use_count": 1,
+      "is_active": true,
+      "last_updated": "2025-08-18T09:40:15.802173"
     }
   ],
-  "created_at": "2025-07-10T18:14:06.857276",
-  "last_updated": "2025-07-10T18:15:21.914316",
+  "created_at": "2025-08-18T08:11:30.811809",
+  "last_updated": "2025-08-18T09:40:15.802173",
   "version": "1.0"
 }

@@ -3,7 +3,6 @@ const sidebar = document.getElementById('sidebar');
 const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
 const spreadsheetContainer = document.getElementById('spreadsheetContainer');
 const commandContainer = document.getElementById('commandContainer');
-const actionsSection = document.getElementById('actionsSection');
 const sessionInfo = document.getElementById('sessionInfo');
 const statusBadge = document.getElementById('statusBadge');
 const loadingContainer = document.getElementById('loadingContainer');
@@ -27,6 +26,26 @@ const uploadForm = document.getElementById('uploadForm');
 const fileNameDisplay = document.getElementById('fileName'); // Renamed to avoid conflict
 const sessionStatusDisplay = document.getElementById('sessionStatus'); // Renamed
 const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+// Throttled Handsontable re-render scheduler
+let _pendingHotRender = false;
+function scheduleHotRender() {
+    if (_pendingHotRender) return;
+    _pendingHotRender = true;
+    requestAnimationFrame(() => {
+        _pendingHotRender = false;
+        if (window.hotInstance) {
+            window.hotInstance.render();
+        }
+        if (window.editableHotInstance) {
+            window.editableHotInstance.render();
+        }
+    });
+}
+
+// Observe command container resize to keep layout in sync without lag
+let _commandContainerObserver;
+let _commandInputMinHeightSet = false;
 
 export function toggleSidebar() {
     sidebar.classList.toggle('collapsed');
@@ -112,7 +131,6 @@ export function showError(message) {
 export function showMainInterface() {
     spreadsheetContainer.style.display = 'block';
     commandContainer.style.display = 'block';
-    actionsSection.style.display = 'block';
     sessionInfo.style.display = 'block';
     
     // Show shortcut info when spreadsheet is visible
@@ -121,39 +139,41 @@ export function showMainInterface() {
         shortcutInfo.style.display = 'block';
     }
     
-    // Calculate and set the command section height for spreadsheet sizing
+    // Calculate and set the command section height for spreadsheet sizing, and watch for live changes
     setTimeout(() => {
-        const commandSectionHeight = commandContainer.offsetHeight;
-        // Add a small buffer to ensure no scrolling
-        const bufferHeight = 5;
-        document.documentElement.style.setProperty('--command-section-height', `${commandSectionHeight + bufferHeight}px`);
-        
-        // Calculate total content height and ensure it fits
-        const navbarHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--navbar-height'));
-        const totalContentHeight = commandSectionHeight + navbarHeight + spreadsheetContainer.offsetHeight;
-        
-        // If total content would cause scrolling, reduce spreadsheet height
-        if (totalContentHeight > window.innerHeight) {
-            const adjustment = totalContentHeight - window.innerHeight + 10; // 10px buffer
-            const currentSpreadsheetHeight = spreadsheetContainer.querySelector('.spreadsheet-card').offsetHeight;
-            const newSpreadsheetHeight = currentSpreadsheetHeight - adjustment;
-            
-            // Set a custom property for this specific spreadsheet
-            document.documentElement.style.setProperty('--custom-spreadsheet-height', `${newSpreadsheetHeight}px`);
-            spreadsheetContainer.querySelector('.spreadsheet-card').style.height = `var(--custom-spreadsheet-height)`;
+        // Lock the command input's minimum height to its initial rendered height
+        if (!_commandInputMinHeightSet) {
+            const commandInputEl = document.getElementById('commandInput');
+            if (commandInputEl) {
+                const initialHeightPx = commandInputEl.offsetHeight; // includes padding/border; fine for a visual floor
+                if (initialHeightPx > 0) {
+                    commandInputEl.style.minHeight = initialHeightPx + 'px';
+                    _commandInputMinHeightSet = true;
+                }
+            }
         }
-        
-        // If we have a Handsontable instance, refresh it to fit the new size
-        if (window.hotInstance) {
-            window.hotInstance.render();
+
+        const applyCommandHeight = () => {
+            const commandSectionHeight = commandContainer.offsetHeight;
+            const bufferHeight = 5; // ensure no scroll jitter
+            document.documentElement.style.setProperty('--command-section-height', `${commandSectionHeight + bufferHeight}px`);
+            scheduleHotRender();
+        };
+        applyCommandHeight();
+
+        // Start observing for live height changes (e.g., user resizes textarea)
+        if (window.ResizeObserver && !_commandContainerObserver) {
+            _commandContainerObserver = new ResizeObserver(() => {
+                applyCommandHeight();
+            });
+            _commandContainerObserver.observe(commandContainer);
         }
-    }, 50); // Small delay to ensure DOM is fully rendered
+    }, 0); // run on next tick after DOM shows
 }
 
 export function resetApplicationUI() { // Renamed to avoid conflict if resetApplication logic is split
     spreadsheetContainer.style.display = 'none';
     commandContainer.style.display = 'none';
-    actionsSection.style.display = 'none';
     sessionInfo.style.display = 'none';
     
     uploadForm.reset();

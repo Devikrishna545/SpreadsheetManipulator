@@ -36,11 +36,61 @@
     }
 }
 
+/* Footer Gear Animations */
+.footer-gears {
+    position: relative;
+    display: inline-block;
+    margin: 0 8px;
+    width: 24px;
+    height: 16px;
+    vertical-align: middle;
+}
+
+.footer-gears .gear-1,
+.footer-gears .gear-2 {
+    position: absolute;
+    color: var(--main-accent);
+    text-shadow: inherit; /* Inherit the flicker animation from parent */
+    font-size: 12px;
+    transform-origin: center;
+    transition: text-shadow 0.3s ease;
+}
+
+.footer-gears .gear-1 {
+    top: 0;
+    left: 0;
+    font-size: 14px; /* Bigger gear on the left */
+    animation: rotate-clockwise 4s linear infinite;
+    z-index: 2; /* Higher z-index for the bigger gear */
+}
+
+.footer-gears .gear-2 {
+    top: 2px;
+    right: 0;
+    font-size: 10px; /* Smaller gear on the right */
+    animation: rotate-counter-clockwise 4s linear infinite;
+    z-index: 1; /* Lower z-index for the smaller gear */
+}
+
+@keyframes rotate-clockwise {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes rotate-counter-clockwise {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(-360deg); }
+}
+
+.footer-text {
+    text-shadow: inherit;
+}
+
 .status-badge {
     padding: 6px 12px; 
     background-color: transparent; 
     border: 1px solid var(--main-accent); 
-    border-radius: 20px;
+    border-radius: 6px; /* More rectangular with circular angles like the User Manual button */
     font-size: 0.8rem;
     font-weight: 500;
     color: var(--main-accent); 
@@ -48,6 +98,10 @@
     position: relative;
     overflow: hidden; 
     box-shadow: 0 0 8px rgba(0,191,255,0.3), inset 0 0 5px rgba(0,191,255,0.2);
+    height: 28px;
+    line-height: 16px;
+    display: inline-flex;
+    align-items: center;
 }
 
 .status-badge::before { 
@@ -168,6 +222,11 @@
     border-color: #ffffff;
 }
 
+/* Specific tweak: make the User Manual footer link less rounded */
+.btn-futuristic.user-manual-link {
+    border-radius: 4px !important; /* override generic btn radius for crisper edges */
+}
+
 /* Session Info */
 .session-item {
     display: flex;
@@ -233,7 +292,11 @@
     padding: 12px;
     resize: vertical;
     font-size: 0.95rem;
-    transition: var(--transition-fast);
+    /* Avoid animating height during user resize to keep it snappy */
+    transition: background-color 0.2s ease-in-out,
+                border-color 0.2s ease-in-out,
+                box-shadow 0.2s ease-in-out,
+                color 0.2s ease-in-out;
 }
 
 .command-input:focus {
@@ -252,16 +315,29 @@
 
 
 /* Spreadsheet Section */
+.spreadsheet-section {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto; /* occupy remaining vertical space under command section */
+    min-height: 0; /* allow inner scroll containers to shrink */
+    margin-bottom: 0; /* avoid accidental gap */
+}
+
 .spreadsheet-card {
     background-color: var(--glass-bg-color); 
     backdrop-filter: blur(var(--glass-blur-amount));
     border-radius: var(--border-radius);
     border: 1px solid var(--glass-border-color);
-    /* Further reduced height calculation to eliminate any page scrolling */
-    height: calc(100vh - var(--command-section-height) - var(--navbar-height) - 45px); 
+    /* Fill the available height provided by the flex parent, no viewport math */
+    height: 100%;
     display: flex;
     flex-direction: column;
-    transition: var(--transition-medium); 
+    /* Do not animate size/height to prevent lag when command input resizes */
+    transition: box-shadow 0.3s ease-in-out,
+                transform 0.3s ease-in-out,
+                background-color 0.3s ease-in-out,
+                border-color 0.3s ease-in-out; 
+    margin: 0; /* avoid outside spacing */
 }
 
 .spreadsheet-card.fullscreen {
@@ -312,6 +388,34 @@
     transform: none; 
 }
 
+/* Action Controls (moved from sidebar) */
+.action-controls {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.action-controls .btn {
+    transition: var(--transition-fast);
+    color: var(--text-secondary);
+}
+
+.action-controls .btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--main-accent);
+    transform: none;
+}
+
+.action-controls .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.action-controls .btn:disabled:hover {
+    background: transparent;
+    color: var(--text-secondary);
+}
+
 /* Cell Selector Bar */
 .cell-selector-bar {
     display: flex;
@@ -355,16 +459,19 @@
 }
 
 .spreadsheet-body {
-    flex: 1;
+    flex: 1 1 auto;
     padding: 15px;
+    /* Reserve space for sheet tabs so they don't cover grid rows */
+    padding-bottom: calc(15px + var(--sheet-tabs-height, 36px));
     overflow: hidden;
+    min-height: 0; /* allow inner handsontable to size properly */
 }
 
 #spreadsheetData {
     height: 100%;
     width: 100%;
     border-radius: var(--border-radius); 
-    overflow: hidden;
+    overflow: hidden; /* clip grid so tabs never appear between row header and grid */
 }
 
 /* Loading Overlay (Futuristic Circuit Loader) */
@@ -655,8 +762,8 @@
 
 #sheetTabContainer {
     position: absolute;
-    left: 0;
-    bottom: 0;
+    left: 15px; /* align with spreadsheet-body inner padding */
+    bottom: 15px; /* sit inside reserved padding space */
     z-index: 10;
     display: flex;
     gap: 4px;
@@ -666,4 +773,1123 @@
     min-height: 36px;
     /* Add a subtle box-shadow for separation */
     box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
+}
+
+/* Mapping Management Modal Improvements */
+#mappingManagementModal .modal-content,
+#createMappingModal .modal-content {
+    background-color: var(--glass-bg-color) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    backdrop-filter: blur(var(--glass-blur-amount));
+    color: var(--text-primary) !important;
+}
+
+/* Edit Mapping Modal - Higher z-index to appear on top of management modal */
+#editMappingModal {
+    z-index: 1100 !important;
+}
+
+#editMappingModal .modal-backdrop {
+    z-index: 1099 !important;
+}
+
+#editMappingModal .modal-content {
+    background-color: var(--glass-bg-color) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    backdrop-filter: blur(var(--glass-blur-amount));
+    color: var(--text-primary) !important;
+}
+
+/* View Commands Modal Styling */
+#viewCommandsModal .modal-content {
+    background-color: var(--glass-bg-color) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    backdrop-filter: blur(var(--glass-blur-amount));
+    color: var(--text-primary) !important;
+}
+
+#viewCommandsModal .modal-header {
+    border-bottom-color: var(--glass-border-color) !important;
+    background-color: rgba(0, 191, 255, 0.05) !important;
+}
+
+#viewCommandsModal .modal-title {
+    color: var(--main-accent) !important;
+    font-weight: 500 !important;
+}
+
+#viewCommandsModal .modal-body {
+    padding: 1.5rem;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+#viewCommandsModal .modal-footer {
+    border-top-color: var(--glass-border-color) !important;
+    background-color: rgba(0,0,0,0.1) !important;
+}
+
+/* Commands Display Container */
+.commands-display {
+    background-color: var(--glass-bg-color);
+    border: 1px solid var(--glass-border-color);
+    border-radius: var(--border-radius);
+    padding: 0;
+    position: relative;
+    max-height: 50vh;
+    overflow-y: auto;
+    backdrop-filter: blur(var(--glass-blur-amount));
+}
+
+/* Commands Text with Line Numbers */
+.commands-text {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.8;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    padding: 1.25rem 1.5rem 1.25rem 4rem;
+    margin: 0;
+    background: transparent;
+    border: none;
+    resize: none;
+    outline: none;
+    text-align: left;
+    position: relative;
+    counter-reset: command-line;
+}
+
+/* Style for numbered command lines */
+.command-line {
+    position: relative;
+    padding-left: 0;
+    margin-bottom: 1rem;
+    display: block;
+    counter-increment: command-line;
+}
+
+.command-line::before {
+    content: counter(command-line);
+    position: absolute;
+    left: -3.5rem;
+    top: 0;
+    width: 2rem;
+    height: 2rem;
+    background: var(--main-accent);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 0.85rem;
+    color: white;
+    font-weight: 600;
+    line-height: 1;
+    box-shadow: 0 2px 8px rgba(0, 191, 255, 0.3);
+}
+
+/* Custom scrollbar for commands display */
+.commands-display::-webkit-scrollbar {
+    width: 8px;
+}
+
+.commands-display::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+.commands-display::-webkit-scrollbar-thumb {
+    background: var(--main-accent);
+    border-radius: 4px;
+    opacity: 0.7;
+}
+
+.commands-display::-webkit-scrollbar-thumb:hover {
+    opacity: 1;
+}
+
+/* Style the plaintext elements in edit mapping modal */
+#editMappingModal .form-control-plaintext {
+    color: var(--text-primary) !important;
+    background-color: transparent !important;
+    border: 1px solid var(--glass-border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 8px 12px !important;
+    font-weight: 500 !important;
+}
+
+/* Edit mapping commands styling - Use same structure as view commands modal */
+#editMappingCommands {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    font-size: 0.9rem !important;
+    line-height: 1.8 !important;
+    color: var(--text-primary) !important;
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    background: transparent !important;
+    border: none !important;
+    resize: none !important;
+    outline: none !important;
+    text-align: left !important;
+    position: relative !important;
+    counter-reset: command-line !important;
+}
+
+/* ContentEditable placeholder styling */
+#editMappingCommands:empty:before {
+    content: attr(data-placeholder);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* ContentEditable focus styling */
+#editMappingCommands:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 191, 255, 0.25);
+    border-radius: var(--border-radius);
+}
+
+/* Line styling for edit commands (same as view commands) */
+#editMappingCommands .command-line {
+    position: relative;
+    padding-left: 0;
+    margin-bottom: 1rem;
+    display: block;
+    counter-increment: command-line;
+}
+
+#editMappingCommands .command-line::before {
+    content: counter(command-line);
+    position: absolute;
+    left: -3.5rem;
+    top: 0;
+    width: 2rem;
+    height: 2rem;
+    background: var(--main-accent);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 0.85rem;
+    color: white;
+    font-weight: 600;
+    line-height: 1;
+    box-shadow: 0 2px 8px rgba(0, 191, 255, 0.3);
+}
+
+/* Add the same scrollbar styling to edit textarea */
+#editMappingCommands::-webkit-scrollbar {
+    width: 8px;
+}
+
+#editMappingCommands::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+#editMappingCommands::-webkit-scrollbar-thumb {
+    background: var(--main-accent);
+    border-radius: 4px;
+    opacity: 0.7;
+}
+
+#editMappingCommands::-webkit-scrollbar-thumb:hover {
+    opacity: 1;
+}
+
+#editMappingModal .form-label {
+    color: var(--text-primary) !important;
+    font-weight: 500 !important;
+}
+
+#editMappingModal .form-text {
+    color: var(--text-muted) !important;
+}
+
+/* Confirm Modal - Higher z-index to appear on top of other modals */
+#confirmModal {
+    z-index: 1110 !important;
+}
+
+#confirmModal .modal-backdrop {
+    z-index: 1109 !important;
+}
+
+#mappingManagementModal .modal-body,
+#createMappingModal .modal-body,
+#editMappingModal .modal-body {
+    color: var(--text-primary) !important;
+    background: transparent !important;
+}
+
+#mappingManagementModal .card,
+#createMappingModal .card,
+#editMappingModal .card {
+    background-color: rgba(0, 191, 255, 0.08) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+#mappingManagementModal .card-title,
+#createMappingModal .card-title,
+#editMappingModal .card-title {
+    color: var(--main-accent) !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+}
+
+/* Ensure consistent styling for all card headers in mapping management modal */
+#mappingManagementModal .card-header {
+    background: rgba(0, 191, 255, 0.1) !important;
+    border-bottom: 1px solid var(--glass-border-color) !important;
+    border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+    min-height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 1rem !important;
+}
+
+#mappingManagementModal .card-header .card-title {
+    color: var(--main-accent) !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    margin: 0 !important;
+    flex: 1 !important;
+}
+
+/* Ensure nested card headers (like Recent Batch Activity) also have consistent height */
+#mappingManagementModal .card .card .card-header {
+    min-height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 1rem !important;
+}
+
+#mappingManagementModal .table,
+#mappingManagementModal .table-dark,
+#createMappingModal .table,
+#createMappingModal .table-dark {
+    background-color: rgba(0, 0, 0, 0.3) !important;
+    border-color: var(--glass-border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+#mappingManagementModal .table th,
+#mappingManagementModal .table td,
+#mappingManagementModal .table-dark th,
+#mappingManagementModal .table-dark td,
+#createMappingModal .table th,
+#createMappingModal .table td,
+#createMappingModal .table-dark th,
+#createMappingModal .table-dark td {
+    border-color: var(--glass-border-color) !important;
+    color: var(--text-primary) !important;
+    background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+#mappingManagementModal .table thead th,
+#mappingManagementModal .table-dark thead th,
+#createMappingModal .table thead th,
+#createMappingModal .table-dark thead th {
+    background-color: rgba(0, 191, 255, 0.1) !important;
+    color: var(--main-accent) !important;
+    font-weight: 500 !important;
+}
+
+#mappingManagementModal .table-striped tbody tr:nth-of-type(odd),
+#createMappingModal .table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0, 191, 255, 0.05) !important;
+}
+
+#mappingManagementModal .table-hover tbody tr:hover,
+#createMappingModal .table-hover tbody tr:hover {
+    background-color: rgba(0, 191, 255, 0.15) !important;
+}
+
+#mappingManagementModal .text-muted,
+#createMappingModal .text-muted,
+#editMappingModal .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+#mappingManagementModal .badge,
+#createMappingModal .badge,
+#editMappingModal .badge {
+    background-color: var(--main-accent) !important;
+    color: var(--base-bg) !important;
+}
+
+#mappingManagementModal .badge.bg-success,
+#createMappingModal .badge.bg-success,
+#editMappingModal .badge.bg-success {
+    background-color: #28a745 !important;
+    color: #ffffff !important;
+}
+
+#mappingManagementModal .badge.bg-primary,
+#createMappingModal .badge.bg-primary,
+#editMappingModal .badge.bg-primary {
+    background-color: var(--main-accent) !important;
+    color: var(--base-bg) !important;
+}
+
+#mappingManagementModal .fw-bold,
+#createMappingModal .fw-bold,
+#editMappingModal .fw-bold {
+    color: var(--text-primary) !important;
+}
+
+#mappingManagementModal small,
+#createMappingModal small,
+#editMappingModal small {
+    color: var(--text-secondary) !important;
+}
+
+#mappingManagementModal .form-control,
+#createMappingModal .form-control,
+#editMappingModal .form-control {
+    background-color: rgba(0, 0, 0, 0.4) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+#mappingManagementModal .form-control:focus,
+#createMappingModal .form-control:focus,
+#editMappingModal .form-control:focus {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    border-color: var(--main-accent) !important;
+    color: var(--text-primary) !important;
+    box-shadow: 0 0 0 0.15rem rgba(0, 191, 255, 0.25) !important;
+}
+
+#mappingManagementModal .form-control::placeholder,
+#createMappingModal .form-control::placeholder,
+#editMappingModal .form-control::placeholder {
+    color: var(--text-muted) !important;
+}
+
+#mappingManagementModal .form-label,
+#createMappingModal .form-label,
+#editMappingModal .form-label {
+    color: var(--text-primary) !important;
+    font-weight: 500 !important;
+}
+
+/* Button styles for mapping modals */
+#mappingManagementModal .btn-outline-primary,
+#createMappingModal .btn-outline-primary,
+#editMappingModal .btn-outline-primary {
+    border-color: var(--main-accent) !important;
+    color: var(--main-accent) !important;
+}
+
+#mappingManagementModal .btn-outline-primary:hover,
+#createMappingModal .btn-outline-primary:hover,
+#editMappingModal .btn-outline-primary:hover {
+    background-color: var(--main-accent) !important;
+    color: white !important;
+}
+
+#mappingManagementModal .btn-outline-success,
+#createMappingModal .btn-outline-success,
+#editMappingModal .btn-outline-success {
+    border-color: #28a745 !important;
+    color: #28a745 !important;
+}
+
+#mappingManagementModal .btn-outline-success:hover,
+#createMappingModal .btn-outline-success:hover,
+#editMappingModal .btn-outline-success:hover {
+    background-color: #28a745 !important;
+    color: white !important;
+}
+
+#mappingManagementModal .btn-outline-info,
+#createMappingModal .btn-outline-info,
+#editMappingModal .btn-outline-info {
+    border-color: var(--main-accent) !important;
+    color: var(--main-accent) !important;
+}
+
+#mappingManagementModal .btn-outline-info:hover,
+#createMappingModal .btn-outline-info:hover,
+#editMappingModal .btn-outline-info:hover {
+    background-color: var(--main-accent) !important;
+    color: var(--base-bg) !important;
+}
+
+#mappingManagementModal .btn-outline-warning,
+#createMappingModal .btn-outline-warning,
+#editMappingModal .btn-outline-warning {
+    border-color: #ffc107 !important;
+    color: #ffc107 !important;
+}
+
+#mappingManagementModal .btn-outline-warning:hover,
+#createMappingModal .btn-outline-warning:hover,
+#editMappingModal .btn-outline-warning:hover {
+    background-color: #ffc107 !important;
+    color: var(--base-bg) !important;
+}
+
+#mappingManagementModal .btn-outline-danger,
+#createMappingModal .btn-outline-danger,
+#editMappingModal .btn-outline-danger {
+    border-color: #dc3545 !important;
+    color: #dc3545 !important;
+}
+
+#mappingManagementModal .btn-outline-danger:hover,
+#createMappingModal .btn-outline-danger:hover,
+#editMappingModal .btn-outline-danger:hover {
+    background-color: #dc3545 !important;
+    color: #ffffff !important;
+}
+
+/* No mappings message styling */
+#noMappingsMessage {
+    color: var(--text-secondary) !important;
+}
+
+#noMappingsMessage .fas {
+    color: var(--text-muted) !important;
+}
+
+#noMappingsMessage h5 {
+    color: var(--text-primary) !important;
+}
+
+/* Analytics Modal Styles */
+#analyticsModal .card {
+    background: linear-gradient(135deg, var(--glass-bg-color) 0%, rgba(0, 191, 255, 0.05) 100%) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    border-radius: var(--border-radius) !important;
+    backdrop-filter: blur(var(--glass-blur-amount)) !important;
+}
+
+#analyticsModal .card-header {
+    background: rgba(0, 191, 255, 0.1) !important;
+    border-bottom: 1px solid var(--glass-border-color) !important;
+    border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+    min-height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 1rem !important;
+}
+
+#analyticsModal .card-header .card-title {
+    color: var(--main-accent) !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    margin: 0 !important;
+    flex: 1 !important;
+}
+
+#analyticsModal .card-body {
+    background: var(--glass-bg-color) !important;
+    border-radius: 0 0 var(--border-radius) var(--border-radius) !important;
+    padding: 1.5rem !important;
+}
+
+#analyticsModal .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+#analyticsModal .recent-activity-container {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+#analyticsModal .recent-activity-list {
+    background: transparent !important;
+    border: none !important;
+}
+
+/* Token Usage Dashboard Styles */
+.token-dashboard-card {
+    background: linear-gradient(135deg, var(--glass-bg-color) 0%, rgba(0, 191, 255, 0.05) 100%) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    border-radius: var(--border-radius) !important;
+    backdrop-filter: blur(var(--glass-blur-amount)) !important;
+}
+
+.token-dashboard-card .card-header {
+    background: rgba(0, 191, 255, 0.1) !important;
+    border-bottom: 1px solid var(--glass-border-color) !important;
+    border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+    min-height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 1rem !important;
+}
+
+.token-dashboard-card .card-header .card-title {
+    color: var(--main-accent) !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    margin: 0 !important;
+    flex: 1 !important;
+}
+
+.token-metric-card {
+    background: rgba(0, 191, 255, 0.08) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+}
+
+.token-metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 191, 255, 0.1), transparent);
+    transition: left 0.5s ease;
+}
+
+.token-metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 191, 255, 0.2);
+    border-color: var(--main-accent);
+}
+
+.token-metric-card:hover::before {
+    left: 100%;
+}
+
+.metric-icon {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, var(--main-accent) 0%, rgba(0, 191, 255, 0.7) 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.5rem;
+    color: white;
+    animation: pulse-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-glow {
+    from {
+        box-shadow: 0 0 10px rgba(0, 191, 255, 0.5);
+    }
+    to {
+        box-shadow: 0 0 20px rgba(0, 191, 255, 0.8), 0 0 30px rgba(0, 191, 255, 0.3);
+    }
+}
+
+.metric-content {
+    flex: 1;
+}
+
+.metric-label {
+    color: var(--text-primary) !important;
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: block;
+    margin-top: 0.25rem;
+}
+
+.metric-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--main-accent);
+    margin: 0;
+    text-shadow: 0 0 10px rgba(0, 191, 255, 0.3);
+    animation: countUp 1s ease-out forwards;
+}
+
+@keyframes countUp {
+    from {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.metric-trend {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+    color: #ffffff !important; /* Ensure text is visible in dark theme */
+}
+
+.metric-trend span {
+    color: #ffffff !important; /* Ensure percentage text is visible */
+}
+
+.metric-trend i {
+    animation: bounce 1s ease-in-out infinite;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-3px);
+    }
+    60% {
+        transform: translateY(-1.5px);
+    }
+}
+
+/* Reduced motion: tone down or disable decorative animations */
+@media (prefers-reduced-motion: reduce) {
+    .navbar-brand { animation: none; }
+    .footer-gears .gear-1, .footer-gears .gear-2 { animation: none; }
+    .status-badge::before { animation: none; }
+    .futuristic-loader .loader-ring { animation: none; }
+    .futuristic-loader .loader-dot { animation: none; }
+    .futuristic-loader .signal { animation: none; }
+    .metric-icon { animation: none; }
+    .activity-item { animation: none; }
+    .chart-loading-spinner { animation: none; }
+}
+
+.chart-container {
+    background: rgba(0, 191, 255, 0.05) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 1.25rem;
+    height: 300px;
+    display: flex;
+    flex-direction: column;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.chart-container:hover {
+    background: rgba(0, 191, 255, 0.08) !important;
+    border-color: var(--main-accent);
+    box-shadow: 0 4px 15px rgba(0, 191, 255, 0.1);
+}
+
+.chart-title {
+    color: var(--main-accent) !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--glass-border-color);
+    padding-bottom: 0.5rem;
+    padding-top: 0.5rem;
+    min-height: 60px !important;
+    margin: 0 !important;
+}
+
+.chart-wrapper {
+    flex: 1;
+    position: relative;
+    min-height: 200px;
+}
+
+.timeline-chart {
+    min-height: 250px;
+}
+
+.recent-activity-container {
+    background: rgba(0, 0, 0, 0.2) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 1rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.recent-activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.activity-item {
+    background: rgba(0, 191, 255, 0.05) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 0.75rem;
+    display: flex;
+    align-items: center;
+    transition: all 0.3s ease;
+    animation: slideInFromRight 0.5s ease-out;
+}
+
+@keyframes slideInFromRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.activity-item:hover {
+    background: rgba(0, 191, 255, 0.1) !important;
+    border-color: var(--main-accent);
+    transform: translateX(5px);
+}
+
+.activity-icon {
+    width: 35px;
+    height: 35px;
+    background: linear-gradient(135deg, var(--main-accent), rgba(0, 191, 255, 0.7));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.75rem;
+    color: white;
+    font-size: 0.9rem;
+}
+
+.activity-content {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.activity-details {
+    color: var(--text-primary);
+}
+
+.activity-meta {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.activity-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.85rem;
+}
+
+.activity-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.activity-stat-value {
+    font-weight: 600;
+    color: var(--main-accent);
+}
+
+.activity-stat-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+/* Loading animations for charts */
+.chart-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.chart-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(0, 191, 255, 0.3);
+    border-top: 3px solid var(--main-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.chart-loading-text {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .token-metric-card {
+        margin-bottom: 1rem;
+    }
+    
+    .chart-container {
+        height: 250px;
+        margin-bottom: 1rem;
+    }
+    
+    .metric-value {
+        font-size: 1.5rem;
+    }
+    
+    .activity-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .activity-stats {
+        gap: 0.5rem;
+    }
+}
+
+/* Custom scrollbar for recent activity */
+.recent-activity-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.recent-activity-container::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+}
+
+.recent-activity-container::-webkit-scrollbar-thumb {
+    background: var(--main-accent);
+    border-radius: 3px;
+    opacity: 0.7;
+}
+
+.recent-activity-container::-webkit-scrollbar-thumb:hover {
+    opacity: 1;
+}
+
+/* Additional styles for recent activity items */
+.recent-activity-item {
+    background: rgba(0, 191, 255, 0.05) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.3s ease;
+    animation: slideInFromRight 0.5s ease-out;
+    margin-bottom: 0.75rem;
+}
+
+.recent-activity-item:hover {
+    background: rgba(0, 191, 255, 0.1) !important;
+    border-color: var(--main-accent);
+    transform: translateX(5px);
+}
+
+.recent-activity-item .activity-icon {
+    width: 35px;
+    height: 35px;
+    background: linear-gradient(135deg, var(--main-accent), rgba(0, 191, 255, 0.7));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.recent-activity-item .activity-content {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.recent-activity-item .activity-details {
+    color: var(--text-primary);
+}
+
+.recent-activity-item .activity-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.recent-activity-item .activity-description {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+
+.recent-activity-item .activity-time {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.recent-activity-item .activity-cost {
+    color: var(--main-accent);
+    font-weight: 600;
+    margin-left: 0.5rem;
+}
+
+.recent-activity-item .activity-metrics {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.recent-activity-item .metric-badge {
+    background: rgba(0, 191, 255, 0.1);
+    border: 1px solid var(--glass-border-color);
+    border-radius: 12px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--text-primary);
+}
+
+.recent-activity-item .metric-badge.tokens {
+    border-color: var(--main-accent);
+    color: var(--main-accent);
+}
+
+.recent-activity-item .metric-badge.cost {
+    border-color: #28a745;
+    color: #28a745;
+}
+
+.recent-activity-item.empty {
+    background: rgba(108, 117, 125, 0.1) !important;
+    border-color: rgba(108, 117, 125, 0.2) !important;
+    justify-content: center;
+    text-align: center;
+}
+
+.recent-activity-item.empty .activity-content {
+    flex-direction: column;
+    align-items: center;
+}
+
+.recent-activity-item.empty .activity-title {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.recent-activity-item.empty .activity-description {
+    color: var(--text-secondary);
+}
+
+/* Cache Management Modal Styles */
+#cacheModal .modal-content {
+    background-color: var(--glass-bg-color) !important;
+    border: 1px solid var(--glass-border-color) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--border-radius) !important;
+}
+
+#cacheModal .modal-header {
+    background: rgba(0, 191, 255, 0.05) !important;
+    border-bottom: 1px solid var(--glass-border-color) !important;
+}
+
+#cacheModal .modal-title {
+    color: var(--main-accent) !important;
+    font-weight: 500 !important;
+}
+
+#cacheModal .modal-body {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    padding: 1.5rem !important;
+}
+
+#cacheModal .alert-info {
+    background-color: rgba(0, 191, 255, 0.1) !important;
+    border: 1px solid rgba(0, 191, 255, 0.3) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--border-radius) !important;
+}
+
+#cacheModal .cache-button-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+#cacheModal .cache-action-btn {
+    background: rgba(220, 53, 69, 0.1) !important;
+    border: 2px solid rgba(220, 53, 69, 0.3) !important;
+    color: #dc3545 !important;
+    padding: 0.75rem 1rem !important;
+    border-radius: var(--border-radius) !important;
+    font-weight: 500 !important;
+    transition: all 0.3s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 50px !important;
+}
+
+#cacheModal .cache-action-btn:hover {
+    background: rgba(220, 53, 69, 0.2) !important;
+    border-color: rgba(220, 53, 69, 0.5) !important;
+    color: #ff6b7a !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.2) !important;
+}
+
+#cacheModal .cache-action-btn i {
+    margin-right: 0.5rem !important;
+    font-size: 1.1rem !important;
+}
+
+#cacheModal .all-clear-btn {
+    background: rgba(220, 53, 69, 0.8) !important;
+    border: 2px solid #dc3545 !important;
+    color: white !important;
+    width: 100% !important;
+    padding: 1rem !important;
+    font-size: 1.1rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+#cacheModal .all-clear-btn:hover {
+    background: #dc3545 !important;
+    border-color: #c82333 !important;
+    color: white !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4) !important;
+}
+
+#cacheModal .modal-footer {
+    border-top: 1px solid var(--glass-border-color) !important;
+    background: rgba(0, 0, 0, 0.1) !important;
+}
+
+#cacheModal .btn-secondary {
+    background-color: var(--text-muted) !important;
+    border: 1px solid var(--text-muted) !important;
+    color: var(--base-bg) !important;
+}
+
+#cacheModal .btn-secondary:hover {
+    background-color: var(--text-secondary) !important;
+    border-color: var(--text-secondary) !important;
+    color: var(--base-bg) !important;
 }

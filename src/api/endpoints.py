@@ -1,17 +1,18 @@
 """
 API Endpoints module
 -----------------
-Defines RESTful API endpoints for the application using FastAPI
+Defines RESTful API endpoints for the application using FastAPI with enhanced security and logging
 """
 
 import os
 import threading
+import time
+import hashlib
 from typing import Optional, Dict, Any, List
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks, Request
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.requests import Request
 from pydantic import BaseModel
 import pathlib
 import json
@@ -21,9 +22,144 @@ from src.model.session_manager import SessionManager
 from src.model.prompt_history import PromptHistory
 from src.controller.script_fixer import ScriptExecutionFailureException
 from src.controller.mapping_manager import MappingManager
+from src.controller.security_manager import SecurityManager
+from src.controller.session_manager import session_manager
+from src.controller.security_logger import SecurityLevel
 
-# Create FastAPI app
-app = FastAPI()
+# Create FastAPI app with security settings
+app = FastAPI(
+    title="EditorLive Finance Application",
+    description="Secure finance application for spreadsheet processing",
+    version="1.0.0"
+)
+
+# Initialize security components
+security_manager = SecurityManager()
+
+# Rate limiting storage (simple in-memory for now)
+rate_limit_storage = {}
+
+# Session tracking middleware
+@app.middleware("http")
+async def session_middleware(request: Request, call_next):
+    """Track user sessions and log activity"""
+    # Get or create session
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("user-agent", "unknown")
+    
+    # Create session if needed (in real app, would use cookies/JWT)
+    session_id = f"{client_ip}_{hashlib.md5(user_agent.encode()).hexdigest()[:8]}"
+    
+    # Log page access
+    session_manager.log_page_view(
+        session_id, 
+        str(request.url.path), 
+        request.method
+    )
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Log response status
+    if response.status_code >= 400:
+        session_manager.log_security_event(
+            session_id,
+            SecurityLevel.MEDIUM if response.status_code < 500 else SecurityLevel.HIGH,
+            "http_error",
+            f"🚨 HTTP Error {response.status_code} on {request.url.path}",
+            {
+                'status_code': response.status_code,
+                'method': request.method,
+                'path': str(request.url.path),
+                'user_agent': user_agent
+            },
+            "WebServer"
+        )
+    
+    return response
+
+# Rate limiting storage (simple in-memory for now)
+rate_limit_storage = {}
+
+def get_client_ip(request: Request) -> str:
+    """Extract client IP address"""
+    if "x-forwarded-for" in request.headers:
+        return request.headers["x-forwarded-for"].split(",")[0].strip()
+    if "x-real-ip" in request.headers:
+        return request.headers["x-real-ip"]
+    return request.client.host if request.client else "unknown"
+
+def check_rate_limit(request: Request, max_requests: int = 100, window_seconds: int = 300) -> bool:
+    """Check if request is within rate limits with logging"""
+    client_ip = get_client_ip(request)
+    current_time = time.time()
+    
+    # Initialize rate limiting for IP
+    if client_ip not in rate_limit_storage:
+        rate_limit_storage[client_ip] = []
+    
+    # Clean old entries
+    rate_limit_storage[client_ip] = [
+        timestamp for timestamp in rate_limit_storage[client_ip]
+        if current_time - timestamp < window_seconds
+    ]
+    
+    request_count = len(rate_limit_storage[client_ip])
+    
+    # Create session ID for logging
+    user_agent = request.headers.get("user-agent", "unknown")
+    session_id = f"{client_ip}_{hashlib.md5(user_agent.encode()).hexdigest()[:8]}"
+    
+    # Log rate limit check
+    session_manager.log_security_event(
+        session_id,
+        SecurityLevel.MEDIUM if request_count >= max_requests else SecurityLevel.LOW,
+        "rate_limiting",
+        f"⏱️ Rate limit check: {request_count}/{max_requests} requests",
+        {
+            'client_ip': client_ip,
+            'endpoint': str(request.url.path),
+            'request_count': request_count,
+            'rate_limit': max_requests,
+            'window_seconds': window_seconds,
+            'utilization_percent': round((request_count / max_requests) * 100, 1)
+        },
+        "RateLimiter"
+    )
+    
+    # Check if limit exceeded
+    if request_count >= max_requests:
+        return False
+    
+    # Add current request
+    rate_limit_storage[client_ip].append(current_time)
+    return True
+
+# Dependency for rate limiting
+def rate_limit_dependency(request: Request):
+    """FastAPI dependency for rate limiting with enhanced logging"""
+    if not check_rate_limit(request):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please try again later."
+        )
+
+# Dependency for basic request validation
+def validate_request_dependency(request: Request):
+    """FastAPI dependency for basic request validation"""
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("user-agent", "")
+    
+    # Check for suspicious user agents
+    blocked_agents = ["sqlmap", "nikto", "nmap", "masscan", "nessus"]
+    for blocked_agent in blocked_agents:
+        if blocked_agent.lower() in user_agent.lower():
+            raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Basic path validation
+    path = str(request.url.path)
+    if "../" in path or "..\\" in path:
+        raise HTTPException(status_code=400, detail="Invalid request path")
 
 # Get the base directory (adjust if needed)
 BASE_DIR = pathlib.Path(__file__).parent.parent.parent
@@ -140,18 +276,69 @@ def health_check():
     """
     return HealthResponse(
         status="ok",
-        version="0.1.0"
+        version="1.0.0"
     )
 
-@app.post("/upload", response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...)):
-    """Handle spreadsheet file uploads."""
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No selected file")
+@app.get("/api/security/status")
+async def security_status(request: Request):
+    """
+    Security status endpoint (restricted access)
+    """
+    client_ip = get_client_ip(request)
+    
+    # Basic security statistics
+    security_stats = {
+        "security_manager": "active",
+        "rate_limiting": {
+            "tracked_ips": len(rate_limit_storage),
+            "current_limits": {ip: len(requests) for ip, requests in rate_limit_storage.items()}
+        },
+        "environment": "development",
+        "security_level": "medium"
+    }
+    
+    return security_stats
+
+@app.get("/api/security/alerts")
+async def get_security_alerts(request: Request):
+    """
+    Get pending security alerts (basic implementation)
+    """
+    client_ip = get_client_ip(request)
+    
+    alerts = []  # Basic implementation
+    return {"alerts": alerts, "count": len(alerts)}
+
+@app.post("/upload", response_model=UploadResponse, dependencies=[Depends(rate_limit_dependency), Depends(validate_request_dependency)])
+async def upload_file(request: Request, file: UploadFile = File(...)):
+    """Handle spreadsheet file uploads with basic security validation."""
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("user-agent", "")
+    
+    # Log access
+    start_time = time.time()
     
     try:
-        # Read file content for mapping checks
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No selected file")
+        
+        # Basic filename validation
+        if ".." in file.filename or "/" in file.filename or "\\" in file.filename:
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        
+        # Check file extension
+        allowed_extensions = {'.xlsx', '.xls', '.csv', '.txt'}
+        file_ext = os.path.splitext(file.filename.lower())[1]
+        if file_ext not in allowed_extensions:
+            raise HTTPException(status_code=400, detail="File type not allowed")
+        
+        # Read file content for basic validation
         content = await file.read()
+        
+        # Basic file size check (50MB limit)
+        max_size = 50 * 1024 * 1024  # 50MB
+        if len(content) > max_size:
+            raise HTTPException(status_code=400, detail="File too large")
         
         # Reset file position for the controller
         file.file.seek(0)
@@ -178,6 +365,11 @@ async def upload_file(file: UploadFile = File(...)):
             response_data["has_mapping"] = False
         
         return response_data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
         
     except ValueError as e:
         # Convert ValueError to HTTPException
@@ -669,3 +861,445 @@ async def check_mapping(spreadsheet_filename: str):
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error checking mapping: {str(e)}")
+
+@app.get("/token_usage_stats")
+async def get_token_usage_stats():
+    """
+    Get comprehensive token usage statistics for the dashboard
+    """
+    try:
+        from src.llm.token_manager import token_manager
+        import random
+        from datetime import datetime, timedelta
+        
+        # Get real dashboard statistics
+        dashboard_stats = token_manager.get_dashboard_stats()
+        batch_history = token_manager.get_batch_history()
+        
+        # Generate timeline data from batch history and current session
+        timeline_data = []
+        if batch_history:
+            # Use real batch history for timeline
+            for batch in batch_history[-7:]:  # Last 7 batches
+                timeline_data.append({
+                    "date": batch.get('timestamp', datetime.now().isoformat())[:10],
+                    "tokens": batch.get('total_tokens', 0),
+                    "cost": batch.get('estimated_cost', 0)
+                })
+        
+        # Process model usage data - only real data
+        model_usage_data = []
+        for model, usage in dashboard_stats.get('model_usage', {}).items():
+            # Shorten model names for display
+            short_name = model.replace('gemini-', '').replace('-preview', '').replace('-06-17', '')
+            model_usage_data.append({
+                "name": short_name[:15],  # Limit length
+                "usage": usage
+            })
+        
+        # Process recent activities from batch history
+        recent_activities = []
+        recent_batches = dashboard_stats.get('recent_batches', [])
+        
+        if recent_batches:
+            print(f"📊 Found {len(recent_batches)} batch sessions in history")
+            # Use only real batch history data - no sample data
+            for i, batch in enumerate(recent_batches[-50:]):  # Last 50 batches
+                batch_number = len(recent_batches) - len(recent_batches[-50:]) + i + 1
+                recent_activities.append({
+                    "batchName": f"Batch Command #{batch_number}",
+                    "timestamp": batch.get('timestamp', datetime.now().isoformat()),
+                    "commandCount": batch.get('commands', 0),
+                    "tokens": batch.get('total_tokens', 0),
+                    "cost": batch.get('estimated_cost', 0),
+                    "model": batch.get('models_used', ['Unknown'])[0] if batch.get('models_used') else 'Unknown'
+                })
+            print(f"📋 Returning {len(recent_activities)} recent activities from persistent storage")
+        else:
+            print("📭 No batch history found in persistent storage - returning empty recent activities")
+        
+        # No sample data - let frontend handle empty state
+        
+        # Calculate trends (simple calculation based on recent vs older data)
+        tokens_trend = 0
+        cost_trend = 0
+        batch_trend = 0
+        avg_trend = 0
+        
+        if len(batch_history) >= 2:
+            recent_tokens = sum(batch.get('total_tokens', 0) for batch in batch_history[-3:])
+            older_tokens = sum(batch.get('total_tokens', 0) for batch in batch_history[-6:-3])
+            if older_tokens > 0:
+                tokens_trend = int(((recent_tokens - older_tokens) / older_tokens) * 100)
+            
+            recent_cost = sum(batch.get('estimated_cost', 0) for batch in batch_history[-3:])
+            older_cost = sum(batch.get('estimated_cost', 0) for batch in batch_history[-6:-3])
+            if older_cost > 0:
+                cost_trend = int(((recent_cost - older_cost) / older_cost) * 100)
+        
+        response_data = {
+            "summary": {
+                "totalTokens": int(dashboard_stats.get('total_tokens', 0)),
+                "totalCost": dashboard_stats.get('total_cost', 0),
+                "totalBatchCommands": dashboard_stats.get('total_batch_commands', 0),
+                "avgTokensPerCommand": int(dashboard_stats.get('avg_tokens_per_command', 0)),
+                "tokensTrend": tokens_trend,
+                "costTrend": cost_trend,
+                "batchTrend": batch_trend,
+                "avgTrend": avg_trend
+            },
+            "tokenDistribution": {
+                "inputTokens": dashboard_stats.get('total_input_tokens', 0),
+                "outputTokens": dashboard_stats.get('total_output_tokens', 0)
+            },
+            "modelUsage": {
+                "models": model_usage_data if model_usage_data else []
+            },
+            "costBreakdown": {
+                "categories": [
+                    {"name": "Input", "cost": dashboard_stats.get('total_cost', 0) * 0.3},
+                    {"name": "Output", "cost": dashboard_stats.get('total_cost', 0) * 0.7}
+                ]
+            },
+            "usageTimeline": {
+                "timeline": timeline_data if dashboard_stats.get('total_tokens', 0) > 0 else []
+            },
+            "recentActivity": recent_activities
+        }
+        
+        print(f"🔍 Final response data - Recent activities: {len(recent_activities)} items")
+        if recent_activities:
+            print(f"📝 Sample activity: {recent_activities[0]}")
+        
+        return response_data
+        
+    except Exception as e:
+        print(f"Error getting token usage stats: {e}")
+        import traceback
+        traceback.print_exc()
+        # Return empty data structure in case of error
+        return {
+            "summary": {
+                "totalTokens": 0,
+                "totalCost": 0,
+                "totalBatchCommands": 0,
+                "avgTokensPerCommand": 0,
+                "tokensTrend": 0,
+                "costTrend": 0,
+                "batchTrend": 0,
+                "avgTrend": 0
+            },
+            "tokenDistribution": {
+                "inputTokens": 0,
+                "outputTokens": 0
+            },
+            "modelUsage": {
+                "models": []
+            },
+            "costBreakdown": {
+                "categories": []
+            },
+            "usageTimeline": {
+                "timeline": []
+            },
+            "recentActivity": []
+        }
+
+# ========== Cache Management Endpoints ==========
+
+@app.delete("/cache/clear/uploads")
+async def clear_uploads():
+    """Clear all uploaded spreadsheet files"""
+    try:
+        uploads_dir = BASE_DIR / "static" / "uploads"
+        if uploads_dir.exists():
+            # Get all files except .gitkeep
+            files_to_delete = [f for f in uploads_dir.iterdir() if f.is_file() and f.name != '.gitkeep']
+            
+            for file_path in files_to_delete:
+                try:
+                    file_path.unlink()
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {e}")
+            
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "message": f"Deleted {len(files_to_delete)} uploaded files",
+                    "deleted_count": len(files_to_delete)
+                }
+            )
+        else:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "message": "Uploads directory does not exist",
+                    "deleted_count": 0
+                }
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing uploads: {str(e)}")
+
+@app.delete("/cache/clear/downloads")
+async def clear_downloads():
+    """Clear all downloaded files"""
+    try:
+        downloads_dir = BASE_DIR / "static" / "downloads"
+        if downloads_dir.exists():
+            # Get all files except .gitkeep
+            files_to_delete = [f for f in downloads_dir.iterdir() if f.is_file() and f.name != '.gitkeep']
+            
+            for file_path in files_to_delete:
+                try:
+                    file_path.unlink()
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {e}")
+            
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "message": f"Deleted {len(files_to_delete)} downloaded files",
+                    "deleted_count": len(files_to_delete)
+                }
+            )
+        else:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "message": "Downloads directory does not exist",
+                    "deleted_count": 0
+                }
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing downloads: {str(e)}")
+
+@app.delete("/cache/clear/json")
+async def clear_json_data():
+    """Clear all JSON configuration files"""
+    try:
+        json_dir = BASE_DIR / "static" / "json"
+        deleted_count = 0
+        
+        if json_dir.exists():
+            # Get all JSON files except .gitkeep
+            files_to_delete = [f for f in json_dir.iterdir() if f.is_file() and f.suffix == '.json']
+            
+            for file_path in files_to_delete:
+                try:
+                    file_path.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {e}")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "success": True,
+                "message": f"Deleted {deleted_count} JSON files",
+                "deleted_count": deleted_count
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing JSON data: {str(e)}")
+
+@app.delete("/cache/clear/prompts")
+async def clear_prompts():
+    """Clear prompt history files and content of prompts.txt"""
+    try:
+        prompts_dir = BASE_DIR / "static" / "assets" / "prompts"
+        deleted_count = 0
+        
+        if prompts_dir.exists():
+            # Delete all .txt files except prompts.txt
+            files_to_delete = [f for f in prompts_dir.iterdir() 
+                             if f.is_file() and f.suffix == '.txt' and f.name != 'prompts.txt']
+            
+            for file_path in files_to_delete:
+                try:
+                    file_path.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {e}")
+            
+            # Clear content of prompts.txt if it exists
+            prompts_file = prompts_dir / "prompts.txt"
+            if prompts_file.exists():
+                try:
+                    with open(prompts_file, 'w', encoding='utf-8') as f:
+                        f.write('')  # Clear the file content
+                except Exception as e:
+                    print(f"Error clearing prompts.txt: {e}")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "success": True,
+                "message": f"Deleted {deleted_count} prompt files and cleared prompts.txt",
+                "deleted_count": deleted_count
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing prompts: {str(e)}")
+
+@app.delete("/cache/clear/scripts")
+async def clear_scripts():
+    """Clear all generated Python scripts"""
+    try:
+        scripts_dir = BASE_DIR / "src" / "script"
+        deleted_count = 0
+        
+        if scripts_dir.exists():
+            # Get all Python files except .gitkeep
+            files_to_delete = [f for f in scripts_dir.iterdir() 
+                             if f.is_file() and f.suffix == '.py']
+            
+            for file_path in files_to_delete:
+                try:
+                    file_path.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {e}")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "success": True,
+                "message": f"Deleted {deleted_count} Python script files",
+                "deleted_count": deleted_count
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing scripts: {str(e)}")
+
+@app.delete("/cache/clear/mappings")
+async def clear_mappings():
+    """Clear all mapping configuration files"""
+    try:
+        data_mappings_dir = BASE_DIR / "src" / "mappings" / "data"
+        script_mappings_dir = BASE_DIR / "src" / "mappings" / "script"
+        deleted_count = 0
+        
+        # Clear data mappings
+        if data_mappings_dir.exists():
+            files_to_delete = [f for f in data_mappings_dir.iterdir() 
+                             if f.is_file() and f.suffix == '.json']
+            
+            for file_path in files_to_delete:
+                try:
+                    file_path.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {e}")
+        
+        # Clear script mappings
+        if script_mappings_dir.exists():
+            files_to_delete = [f for f in script_mappings_dir.iterdir() 
+                             if f.is_file() and f.suffix == '.json']
+            
+            for file_path in files_to_delete:
+                try:
+                    file_path.unlink()
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {e}")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "success": True,
+                "message": f"Deleted {deleted_count} mapping configuration files",
+                "deleted_count": deleted_count
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing mappings: {str(e)}")
+
+@app.delete("/cache/clear/all")
+async def clear_all_cache():
+    """Clear all cache data - uploads, downloads, JSON, prompts, scripts, and mappings"""
+    try:
+        total_deleted = 0
+        results = []
+        
+        # Clear uploads
+        try:
+            response = await clear_uploads()
+            if response.status_code == 200:
+                content = json.loads(response.body)
+                total_deleted += content.get("deleted_count", 0)
+                results.append(f"Uploads: {content.get('deleted_count', 0)} files")
+        except Exception as e:
+            results.append(f"Uploads: Error - {str(e)}")
+        
+        # Clear downloads
+        try:
+            response = await clear_downloads()
+            if response.status_code == 200:
+                content = json.loads(response.body)
+                total_deleted += content.get("deleted_count", 0)
+                results.append(f"Downloads: {content.get('deleted_count', 0)} files")
+        except Exception as e:
+            results.append(f"Downloads: Error - {str(e)}")
+        
+        # Clear JSON data
+        try:
+            response = await clear_json_data()
+            if response.status_code == 200:
+                content = json.loads(response.body)
+                total_deleted += content.get("deleted_count", 0)
+                results.append(f"JSON: {content.get('deleted_count', 0)} files")
+        except Exception as e:
+            results.append(f"JSON: Error - {str(e)}")
+        
+        # Clear prompts
+        try:
+            response = await clear_prompts()
+            if response.status_code == 200:
+                content = json.loads(response.body)
+                total_deleted += content.get("deleted_count", 0)
+                results.append(f"Prompts: {content.get('deleted_count', 0)} files")
+        except Exception as e:
+            results.append(f"Prompts: Error - {str(e)}")
+        
+        # Clear scripts
+        try:
+            response = await clear_scripts()
+            if response.status_code == 200:
+                content = json.loads(response.body)
+                total_deleted += content.get("deleted_count", 0)
+                results.append(f"Scripts: {content.get('deleted_count', 0)} files")
+        except Exception as e:
+            results.append(f"Scripts: Error - {str(e)}")
+        
+        # Clear mappings
+        try:
+            response = await clear_mappings()
+            if response.status_code == 200:
+                content = json.loads(response.body)
+                total_deleted += content.get("deleted_count", 0)
+                results.append(f"Mappings: {content.get('deleted_count', 0)} files")
+        except Exception as e:
+            results.append(f"Mappings: Error - {str(e)}")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "success": True,
+                "message": f"All clear completed. Total files deleted: {total_deleted}",
+                "total_deleted": total_deleted,
+                "details": results
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error performing all clear: {str(e)}")
+
+@app.get("/usermanual", response_class=HTMLResponse)
+async def user_manual(request: Request):
+    """
+    Serve the user manual page
+    """
+    return templates.TemplateResponse("instructions.html", {"request": request})

@@ -81,39 +81,59 @@ function renderSingleSheet(sheetObj) {
         manualColumnResize: true,
         manualRowResize: true,
         className: 'htDark',
+        // FIX: prevent header/body misalignment by fixing row heights
+        autoRowSize: false,
+        rowHeights: 28,
+        wordWrap: false,
         outsideClickDeselects: false,
         multiSelect: true,
         fillHandle: true,
         afterRender: function() {
             this.rootElement.classList.add('handsontable-dark');
+            scheduleHeaderRefresh(this); // will re-render with hooks
         },
         afterSelection: function(r, c, r2, c2, preventScrolling, selectionLayerLevel) {
             updateCellSelector(this.getSelected());
+            const selection = this.getSelected();
+            if (selection && selection.length > 0) {
+                highlightHeaders(this, selection); // store ranges + render
+            }
+        },
+        afterInit: function() {
+            this.selectCell(0, 0);
+            setTimeout(() => {
+                const selection = this.getSelected();
+                if (selection && selection.length > 0) {
+                    highlightHeaders(this, selection);
+                }
+            }, 100);
+        },
+        afterScrollHorizontally: function() {
+            scheduleHeaderRefresh(this); // re-render keeps highlights
+        },
+        afterScrollVertically: function() {
+            scheduleHeaderRefresh(this); // re-render keeps highlights
         },
         afterDeselect: function() {
             const currentSelection = this.getSelected();
             if (!currentSelection || currentSelection.length === 0) {
                 clearCellSelector();
+                clearHeaderHighlights(this); // clears instance state + render
             }
         },
-        afterInit: function() {
-            this.selectCell(0, 0);
+        // Apply highlight via render hooks (works across clones/virtualization)
+        afterGetColHeader: function(col, TH) {
+            if (Array.isArray(this.__currentSelectionRanges) && isColSelected(this.__currentSelectionRanges, col)) {
+                TH.classList.add('highlighted-header');
+            } else {
+                TH.classList.remove('highlighted-header');
+            }
         },
-        afterChange: function(changes, source) {
-            if (source === 'loadData') return;
-            if (!changes) return;
-            if (source !== 'undo' && source !== 'redo') {
-                const changeData = {
-                    type: 'cell',
-                    changes: changes.map(([row, prop, oldValue, newValue]) => ({
-                        row: row + 1, // Adjust for headers row that was removed from frontend display
-                        col: typeof prop === 'string' ? this.propToCol(prop) : prop,
-                        oldValue,
-                        newValue
-                    }))
-                };
-                pendingChanges.push(changeData);
-                submitPendingChanges();
+        afterGetRowHeader: function(row, TH) {
+            if (Array.isArray(this.__currentSelectionRanges) && isRowSelected(this.__currentSelectionRanges, row)) {
+                TH.classList.add('highlighted-header');
+            } else {
+                TH.classList.remove('highlighted-header');
             }
         },
         afterCreateRow: function(index, amount, source) {
@@ -183,7 +203,11 @@ function renderSingleSheet(sheetObj) {
 
     if (sheetObj.modified_cells && sheetObj.modified_cells.length > 0) {
         console.log(`Triggering highlighting for ${sheetObj.modified_cells.length} modified cells:`, sheetObj.modified_cells);
-        highlightModifiedCells(sheetObj.modified_cells);
+        // Check if this is a batch command or single AI command
+        // For batch commands, show scroll animation; for single AI commands, don't
+        const showScrollAnimation = window.isBatchCommandMode || false;
+        console.log('🎬 Animation decision - batch mode:', window.isBatchCommandMode, '| Show scroll animation:', showScrollAnimation);
+        highlightModifiedCells(sheetObj.modified_cells, showScrollAnimation);
     }
 }
 
@@ -298,6 +322,12 @@ function generateExcelColHeaders(count) {
 async function animateScrollThroughCells(hotInstance, cells) {
     if (!hotInstance || cells.length === 0) return;
     
+    // Check if instance is destroyed before starting animation
+    if (hotInstance.isDestroyed !== undefined && hotInstance.isDestroyed) {
+        console.warn('Cannot animate scroll - Handsontable instance has been destroyed');
+        return;
+    }
+    
     console.log(`📜 Starting scroll animation through ${cells.length} modified cells`);
     
     // Sort cells by row then column for logical scrolling order
@@ -325,6 +355,12 @@ async function animateScrollThroughCells(hotInstance, cells) {
         
         if (typeof row !== 'number' || typeof col !== 'number') continue;
         if (row < 0 || col < 0) continue;
+        
+        // Check if instance is still valid before each operation
+        if (hotInstance.isDestroyed !== undefined && hotInstance.isDestroyed) {
+            console.warn('Animation stopped - Handsontable instance was destroyed');
+            break;
+        }
         
         try {
             // Remove previous focus styling
@@ -364,9 +400,12 @@ async function animateScrollThroughCells(hotInstance, cells) {
     setTimeout(() => {
         if (previousFocusCell) {
             try {
-                const lastTd = hotInstance.getCell(previousFocusCell[0], previousFocusCell[1]);
-                if (lastTd) {
-                    lastTd.classList.remove('scroll-focus');
+                // Check if instance is still valid before cleanup
+                if (hotInstance && hotInstance.isDestroyed !== undefined && !hotInstance.isDestroyed) {
+                    const lastTd = hotInstance.getCell(previousFocusCell[0], previousFocusCell[1]);
+                    if (lastTd) {
+                        lastTd.classList.remove('scroll-focus');
+                    }
                 }
             } catch (error) {
                 // Ignore errors in cleanup
@@ -380,14 +419,19 @@ async function animateScrollThroughCells(hotInstance, cells) {
     if (cellsToScrollTo.length > 1) {
         setTimeout(() => {
             try {
-                // Scroll to show the first few modified cells in view
-                const firstCell = cellsToScrollTo[0];
-                hotInstance.scrollViewportTo(firstCell[0], firstCell[1], true, true);
-                
-                // Clear selection after the animation
-                setTimeout(() => {
-                    hotInstance.deselectCell();
-                }, 300);
+                // Check if instance is still valid before using it
+                if (hotInstance && !hotInstance.isDestroyed && hotInstance.isDestroyed !== undefined) {
+                    // Scroll to show the first few modified cells in view
+                    const firstCell = cellsToScrollTo[0];
+                    hotInstance.scrollViewportTo(firstCell[0], firstCell[1], true, true);
+                    
+                    // Clear selection after the animation
+                    setTimeout(() => {
+                        if (hotInstance && !hotInstance.isDestroyed && hotInstance.isDestroyed !== undefined) {
+                            hotInstance.deselectCell();
+                        }
+                    }, 300);
+                }
             } catch (error) {
                 console.warn('Could not complete final scroll positioning:', error);
             }
@@ -396,7 +440,9 @@ async function animateScrollThroughCells(hotInstance, cells) {
         // For single cell, just clear selection after a brief moment
         setTimeout(() => {
             try {
-                hotInstance.deselectCell();
+                if (hotInstance && !hotInstance.isDestroyed && hotInstance.isDestroyed !== undefined) {
+                    hotInstance.deselectCell();
+                }
             } catch (error) {
                 // Ignore errors
             }
@@ -439,10 +485,11 @@ function optimizeScrollPath(sortedCells) {
     return optimized;
 }
 
-function highlightModifiedCells(modifiedCells) {
+function highlightModifiedCells(modifiedCells, showScrollAnimation = true) {
     if (!modifiedCells || modifiedCells.length === 0) return;
     
     console.log(`🎨 Processing ${modifiedCells.length} modified cells:`, modifiedCells);
+    console.log('🎬 Scroll animation enabled:', showScrollAnimation);
     
     // No need to adjust cell coordinates anymore since we're not removing header row
     const adjustedCells = modifiedCells;
@@ -455,8 +502,8 @@ function highlightModifiedCells(modifiedCells) {
         // Show status message for the entire modification process
         updateStatus('Applying Modifications', 'processing');
         
-        // First, animate scrolling through the modified cells (without highlighting)
-        if (cells.length > 0) {
+        // First, animate scrolling through the modified cells (without highlighting) - only if enabled
+        if (showScrollAnimation && cells.length > 0) {
             await animateScrollThroughCells(hotInstance, cells);
         }
         
@@ -580,6 +627,8 @@ export function toggleSplitView() {
             if (editableHotInstance) {
                 editableHotInstance.destroy();
                 editableHotInstance = null;
+                // Keep global in sync
+                window.editableHotInstance = null;
             }
         }
         
@@ -661,8 +710,68 @@ export function toggleSplitView() {
             manualColumnResize: true,
             manualRowResize: true,
             className: 'htDark',
+            // FIX: same row sizing rules for the editable pane
+            autoRowSize: false,
+            rowHeights: 28,
+            wordWrap: false,
             afterRender: function() {
                 this.rootElement.classList.add('handsontable-dark');
+                scheduleHeaderRefresh(this); // re-render keeps highlights
+            },
+            afterInit: function() {
+                this.selectCell(0, 0);
+                setTimeout(() => {
+                    const selection = this.getSelected();
+                    if (selection && selection.length > 0) {
+                        highlightHeaders(this, selection);
+                    }
+                }, 100);
+            },
+            afterSelection: function(r, c, r2, c2, preventScrolling, selectionLayerLevel) {
+                const selection = this.getSelected();
+                if (selection && selection.length > 0) {
+                    highlightHeaders(this, selection);
+                }
+            },
+            afterDeselect: function() {
+                const currentSelection = this.getSelected();
+                if (!currentSelection || currentSelection.length === 0) {
+                    clearHeaderHighlights(this);
+                }
+            },
+            afterScrollHorizontally: function() {
+                scheduleHeaderRefresh(this);
+            },
+            afterScrollVertically: function() {
+                scheduleHeaderRefresh(this);
+            },
+            // NEW: header render hooks for editable instance
+            afterGetColHeader: function(col, TH) {
+                if (Array.isArray(this.__currentSelectionRanges) && isColSelected(this.__currentSelectionRanges, col)) {
+                    TH.classList.add('highlighted-header');
+                } else {
+                    TH.classList.remove('highlighted-header');
+                }
+            },
+            afterGetRowHeader: function(row, TH) {
+                if (Array.isArray(this.__currentSelectionRanges) && isRowSelected(this.__currentSelectionRanges, row)) {
+                    TH.classList.add('highlighted-header');
+                } else {
+                    TH.classList.remove('highlighted-header');
+                }
+            },
+            contextMenu: {
+                items: {
+                    'row_above': {name: 'Insert row above'},
+                    'row_below': {name: 'Insert row below'},
+                    'col_left': {name: 'Insert column left'},
+                    'col_right': {name: 'Insert column right'},
+                    'remove_row': {name: 'Remove row'},
+                    'remove_col': {name: 'Remove column'},
+                    'separator1': '---------',
+                    'undo': {name: 'Undo'},
+                    'redo': {name: 'Redo'}
+                }
             }
         };
         
@@ -672,7 +781,9 @@ export function toggleSplitView() {
             editableSettings
         );
         rightContent.hotInstance = editableHotInstance;
-        
+        // Expose globally for other modules that read it
+        window.editableHotInstance = editableHotInstance;
+
         // Update button icon and status
         const splitViewBtn = document.getElementById('splitViewBtn');
         if (splitViewBtn) {
@@ -764,18 +875,48 @@ export function generateActionPlanLog(leftData, rightData) {
     return 'No changes detected.';
 }
 
-// Add getter for split view state
-export function isSplitViewEnabled() {
-    return isSplitViewActive;
+// New: helpers to normalize ranges and test header membership
+function normalizeSelectionRanges(selection) {
+    if (!Array.isArray(selection)) return null;
+    // selection is array of [startRow, startCol, endRow, endCol]
+    return selection.map(([r1, c1, r2, c2]) => ([
+        Math.min(r1, r2), Math.min(c1, c2),
+        Math.max(r1, r2), Math.max(c1, c2)
+    ]));
+}
+function isColSelected(ranges, col) {
+    if (typeof col !== 'number') return false;
+    for (const [sr, sc, er, ec] of ranges) {
+        if (col >= sc && col <= ec) return true;
+    }
+    return false;
+}
+function isRowSelected(ranges, row) {
+    if (typeof row !== 'number') return false;
+    for (const [sr, sc, er, ec] of ranges) {
+        if (row >= sr && row <= er) return true;
+    }
+    return false;
 }
 
-// Add getter for the editable instance
-export function getEditableInstance() {
-    return editableHotInstance;
+/**
+ * Highlight column and row headers for the selected cell range
+ * Refactored: persist ranges on instance and re-render; hooks add classes.
+ */
+function highlightHeaders(hotInstance, selection) {
+    if (!hotInstance || !selection || selection.length === 0) return;
+    hotInstance.__currentSelectionRanges = normalizeSelectionRanges(selection);
+    hotInstance.render();
 }
 
-// Export highlighting function for use by other modules
-export { highlightModifiedCells };
+/**
+ * Clear all header highlights (instance-driven)
+ */
+function clearHeaderHighlights(hotInstance) {
+    if (!hotInstance) return;
+    hotInstance.__currentSelectionRanges = null;
+    hotInstance.render();
+}
 
 // Utility function to manually highlight specific cells
 export function highlightCells(cells) {
@@ -792,7 +933,9 @@ export function highlightCells(cells) {
     }).filter(cell => cell !== null);
     
     if (formattedCells.length > 0) {
-        highlightModifiedCells(formattedCells);
+        const showScrollAnimation = window.isBatchCommandMode || false;
+        console.log('🎬 Manual highlight - batch mode:', window.isBatchCommandMode, '| Show scroll animation:', showScrollAnimation);
+        highlightModifiedCells(formattedCells, showScrollAnimation);
     }
 }
 
@@ -822,4 +965,38 @@ if (typeof window !== 'undefined') {
         const scatteredCells = [[0, 0], [5, 3], [10, 1], [15, 4], [20, 2], [25, 5]];
         highlightCells(scatteredCells);
     };
+}
+
+/**
+ * Debounced refresh of header highlights for current selection.
+ * Re-runs render so hooks re-apply classes.
+ */
+function refreshHeaderHighlights(hotInstance) {
+    if (!hotInstance || hotInstance.isDestroyed) return;
+    const selection = hotInstance.getSelected();
+    if (selection && selection.length > 0) {
+        highlightHeaders(hotInstance, selection);
+    } else {
+        clearHeaderHighlights(hotInstance);
+    }
+}
+
+function scheduleHeaderRefresh(hotInstance) {
+    if (!hotInstance || hotInstance.isDestroyed) return;
+    if (hotInstance.__headerRaf) {
+        cancelAnimationFrame(hotInstance.__headerRaf);
+    }
+    hotInstance.__headerRaf = requestAnimationFrame(() => {
+        refreshHeaderHighlights(hotInstance);
+        hotInstance.__headerRaf = null;
+    });
+}
+
+// Add back missing exports used by main.js
+export function isSplitViewEnabled() {
+    return isSplitViewActive;
+}
+
+export function getEditableInstance() {
+    return editableHotInstance;
 }

@@ -288,7 +288,7 @@ class SpreadsheetController:
             if use_advanced_processing:
                 # Use advanced execution with universal transformation patterns
                 new_df, modified_cells = self.script_executor.execute_script(
-                    script, 
+                    script,
                     current_df.copy(),  # Use current_df instead of current_spreadsheet.get_data()
                     file_manager=self.file_manager,
                     session_id=session_id  # Pass session_id for structure tracking
@@ -296,22 +296,59 @@ class SpreadsheetController:
             else:
                 # Use simple execution for AI Command Interface (no universal patterns)
                 new_df, modified_cells = self.script_executor.execute_simple_script(
-                    script, 
+                    script,
                     current_df.copy(),  # Use current_df instead of current_spreadsheet.get_data()
                     command,
                     file_manager=self.file_manager,
                     session_id=session_id  # Pass session_id for structure tracking
                 )
         except Exception as e:
-            # Script execution failed after going through debugging pipeline
-            print(f"❌ [SCRIPT EXECUTION] Command failed after debugging pipeline: {command}")
-            print(f"   Error details: {str(e)}")
-            # Provide clear, actionable error message
+            # First attempt failed; try a single LLM-guided retry with error feedback (no deterministic logic)
+            print(f"❌ [SCRIPT EXECUTION] First attempt failed for command: {command}")
             error_details = str(e)
-            if "ScriptExecutionFailureException" in str(type(e)):
-                # If this is already our custom exception, preserve its details
-                error_details = e.error_details if hasattr(e, 'error_details') else str(e)
-            raise ScriptExecutionFailureException(command, error_details)
+            if "ScriptExecutionFailureException" in str(type(e)) and hasattr(e, 'error_details'):
+                error_details = e.error_details
+
+            try:
+                print("🔁 [RETRY] Regenerating script with error feedback...")
+                retry_script = self.llm_service.generate_script_with_error_feedback(
+                    spreadsheet_json, command, error_details, use_advanced_processing
+                )
+
+                # Save the regenerated script as well
+                retry_script_id = self.script_manager.save_script(retry_script, {
+                    'command': command,
+                    'session_id': session_id,
+                    'use_advanced_processing': use_advanced_processing,
+                    'retry': True,
+                    'error_feedback': error_details[:500]
+                })
+                session.set_generated_script(retry_script)
+
+                if use_advanced_processing:
+                    new_df, modified_cells = self.script_executor.execute_script(
+                        retry_script,
+                        current_df.copy(),
+                        file_manager=self.file_manager,
+                        session_id=session_id
+                    )
+                else:
+                    new_df, modified_cells = self.script_executor.execute_simple_script(
+                        retry_script,
+                        current_df.copy(),
+                        command,
+                        file_manager=self.file_manager,
+                        session_id=session_id
+                    )
+
+                print("✅ [RETRY] Retry succeeded after providing error feedback to LLM")
+            except Exception as retry_err:
+                print(f"❌ [RETRY] Retry failed: {retry_err}")
+                # Provide clear, actionable error message
+                retry_details = str(retry_err)
+                if "ScriptExecutionFailureException" in str(type(retry_err)) and hasattr(retry_err, 'error_details'):
+                    retry_details = retry_err.error_details
+                raise ScriptExecutionFailureException(command, retry_details)
         
         # Create new spreadsheet state
         new_spreadsheet = Spreadsheet(
@@ -799,9 +836,22 @@ class SpreadsheetController:
         if not session:
             raise ValueError("Session not found or expired")
         
-        # Execute each command
-        for command in commands:
-            self.process_command(session_id, command)
+        # Start batch mode for token tracking if there are multiple commands
+        if len(commands) > 1:
+            token_manager.start_batch_mode()
+            print(f"🚀 Starting batch execution of {len(commands)} commands...")
+        
+        try:
+            # Execute each command
+            for i, command in enumerate(commands, 1):
+                if len(commands) > 1:
+                    print(f"📝 Processing command {i}/{len(commands)}: {command[:50]}{'...' if len(command) > 50 else ''}")
+                self.process_command(session_id, command)
+        finally:
+            # End batch mode and print summary if it was a batch
+            if len(commands) > 1:
+                token_manager.end_batch_mode()
+                print(f"✅ Completed batch execution of {len(commands)} commands")
     
     def generate_and_execute_algorithm(self, session_id: str, action_plan: str, left_data: list, right_data: list) -> Dict[str, Any]:
         """

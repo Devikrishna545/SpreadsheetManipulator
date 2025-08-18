@@ -245,7 +245,8 @@ export async function createMapping(spreadsheetFilename, commandFilename, comman
         return await response.json();
     } catch (error) {
         showError(`Error creating mapping: ${error.message}`);
-        return null;
+        // Return a consistent error response format instead of null
+        return { success: false, error: error.message };
     }
 }
 

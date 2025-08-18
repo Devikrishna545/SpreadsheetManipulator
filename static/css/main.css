@@ -18,7 +18,7 @@
     --glass-border-color: rgba(0, 191, 255, 0.25); /* Slightly brighter border */
     --glass-blur-amount: 6px; /* Slightly more blur with higher transparency */
 
-    --sidebar-width: 300px; 
+    --sidebar-width: 300px;
     --sidebar-collapsed-width: 60px; /* Width when sidebar is collapsed */
     --border-radius: 10px; 
     --transition-fast: all 0.2s ease-in-out;
@@ -26,6 +26,9 @@
     
     /* New variables for layout calculations */
     --navbar-height: 56px;
+    --header-border-width: 1px;
+    --footer-height: 44px;
+    --footer-border-width: 1px;
     --command-section-height: 170px; /* Approximate height of command section */
 }
 
@@ -61,15 +64,6 @@ body.dark-theme {
     max-width: 120px;
     line-height: 1.2;
     margin-top: 2px;
-}
-
-/* Make column headers taller to accommodate both rows */
-.handsontable .htCore th {
-    padding: 1px 2px 4px 2px;
-    height: auto;
-    min-height: 40px;
-    vertical-align: top;
-    position: relative;
 }
 
 /* Make sure column resize handle appears at the bottom */
@@ -163,10 +157,65 @@ body.dark-theme {
 .spreadsheet-body.custom-scrollbar {
     overflow: auto !important;
     /* Inherit all custom-scrollbar styles */
-    padding-bottom: 48px; /* Add enough space for the sheet tab bar */
+}
+
+/* Chart loading overlay styles */
+.chart-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(16, 16, 26, 0.9);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    border-radius: var(--border-radius);
 }
 
 /* All other specific CSS rules that were previously here have been removed 
    as they are now imported from their respective files (layout.css, 
    components.css, particles.css, handsontableTheme.css, responsive.css). 
    This avoids redundancy and keeps main.css clean. */
+
+/* Mapping Management Button Styles */
+#refreshMappingsBtn,
+#refreshTokenStatsBtn {
+    background-color: transparent !important;
+    color: var(--main-accent) !important;
+    border-color: var(--main-accent) !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+}
+
+#refreshMappingsBtn:hover,
+#refreshTokenStatsBtn:hover {
+    background-color: var(--main-accent) !important;
+    color: white !important;
+    border-color: var(--main-accent) !important;
+}
+
+#createNewMappingBtn:hover {
+    background-color: #28a745 !important;
+    color: white !important;
+    border-color: #28a745 !important;
+}
+
+#refreshMappingsBtn,
+#refreshTokenStatsBtn,
+#createNewMappingBtn {
+    transition: var(--transition-fast);
+}
+
+/* Accessibility & performance: prefer-reduced-motion fallbacks */
+@media (prefers-reduced-motion: reduce) {
+    /* Disable non-essential transitions/animations from this file scope */
+    #refreshMappingsBtn,
+    #refreshTokenStatsBtn,
+    #createNewMappingBtn {
+        transition: none !important;
+    }
+    .chart-loading-overlay { backdrop-filter: none; }
+}

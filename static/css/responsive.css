@@ -23,6 +23,6 @@
     }
 
     .spreadsheet-card { /* This rule is from components.css */
-        height: 60vh; 
+        height: auto; /* let flex manage height */
     }
 }

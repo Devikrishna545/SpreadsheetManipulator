@@ -18,22 +18,85 @@
     /* border-color already set by .handsontable th, .handsontable td */
 }
 
+/* Modified cells: remove border, add non-intrusive ring */
 .handsontable td.modified {
     background-color: rgba(0, 191, 255, 0.3) !important; 
-    box-shadow: inset 0 0 8px rgba(0,191,255,0.7) !important; 
+    box-shadow:
+        inset 0 0 8px rgba(0,191,255,0.7) !important,
+        0 0 0 2px rgba(0, 191, 255, 0.8) !important; /* ring, no layout shift */
     animation: highlightPulse 2s ease-in-out;
     transition: all 0.3s ease-out;
-    border: 2px solid rgba(0, 191, 255, 0.8) !important;
 }
 
 /* Add style for the currently focused cell during scroll animation */
 .handsontable td.scroll-focus {
     background-color: rgba(255, 215, 0, 0.6) !important; 
-    box-shadow: inset 0 0 15px rgba(255, 215, 0, 1.0) !important; 
-    border: 3px solid rgba(255, 215, 0, 1.0) !important;
+    box-shadow:
+        inset 0 0 15px rgba(255, 215, 0, 1.0) !important,
+        0 0 0 3px rgba(255, 215, 0, 1.0) !important; /* ring, no layout shift */
     animation: scrollFocusPulse 0.4s ease-in-out;
     transform: scale(1.05) !important;
     z-index: 10 !important;
+}
+
+/* Header highlighting for selected cells - Enhanced specificity */
+.handsontable th.highlighted-header {
+    background-color: rgba(0, 191, 255, 0.5) !important;
+    color: #ffffff !important;
+    box-shadow:
+        inset 0 0 12px rgba(0, 191, 255, 0.9) !important,
+        0 0 0 2px rgba(0, 191, 255, 1.0) !important; /* ring */
+    transition: all 0.3s ease-in-out !important;
+    font-weight: bold !important;
+}
+
+/* Specific styling for row headers when highlighted - Enhanced specificity */
+.handsontable .ht_clone_left th.highlighted-header,
+.handsontable .ht_clone_top_left_corner th.highlighted-header,
+.handsontable .ht_master tbody th.highlighted-header {
+    background-color: rgba(0, 191, 255, 0.5) !important;
+    color: #ffffff !important;
+    box-shadow:
+        inset 0 0 12px rgba(0, 191, 255, 0.9) !important,
+        0 0 0 2px rgba(0, 191, 255, 1.0) !important; /* ring */
+}
+
+/* Specific styling for column headers when highlighted - Enhanced specificity */
+.handsontable .ht_clone_top th.highlighted-header,
+.handsontable .ht_clone_top_left_corner th.highlighted-header,
+.handsontable .ht_master thead th.highlighted-header {
+    background-color: rgba(0, 191, 255, 0.5) !important;
+    color: #ffffff !important;
+    box-shadow:
+        inset 0 0 12px rgba(0, 191, 255, 0.9) !important,
+        0 0 0 2px rgba(0, 191, 255, 1.0) !important; /* ring */
+}
+
+/* Enhanced styling for master table headers - Highest specificity */
+.handsontable .ht_master th.highlighted-header {
+    background-color: rgba(0, 191, 255, 0.5) !important;
+    color: #ffffff !important;
+    box-shadow:
+        inset 0 0 12px rgba(0, 191, 255, 0.9) !important,
+        0 0 0 2px rgba(0, 191, 255, 1.0) !important; /* ring */
+}
+
+/* Ensure highlighted headers don't get overridden by other states */
+.handsontable th.highlighted-header:hover,
+.handsontable th.highlighted-header:focus,
+.handsontable th.highlighted-header:active {
+    background-color: rgba(0, 191, 255, 0.6) !important;
+    color: #ffffff !important;
+    box-shadow:
+        inset 0 0 15px rgba(0, 191, 255, 1.0) !important,
+        0 0 0 2px rgba(0, 191, 255, 1.0) !important; /* ring */
+}
+
+/* Guard: keep row header borders constant so width never changes */
+.handsontable .ht_clone_left th,
+.handsontable .ht_master tbody th {
+    border-left-width: 1px !important;
+    border-right-width: 1px !important;
 }
 
 @keyframes highlightPulse {

@@ -11,6 +11,9 @@ import { initCellSelector, clearCellSelector } from './cell-selector.js';
 import { initCellTagger, scanAndHighlightTags } from './cell-tagger.js';
 import { showAlert, showConfirm, showErrorModal } from './modalUtils.js';
 
+// Global fix for removed actionsSection element to prevent errors
+window.actionsSection = window.actionsSection || { style: {} };
+
 // Global state specific to main.js orchestration
 let currentSessionId = null;
 let currentData = null; // This will hold the entire data object { sessionId, data, headers, can_undo, can_redo, modified_cells }
@@ -24,6 +27,7 @@ const processBtn = document.getElementById('processBtn');
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
 const downloadBtn = document.getElementById('downloadBtn');
+const cacheBtn = document.getElementById('cacheBtn'); // Add cache button reference
 const fullscreenBtn = document.getElementById('fullscreenBtn'); // Already in uiInteractions but listener here
 const sidebarToggleBtn = document.getElementById('sidebarToggleBtn'); // Same as fullscreenBtn
 const splitViewBtn = document.getElementById('splitViewBtn'); // Add this line
@@ -31,16 +35,30 @@ const updateSchemaBtn = document.getElementById('updateSchemaBtn'); // Add this 
 const transformSchemaBtn = document.getElementById('transformSchemaBtn'); // Add this for transform button
 const uploadCommandsBtn = document.getElementById('uploadCommandsBtn'); // Add this for upload commands button
 const manageMappingsBtn = document.getElementById('manageMappingsBtn'); // Add this for manage mappings button
+const analyticsBtn = document.getElementById('analyticsBtn'); // Add this for analytics button
 const generateActionPlanBtn = document.getElementById('generateActionPlanBtn');
 const commandFileInput = document.getElementById('commandFileInput'); // Add this for command file input
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize batch command mode flag
+    window.isBatchCommandMode = false;
+    
+    // Fix for removed actionsSection - prevent errors from cached references
+    // Create a dummy actionsSection object to prevent style access errors
+    window.actionsSection = window.actionsSection || { style: {} };
+    
+    // Also check if there's a global actionsSection variable reference anywhere
+    if (typeof actionsSection !== 'undefined' && !actionsSection) {
+        actionsSection = { style: {} };
+    }
+    
     // Initialize UI elements and listeners
     uploadForm.addEventListener('submit', onFileUpload);
     processBtn.addEventListener('click', processCurrentCommand);
     undoBtn.addEventListener('click', undoLastModification);
     redoBtn.addEventListener('click', redoLastModification);
     downloadBtn.addEventListener('click', downloadCurrentSpreadsheet);
+    cacheBtn.addEventListener('click', openCacheManagement); // Add cache button listener
     
     // Listeners handled by uiInteractions.js if DOM elements are passed or queried there
     // For simplicity, keeping core interaction listeners here if they trigger app logic flow
@@ -58,6 +76,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Add event listener for manage mappings button
     manageMappingsBtn.addEventListener('click', openMappingManagement);
+    
+    // Add event listener for analytics button
+    analyticsBtn.addEventListener('click', openAnalytics);
 
     fileInput.addEventListener('change', function() {
         const label = document.querySelector('.file-input-label span');
@@ -69,7 +90,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     updateStatus('Ready', 'waiting');
-    initParticleBackground(); 
+    // Defer particle init to avoid competing with first paint
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => initParticleBackground(), { timeout: 1500 });
+    } else {
+        setTimeout(() => initParticleBackground(), 0);
+    }
     initCellSelector(); // Initialize cell selector
     initCellTagger(commandInput); // Initialize cell tagger with command input element
     
@@ -83,7 +109,8 @@ document.addEventListener('DOMContentLoaded', function() {
         undoLastModification,
         redoLastModification,
         downloadCurrentSpreadsheet,
-        openMappingManagement
+        openMappingManagement,
+        openAnalytics
         // uploadForm.requestSubmit and fileInput.click are handled directly in shortcuts.js
     });
 
@@ -93,8 +120,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // We'll keep this empty for now - scanning will only happen on Enter or command submission
     });
 
-    // Add window unload handler to clean up particles
-    window.addEventListener('beforeunload', cleanUpParticles);
+    // Add window unload handler to clean up particles (non-blocking)
+    window.addEventListener('beforeunload', cleanUpParticles, { capture: false });
 });
 
 // Add this function to generate Excel-style column headers
@@ -207,6 +234,10 @@ async function processCurrentCommand() {
     // Highlight any tagged cells one final time before sending - this is where selections should happen
     scanAndHighlightTags();
     
+    // Ensure batch command mode is off for single AI commands
+    window.isBatchCommandMode = false;
+    console.log('🔧 Processing single AI command - batch mode set to:', window.isBatchCommandMode);
+    
     try {
         const result = await apiProcessCommand(currentSessionId, commandText);
         if (result) {
@@ -223,6 +254,33 @@ async function processCurrentCommand() {
         }
         // For other errors, they're already handled by apiService.js
         console.error('Error in processCurrentCommand:', error);
+    }
+}
+
+// Separate function for processing commands in batch mode (without changing the batch flag)
+async function processBatchCommand(commandText) {
+    // Highlight any tagged cells one final time before sending - this is where selections should happen
+    scanAndHighlightTags();
+    
+    // Note: We don't modify window.isBatchCommandMode here - it's controlled by the caller
+    console.log('🔧 Processing batch command - batch mode maintained at:', window.isBatchCommandMode);
+    
+    try {
+        const result = await apiProcessCommand(currentSessionId, commandText);
+        if (result) {
+            currentData = result;
+            renderSpreadsheet(currentData);
+            updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
+        }
+        return result;
+    } catch (error) {
+        // Re-throw script execution failures so they can be caught by sequential processing
+        if (error.message === 'SCRIPT_EXECUTION_FAILED') {
+            throw error;
+        }
+        // For other errors, they're already handled by apiService.js
+        console.error('Error in processBatchCommand:', error);
+        throw error;
     }
 }
 
@@ -540,9 +598,29 @@ async function uploadCommandFile(event) {
             
             const success = await processCommandsSequentially(result.commands);
             
-            // Commands executed successfully - no more automatic mapping prompt
+            // Commands executed successfully - ask if user wants to create a mapping
             if (success) {
                 updateStatus('All commands executed successfully!', 'success');
+                setTimeout(() => updateStatus('Ready', 'active'), 3000);
+                
+                // Ask user if they want to create a mapping
+                const shouldCreateMapping = await showConfirm(
+                    'All commands were executed successfully!\n\n' +
+                    'Would you like to create a mapping between this spreadsheet and the command file?\n\n' +
+                    'This will allow the commands to be automatically executed when this spreadsheet is uploaded in the future.',
+                    'Create Mapping?',
+                    {
+                        confirmText: 'Create Mapping',
+                        cancelText: 'Not Now',
+                        confirmClass: 'btn-success'
+                    }
+                );
+                
+                if (shouldCreateMapping) {
+                    await createMappingFromUpload(commandFileInfo);
+                }
+            } else {
+                updateStatus('Some commands failed to execute', 'warning');
                 setTimeout(() => updateStatus('Ready', 'active'), 3000);
             }
         } else {
@@ -558,10 +636,74 @@ async function uploadCommandFile(event) {
     }
 }
 
+// Create mapping from uploaded command file
+async function createMappingFromUpload(commandFileInfo) {
+    try {
+        const currentSpreadsheetName = getCurrentSpreadsheetName();
+        if (!currentSpreadsheetName) {
+            showErrorModal('Unable to determine current spreadsheet name');
+            return;
+        }
+        
+        updateStatus('Creating mapping...', 'processing');
+        
+        // Check for existing mappings for this spreadsheet
+        const checkResponse = await fetch(`/check_mapping/${encodeURIComponent(currentSpreadsheetName)}`);
+        if (checkResponse.ok) {
+            const checkData = await checkResponse.json();
+            if (checkData.conflicts && checkData.conflicts.length > 0) {
+                const conflictCount = checkData.conflicts.length;
+                const shouldContinue = await showConfirm(
+                    `Warning: This spreadsheet already has ${conflictCount} existing mapping(s).\n\n` +
+                    `Creating a new mapping will result in multiple mappings for the same spreadsheet.\n\n` +
+                    `Do you want to continue?`,
+                    'Mapping Conflict',
+                    {
+                        confirmText: 'Continue',
+                        cancelText: 'Cancel',
+                        confirmClass: 'btn-warning'
+                    }
+                );
+                
+                if (!shouldContinue) {
+                    updateStatus('Mapping creation cancelled', 'warning');
+                    setTimeout(() => updateStatus('Ready', 'active'), 2000);
+                    return;
+                }
+            }
+        }
+        
+        // Create the mapping
+        const response = await apiCreateMapping(
+            currentSpreadsheetName,
+            commandFileInfo.filename,
+            commandFileInfo.commands
+        );
+        
+        if (response && response.success) {
+            updateStatus('Mapping created successfully!', 'success');
+            setTimeout(() => updateStatus('Ready', 'active'), 3000);
+        } else {
+            const errorMsg = response && response.error ? response.error : 'Failed to create mapping';
+            throw new Error(errorMsg);
+        }
+        
+    } catch (error) {
+        console.error('Error creating mapping:', error);
+        showErrorModal(`Failed to create mapping: ${error.message}`);
+        updateStatus('Error', 'error');
+    }
+}
+
 // Function to process commands one by one
 async function processCommandsSequentially(commands) {
     let successCount = 0;
     let failCount = 0;
+    let allSuccess = true;
+    
+    // Set batch command mode flag to enable scroll animation
+    window.isBatchCommandMode = true;
+    console.log('🔧 Starting batch command processing - batch mode set to:', window.isBatchCommandMode);
     
     for (let i = 0; i < commands.length; i++) {
         const command = commands[i].trim();
@@ -576,8 +718,8 @@ async function processCommandsSequentially(commands) {
             // Wait a moment for UI to update
             await new Promise(resolve => setTimeout(resolve, 300));
             
-            // Process the command
-            await processCurrentCommand();
+            // Process the command using the batch-specific function
+            await processBatchCommand(command);
             successCount++;
             
             // Wait between commands to allow for visual feedback
@@ -585,12 +727,15 @@ async function processCommandsSequentially(commands) {
         } catch (error) {
             console.error('Error processing command:', error);
             failCount++;
+            allSuccess = false;
             
             // Check if this is a script execution failure - if so, stop processing
             if (error.message === 'SCRIPT_EXECUTION_FAILED') {
                 console.log('Script execution failed - stopping command processing');
                 updateStatus(`Stopped at command ${i+1}/${commands.length} due to execution failure`, 'error');
-                return; // Stop processing remaining commands
+                // Clear batch command mode flag
+                window.isBatchCommandMode = false;
+                return false; // Return false to indicate failure
             }
             
             // For other errors, continue with next command
@@ -604,6 +749,12 @@ async function processCommandsSequentially(commands) {
     
     // Reset after a delay
     setTimeout(() => updateStatus('Ready', 'active'), 3000);
+    
+    // Clear batch command mode flag
+    window.isBatchCommandMode = false;
+    
+    // Return true if all commands executed successfully
+    return allSuccess;
 }
 
 // Add event listener for the new "Generate Action Plan" button
@@ -681,18 +832,88 @@ function onSheetTabClick(sheetIndex) {
     }
 }
 
+// ===== ANALYTICS FUNCTIONS =====
+
+// Open the analytics modal
+async function openAnalytics() {
+  console.log('🚀 Opening Analytics Modal...');
+  try {
+    const analyticsModal = new bootstrap.Modal(document.getElementById('analyticsModal'));
+    analyticsModal.show();
+
+    // Ensure Chart.js and adapter are available only when needed
+    const ensureChartLibs = () => new Promise((resolve, reject) => {
+      const addScript = (src, flagKey) => new Promise((res, rej) => {
+        if (window[flagKey]) return res();
+        const s = document.createElement('script');
+        s.src = src; s.async = true;
+        s.onload = () => { window[flagKey] = true; res(); };
+        s.onerror = () => rej(new Error('Failed to load ' + src));
+        document.head.appendChild(s);
+      });
+      const tasks = [];
+      if (!window.Chart) tasks.push(addScript('https://cdn.jsdelivr.net/npm/chart.js', '_chartJsLoaded'));
+      if (!window._chartDateAdapterLoaded) tasks.push(addScript('https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js', '_chartDateAdapterLoaded'));
+      Promise.all(tasks).then(resolve).catch(reject);
+    });
+
+    await ensureChartLibs();
+
+    const { initializeTokenDashboard, cleanupTokenDashboard } = await import('./tokenDashboard.js');
+    await initializeTokenDashboard();
+
+    // Cleanup charts when the modal is hidden
+    const modalEl = document.getElementById('analyticsModal');
+    const cleanupOnce = () => {
+      modalEl.removeEventListener('hidden.bs.modal', cleanupOnce);
+      try { cleanupTokenDashboard(); } catch (_) {}
+    };
+    modalEl.addEventListener('hidden.bs.modal', cleanupOnce);
+
+    console.log('✅ Analytics Modal opened successfully');
+  } catch (error) {
+    console.error('❌ Error opening analytics modal:', error);
+    showErrorModal('Error', 'Failed to open analytics dashboard. Please try again.');
+  }
+}
+
 // ===== MAPPING MANAGEMENT FUNCTIONS =====
 
 // Open the mapping management modal
 async function openMappingManagement() {
-    const modal = new bootstrap.Modal(document.getElementById('mappingManagementModal'));
-    modal.show();
-    
-    // Load mappings when modal opens
-    await loadMappings();
-    
-    // Add event listeners for mapping management
-    setupMappingEventListeners();
+  const modal = new bootstrap.Modal(document.getElementById('mappingManagementModal'));
+  modal.show();
+
+  // Load mappings when modal opens
+  await loadMappings();
+
+  // Ensure Chart.js libraries are available before initializing dashboard
+  try {
+    const ensureChartLibs = () => new Promise((resolve, reject) => {
+      const addScript = (src, flagKey) => new Promise((res, rej) => {
+        if (window[flagKey]) return res();
+        const s = document.createElement('script');
+        s.src = src; s.async = true;
+        s.onload = () => { window[flagKey] = true; res(); };
+        s.onerror = () => rej(new Error('Failed to load ' + src));
+        document.head.appendChild(s);
+      });
+      const tasks = [];
+      if (!window.Chart) tasks.push(addScript('https://cdn.jsdelivr.net/npm/chart.js', '_chartJsLoaded'));
+      if (!window._chartDateAdapterLoaded) tasks.push(addScript('https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js', '_chartDateAdapterLoaded'));
+      Promise.all(tasks).then(resolve).catch(reject);
+    });
+
+    await ensureChartLibs();
+
+    const { initializeTokenDashboard } = await import('./tokenDashboard.js');
+    await initializeTokenDashboard();
+  } catch (error) {
+    console.error('Error initializing token dashboard:', error);
+  }
+
+  // Add event listeners for mapping management
+  setupMappingEventListeners();
 }
 
 // Setup event listeners for mapping management
@@ -711,7 +932,21 @@ function setupMappingEventListeners() {
     spreadsheetNameInput.removeEventListener('input', validateMappingForm);
     
     // Add fresh listeners
-    refreshBtn.addEventListener('click', loadMappings);
+    refreshBtn.addEventListener('click', async () => {
+        const originalContent = refreshBtn.innerHTML;
+        
+        // Show loading state
+        refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+        refreshBtn.disabled = true;
+        
+        try {
+            await loadMappings();
+        } finally {
+            // Restore button state
+            refreshBtn.innerHTML = originalContent;
+            refreshBtn.disabled = false;
+        }
+    });
     createNewBtn.addEventListener('click', openCreateMappingModal);
     commandFileInput.addEventListener('change', previewCommandFile);
     saveMappingBtn.addEventListener('click', createNewMapping);
@@ -806,10 +1041,10 @@ function createMappingRow(mapping) {
             <small>${lastUsedDate}</small>
         </td>
         <td>
-            <button class="btn btn-sm btn-outline-warning me-1" onclick="editMapping('${mapping.mapping_id}')" title="Edit">
+            <button class="btn btn-sm btn-outline-warning me-1" onclick="console.log('Edit button clicked for:', '${mapping.mapping_id}'); editMapping('${mapping.mapping_id}')" title="Edit">
                 <i class="fas fa-edit"></i>
             </button>
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteMapping('${mapping.mapping_id}')" title="Delete">
+            <button class="btn btn-sm btn-outline-danger" onclick="console.log('Delete button clicked for:', '${mapping.mapping_id}'); deleteMapping('${mapping.mapping_id}')" title="Delete">
                 <i class="fas fa-trash"></i>
             </button>
         </td>
@@ -902,6 +1137,7 @@ async function createNewMapping() {
                     'Mapping Conflict Warning',
                     {
                         confirmText: 'Continue',
+                        cancelText: 'Not Now',
                         confirmClass: 'btn-warning'
                     }
                 );
@@ -946,29 +1182,36 @@ async function viewMappingCommands(mappingId) {
         const data = await response.json();
         const mapping = data.mapping;
         
-        // Create a simple modal to show commands
-        const commandsText = mapping.commands.join('\n');
-        
-        const modal = document.createElement('div');
-        modal.className = 'modal fade';
-        modal.innerHTML = `
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content bg-dark text-light">
-                    <div class="modal-header border-secondary">
-                        <h5 class="modal-title">Commands for ${mapping.spreadsheet_filename}</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <textarea class="form-control bg-dark text-light border-secondary" rows="15" readonly>${commandsText}</textarea>
-                    </div>
-                    <div class="modal-footer border-secondary">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+    // Create a modal to show commands with line numbers
+    const numberedCommands = mapping.commands.map((command, index) => {
+        return `<div class="command-line">${command}</div>`;
+    }).join('');
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'viewCommandsModal';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">
+                        <i class="fas fa-list me-2"></i>Commands for ${mapping.spreadsheet_filename}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="commands-display">
+                        <div class="commands-text">${numberedCommands}</div>
                     </div>
                 </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Close
+                    </button>
+                </div>
             </div>
-        `;
-        
-        document.body.appendChild(modal);
+        </div>
+    `;        document.body.appendChild(modal);
         const bootstrapModal = new bootstrap.Modal(modal);
         bootstrapModal.show();
         
@@ -982,9 +1225,143 @@ async function viewMappingCommands(mappingId) {
     }
 }
 
-// Edit mapping (placeholder for future implementation)
-function editMapping(mappingId) {
-    showErrorModal('Edit functionality coming soon!');
+// Edit mapping - Show edit modal with mapping details
+async function editMapping(mappingId) {
+    try {
+        console.log('🔧 Opening edit modal for mapping:', mappingId);
+        
+        // Fetch mapping details from the backend
+        const response = await fetch(`/mapping/${mappingId}`);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch mapping: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        const mapping = data.mapping || data; // Handle both response formats
+        console.log('📋 Mapping details loaded:', mapping);
+        
+        // Populate the edit form
+        document.getElementById('editMappingId').value = mapping.mapping_id;
+        document.getElementById('editMappingSpreadsheetName').value = mapping.spreadsheet_filename;
+        
+        // Create numbered command lines for the contenteditable div (same as view modal)
+        const editCommandsDiv = document.getElementById('editMappingCommands');
+        const numberedCommands = mapping.commands.map((command, index) => {
+            return `<div class="command-line">${command}</div>`;
+        }).join('');
+        editCommandsDiv.innerHTML = numberedCommands;
+        
+        // Setup contenteditable handlers
+        setupEditCommandsHandlers();
+        
+        // Format and display metadata
+        const createdDate = new Date(mapping.created_at).toLocaleString();
+        document.getElementById('editMappingCreatedAt').textContent = createdDate;
+        document.getElementById('editMappingUseCount').textContent = mapping.use_count || 0;
+        
+        // Show the edit modal with higher z-index and proper configuration
+        const editModalElement = document.getElementById('editMappingModal');
+        const editModal = new bootstrap.Modal(editModalElement, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
+        
+        // Add event listeners to handle modal stacking
+        editModalElement.addEventListener('shown.bs.modal', function() {
+            // Ensure this modal is on top
+            editModalElement.style.zIndex = '1100';
+            
+            // Find any other open modals and ensure they're below this one
+            const openModals = document.querySelectorAll('.modal.show');
+            openModals.forEach(modal => {
+                if (modal !== editModalElement && modal.id === 'mappingManagementModal') {
+                    modal.style.zIndex = '1055';
+                }
+            });
+        });
+        
+        editModal.show();
+        
+        // Setup the update button event listener
+        setupEditMappingEventListeners(mappingId);
+        
+        console.log('✅ Edit modal shown successfully');
+        
+    } catch (error) {
+        console.error('❌ Error loading mapping for edit:', error);
+        showErrorModal('Failed to load mapping details. Please try again.');
+    }
+}
+
+// Setup event listeners for the edit mapping modal
+function setupEditMappingEventListeners(mappingId) {
+    const updateBtn = document.getElementById('updateMappingBtn');
+    
+    // Remove any existing event listeners to prevent duplicates
+    const newUpdateBtn = updateBtn.cloneNode(true);
+    updateBtn.parentNode.replaceChild(newUpdateBtn, updateBtn);
+    
+    // Add the update event listener
+    newUpdateBtn.addEventListener('click', async () => {
+        await updateMapping(mappingId);
+    });
+}
+
+// Update mapping with new commands
+async function updateMapping(mappingId) {
+    try {
+        const updateBtn = document.getElementById('updateMappingBtn');
+        const originalContent = updateBtn.innerHTML;
+        
+        // Show loading state
+        updateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+        updateBtn.disabled = true;
+        
+        // Get the updated commands from contenteditable div
+        const editCommandsDiv = document.getElementById('editMappingCommands');
+        const commandLines = editCommandsDiv.querySelectorAll('.command-line');
+        const commands = Array.from(commandLines).map(line => line.textContent.trim()).filter(cmd => cmd.length > 0);
+        
+        if (commands.length === 0) {
+            showErrorModal('Commands cannot be empty. Please enter at least one command.');
+            return;
+        }
+        
+        // Use the API service to update the mapping
+        const result = await apiUpdateMapping(mappingId, {
+            commands: commands,
+            command_count: commands.length
+        });
+        
+        if (!result) {
+            throw new Error('Failed to update mapping');
+        }
+        
+        console.log('✅ Mapping updated successfully:', result);
+        
+        // Close the edit modal
+        const editModal = bootstrap.Modal.getInstance(document.getElementById('editMappingModal'));
+        editModal.hide();
+        
+        // Refresh the mappings list
+        await loadMappings();
+        
+        // Show success message
+        updateStatus('Mapping updated successfully!', 'success');
+        setTimeout(() => updateStatus('Ready', 'active'), 3000);
+        
+    } catch (error) {
+        console.error('❌ Error updating mapping:', error);
+        showErrorModal('Failed to update mapping. Please try again.');
+    } finally {
+        // Always restore button state
+        const updateBtn = document.getElementById('updateMappingBtn');
+        if (updateBtn) {
+            updateBtn.innerHTML = '<i class="fas fa-save"></i> Update Mapping';
+            updateBtn.disabled = false;
+        }
+    }
 }
 
 // Delete mapping
@@ -1045,6 +1422,66 @@ async function createMappingForCurrentSession(commandFileInfo) {
     }
 }
 
+// Setup handlers for contenteditable edit commands
+function setupEditCommandsHandlers() {
+    const editCommandsDiv = document.getElementById('editMappingCommands');
+    
+    // Handle Enter key to create new command lines
+    editCommandsDiv.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            
+            // Create a new command line div
+            const newLine = document.createElement('div');
+            newLine.className = 'command-line';
+            newLine.innerHTML = '';
+            
+            // Insert the new line after the current selection
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                const currentLine = range.commonAncestorContainer.nodeType === Node.TEXT_NODE ? 
+                    range.commonAncestorContainer.parentElement : range.commonAncestorContainer;
+                
+                if (currentLine.classList && currentLine.classList.contains('command-line')) {
+                    currentLine.parentNode.insertBefore(newLine, currentLine.nextSibling);
+                } else {
+                    editCommandsDiv.appendChild(newLine);
+                }
+                
+                // Focus on the new line
+                newLine.focus();
+                const newRange = document.createRange();
+                newRange.selectNodeContents(newLine);
+                newRange.collapse(true);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+            }
+        }
+    });
+    
+    // Handle paste to maintain line structure
+    editCommandsDiv.addEventListener('paste', function(e) {
+        e.preventDefault();
+        
+        const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+        const lines = pastedText.split('\n').filter(line => line.trim());
+        
+        // Clear existing content if empty
+        if (editCommandsDiv.textContent.trim() === '') {
+            editCommandsDiv.innerHTML = '';
+        }
+        
+        // Add each line as a command-line div
+        lines.forEach(line => {
+            const newLine = document.createElement('div');
+            newLine.className = 'command-line';
+            newLine.textContent = line.trim();
+            editCommandsDiv.appendChild(newLine);
+        });
+    });
+}
+
 // Helper function to get current spreadsheet name
 function getCurrentSpreadsheetName() {
     // First try to get from the global variable set during upload
@@ -1064,6 +1501,331 @@ function getCurrentSpreadsheetName() {
 window.viewMappingCommands = viewMappingCommands;
 window.editMapping = editMapping;
 window.deleteMapping = deleteMapping;
+window.openAnalytics = openAnalytics;
 
 // Expose the onSheetTabClick function to the global scope for tab clicks
 window.onSheetTabClick = onSheetTabClick;
+
+// ========== Cache Management Functions ==========
+
+/**
+ * Open the cache management modal
+ */
+function openCacheManagement() {
+    const modal = new bootstrap.Modal(document.getElementById('cacheModal'));
+    modal.show();
+    
+    // Setup modal event listeners if not already set
+    setupCacheModalListeners();
+}
+
+/**
+ * Setup event listeners for cache modal buttons
+ */
+function setupCacheModalListeners() {
+    // Remove existing listeners to prevent duplicates
+    const buttonsConfig = [
+        { id: 'deleteUploadsBtn', handler: deleteUploads },
+        { id: 'deleteDownloadsBtn', handler: deleteDownloads },
+        { id: 'deleteJsonBtn', handler: deleteJsonData },
+        { id: 'deletePromptsBtn', handler: deletePrompts },
+        { id: 'deleteScriptBtn', handler: deleteScripts },
+        { id: 'deleteMappingsBtn', handler: deleteMappings },
+        { id: 'allClearBtn', handler: performAllClear }
+    ];
+    
+    buttonsConfig.forEach(config => {
+        const button = document.getElementById(config.id);
+        if (button) {
+            // Remove existing listener if any
+            button.removeEventListener('click', config.handler);
+            // Add new listener
+            button.addEventListener('click', config.handler);
+        }
+    });
+}
+
+/**
+ * Delete all uploaded spreadsheet files
+ */
+async function deleteUploads() {
+    const confirmed = await showConfirm(
+        'Are you sure you want to clear all imported files? This action cannot be undone.',
+        'Clear Imported Files',
+        {
+            confirmText: 'Confirm',
+            confirmClass: 'btn-danger'
+        }
+    );
+    
+    if (confirmed) {
+        // Close the cache management modal
+        const cacheModal = bootstrap.Modal.getInstance(document.getElementById('cacheModal'));
+        if (cacheModal) {
+            cacheModal.hide();
+        }
+        
+        try {
+            const response = await fetch('/cache/clear/uploads', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                await showAlert('Imported files have been cleared successfully.', 'Success', 'success');
+            } else {
+                throw new Error('Failed to delete uploads');
+            }
+        } catch (error) {
+            console.error('Error deleting uploads:', error);
+            await showAlert('Failed to clear imported files. Please try again.', 'Error', 'error');
+        }
+    }
+}
+
+/**
+ * Delete all downloaded files
+ */
+async function deleteDownloads() {
+    const confirmed = await showConfirm(
+        'Are you sure you want to clear all exported files? This action cannot be undone.',
+        'Clear Exported Files',
+        {
+            confirmText: 'Confirm',
+            confirmClass: 'btn-danger'
+        }
+    );
+    
+    if (confirmed) {
+        // Close the cache management modal
+        const cacheModal = bootstrap.Modal.getInstance(document.getElementById('cacheModal'));
+        if (cacheModal) {
+            cacheModal.hide();
+        }
+        
+        try {
+            const response = await fetch('/cache/clear/downloads', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                await showAlert('Exported files have been cleared successfully.', 'Success', 'success');
+            } else {
+                throw new Error('Failed to delete downloads');
+            }
+        } catch (error) {
+            console.error('Error deleting downloads:', error);
+            await showAlert('Failed to clear exported files. Please try again.', 'Error', 'error');
+        }
+    }
+}
+
+/**
+ * Delete all JSON configuration files
+ */
+async function deleteJsonData() {
+    const confirmed = await showConfirm(
+        'Are you sure you want to reset all saved settings? This action cannot be undone.',
+        'Clear Settings',
+        {
+            confirmText: 'Confirm',
+            confirmClass: 'btn-danger'
+        }
+    );
+    
+    if (confirmed) {
+        // Close the cache management modal
+        const cacheModal = bootstrap.Modal.getInstance(document.getElementById('cacheModal'));
+        if (cacheModal) {
+            cacheModal.hide();
+        }
+        
+        try {
+            const response = await fetch('/cache/clear/json', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                await showAlert('Settings have been reset successfully.', 'Success', 'success');
+            } else {
+                throw new Error('Failed to delete JSON data');
+            }
+        } catch (error) {
+            console.error('Error deleting JSON data:', error);
+            await showAlert('Failed to reset settings. Please try again.', 'Error', 'error');
+        }
+    }
+}
+
+/**
+ * Delete prompt history files (except prompts.txt) and clear prompts.txt content
+ */
+async function deletePrompts() {
+    const confirmed = await showConfirm(
+        'Are you sure you want to clear all saved history? This action cannot be undone.',
+        'Clear History',
+        {
+            confirmText: 'Confirm',
+            confirmClass: 'btn-danger'
+        }
+    );
+    
+    if (confirmed) {
+        // Close the cache management modal
+        const cacheModal = bootstrap.Modal.getInstance(document.getElementById('cacheModal'));
+        if (cacheModal) {
+            cacheModal.hide();
+        }
+        
+        try {
+            const response = await fetch('/cache/clear/prompts', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                await showAlert('History has been cleared successfully.', 'Success', 'success');
+            } else {
+                throw new Error('Failed to delete prompts');
+            }
+        } catch (error) {
+            console.error('Error deleting prompts:', error);
+            await showAlert('Failed to clear history. Please try again.', 'Error', 'error');
+        }
+    }
+}
+
+/**
+ * Delete all generated Python scripts
+ */
+async function deleteScripts() {
+    const confirmed = await showConfirm(
+        'Are you sure you want to clear all saved automation rules? This action cannot be undone.',
+        'Clear Automation',
+        {
+            confirmText: 'Confirm',
+            confirmClass: 'btn-danger'
+        }
+    );
+    
+    if (confirmed) {
+        // Close the cache management modal
+        const cacheModal = bootstrap.Modal.getInstance(document.getElementById('cacheModal'));
+        if (cacheModal) {
+            cacheModal.hide();
+        }
+        
+        try {
+            const response = await fetch('/cache/clear/scripts', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                await showAlert('Automation rules have been cleared successfully.', 'Success', 'success');
+            } else {
+                throw new Error('Failed to delete scripts');
+            }
+        } catch (error) {
+            console.error('Error deleting scripts:', error);
+            await showAlert('Failed to clear automation rules. Please try again.', 'Error', 'error');
+        }
+    }
+}
+
+/**
+ * Delete all mapping configuration files
+ */
+async function deleteMappings() {
+    const confirmed = await showConfirm(
+        'Are you sure you want to clear all saved connections? This action cannot be undone.',
+        'Clear Connections',
+        {
+            confirmText: 'Confirm',
+            confirmClass: 'btn-danger'
+        }
+    );
+    
+    if (confirmed) {
+        // Close the cache management modal
+        const cacheModal = bootstrap.Modal.getInstance(document.getElementById('cacheModal'));
+        if (cacheModal) {
+            cacheModal.hide();
+        }
+        
+        try {
+            const response = await fetch('/cache/clear/mappings', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                await showAlert('Connections have been cleared successfully.', 'Success', 'success');
+            } else {
+                throw new Error('Failed to delete mappings');
+            }
+        } catch (error) {
+            console.error('Error deleting mappings:', error);
+            await showAlert('Failed to clear mappings. Please try again.', 'Error', 'error');
+        }
+    }
+}
+
+/**
+ * Perform all cache clearing operations
+ */
+async function performAllClear() {
+    const confirmed = await showConfirm(
+        'Are you sure you want to RESET THE ENTIRE WORKSPACE? This will clear all temporary files, settings, history, automation, and connections. This action cannot be undone.',
+        'Reset Workspace - Irreversible Action',
+        {
+            confirmText: 'Confirm',
+            confirmClass: 'btn-danger'
+        }
+    );
+    
+    if (confirmed) {
+        // Close the cache management modal
+        const cacheModal = bootstrap.Modal.getInstance(document.getElementById('cacheModal'));
+        if (cacheModal) {
+            cacheModal.hide();
+        }
+        
+        try {
+            const response = await fetch('/cache/clear/all', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                await showAlert('Workspace has been reset successfully. All temporary data has been cleared.', 'Workspace Reset Complete', 'success');
+                // Reset the application UI state
+                resetApplicationUI();
+            } else {
+                throw new Error('Failed to perform all clear');
+            }
+        } catch (error) {
+            console.error('Error performing all clear:', error);
+            await showAlert('Failed to reset workspace. Please try again.', 'Error', 'error');
+        }
+    }
+}
+
+// Make cache management functions available globally
+window.openCacheManagement = openCacheManagement;

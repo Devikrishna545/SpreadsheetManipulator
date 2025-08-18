@@ -62,8 +62,9 @@ class ScriptTester:
             return False, f"Script has syntax error: {error_msg}", None
         
         # Step 3: Check for security concerns
-        if not self.security_manager.validate_script(script):
-            return False, "Script validation failed due to security concerns", None
+        is_safe, security_message = self.security_manager.validate_script(script)
+        if not is_safe:
+            return False, f"Script validation failed due to security concerns: {security_message}", None
         
         # Step 4: Check for common logical issues
         result, issue, fixed = self._check_logical_issues(script)
@@ -405,6 +406,10 @@ class ScriptTester:
             Optional[str]: Fixed script if possible, None otherwise
         """
         print(f"🔧 [SCRIPT TESTER] Attempting to fix error: {error_msg}")
+        
+        # Fix column reference errors in drop_duplicates (Index(['9', '10', ...], dtype='object'))
+        if "Index([" in error_msg and "dtype='object'" in error_msg and "drop_duplicates" in script:
+            return self._fix_column_reference_error(script, error_msg, sample_df)
         
         # Fix "not found in axis" errors (commonly from drop operations)
         if "not found in axis" in error_msg:
@@ -797,3 +802,107 @@ else:
             fixed_script = safety_check + fixed_script
             
         return fixed_script
+
+    def _fix_column_reference_error(self, script: str, error_msg: str, sample_df: pd.DataFrame) -> Optional[str]:
+        """
+        Fix column reference errors in drop_duplicates operations
+        
+        This specifically handles errors like:
+        Index(['9', '10', '11', '12', '13'], dtype='object')
+        
+        The issue occurs when column indices are converted to strings but the DataFrame
+        has integer column names.
+        
+        Args:
+            script: The script with column reference error
+            error_msg: The error message
+            sample_df: Sample DataFrame
+            
+        Returns:
+            Optional[str]: Fixed script if possible, None otherwise
+        """
+        print(f"🔧 [SCRIPT TESTER] Fixing column reference error in drop_duplicates")
+        
+        import re
+        
+        # Fix pattern 1: [str(col_idx) for col_idx in [numbers]] -> [numbers directly]
+        pattern1 = r'\[str\(col_idx\) for col_idx in \[([^\]]+)\]\]'
+        match1 = re.search(pattern1, script)
+        
+        if match1:
+            indices_str = match1.group(1)
+            try:
+                # Extract the column indices and use them directly
+                indices = [int(x.strip()) for x in indices_str.split(',')]
+                # Check if these column indices exist in the DataFrame
+                valid_indices = [idx for idx in indices if idx in sample_df.columns]
+                
+                if valid_indices:
+                    old_subset = f"[str(col_idx) for col_idx in [{indices_str}]]"
+                    new_subset = str(valid_indices)
+                    fixed_script = script.replace(old_subset, new_subset)
+                    print(f"   ✓ Fixed column list comprehension: {old_subset} -> {new_subset}")
+                    return fixed_script
+            except (ValueError, TypeError):
+                pass
+        
+        # Fix pattern 2: subset=['9', '10', '11', '12', '13'] -> subset=[9, 10, 11, 12, 13]
+        pattern2 = r"subset=\[(['\"][^'\"]+['\"],?\s*)+\]"
+        match2 = re.search(pattern2, script)
+        
+        if match2:
+            # Extract quoted numbers and convert to integers
+            quoted_nums = re.findall(r"['\"](\d+)['\"]", script)
+            if quoted_nums:
+                # Convert to integers and check if they exist as columns
+                int_cols = []
+                for num_str in quoted_nums:
+                    try:
+                        col_idx = int(num_str)
+                        if col_idx in sample_df.columns:
+                            int_cols.append(col_idx)
+                    except ValueError:
+                        continue
+                
+                if int_cols:
+                    # Replace the string column references with integer references
+                    old_match = match2.group(0)
+                    new_subset = f"subset={int_cols}"
+                    fixed_script = script.replace(old_match, new_subset)
+                    print(f"   ✓ Fixed string column references: {old_match} -> {new_subset}")
+                    return fixed_script
+        
+        # Fix pattern 3: If we can extract column indices from the error message itself
+        # Error messages like: Index(['12', '13', '9', '11', '10'], dtype='object')
+        error_pattern = r"Index\(\[([^\]]+)\], dtype='object'\)"
+        error_match = re.search(error_pattern, error_msg)
+        
+        if error_match:
+            error_cols_str = error_match.group(1)
+            # Extract the quoted column names from the error
+            error_cols = re.findall(r"'(\d+)'", error_cols_str)
+            
+            if error_cols:
+                # Convert to integers and check against DataFrame
+                int_cols = []
+                for col_str in error_cols:
+                    try:
+                        col_idx = int(col_str)
+                        if col_idx in sample_df.columns:
+                            int_cols.append(col_idx)
+                    except ValueError:
+                        continue
+                
+                if int_cols:
+                    # Replace any string column references in drop_duplicates with integer ones
+                    if "drop_duplicates" in script:
+                        # Try to find and replace the subset parameter
+                        subset_pattern = r"subset=\[[^\]]+\]"
+                        if re.search(subset_pattern, script):
+                            new_subset = f"subset={int_cols}"
+                            fixed_script = re.sub(subset_pattern, new_subset, script)
+                            print(f"   ✓ Fixed from error message: subset={int_cols}")
+                            return fixed_script
+        
+        print("   ❌ Could not fix column reference error")
+        return None
