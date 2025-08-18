@@ -5,11 +5,70 @@ const particleMouseAttractDistance = 150;
 let lineElement = null; 
 
 let interParticleLineElements = [];
-const MAX_INTER_PARTICLE_LINES = 20; 
-const NUM_PARTICLES = 50; 
+// Base caps, effective values adapt using getMax* helpers
+const MAX_INTER_PARTICLE_LINES_BASE = 20; 
+const BASE_MAX_PARTICLES = 50; 
 const PARTICLE_RESPAWN_INTERVAL = 500; // Faster respawn rate (ms)
 let particleContainerRef = null;
 let activeParticleCount = 0;
+// Global toggle: disable all mouse interactions (requested behavior)
+const ENABLE_MOUSE_INTERACTION = false;
+
+// Motion/accessibility & environment-aware tuning
+const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function getMaxParticles() {
+    let max = BASE_MAX_PARTICLES;
+    // Scale down on smaller viewports
+    const area = (window.innerWidth || 0) * (window.innerHeight || 0);
+    if (area && area < 800 * 600) max = Math.min(max, 24);
+    // Scale down on low core count devices
+    if (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) max = Math.min(max, 32);
+    // Respect reduced motion preference
+    if (REDUCED_MOTION) max = Math.min(max, 18);
+    return max;
+}
+function getMaxInterParticleLines() {
+    return REDUCED_MOTION ? 8 : MAX_INTER_PARTICLE_LINES_BASE;
+}
+
+// NEW: ramp-up and respawn rate control
+const RAMP_UP_WINDOW_MS = 25000; // spread initial entries across 25s
+const RESPAWN_MIN_DELAY_MS = 600;
+const RESPAWN_MAX_DELAY_MS = 3000;
+let nextSpawnTime = 0;
+let spawnTimeouts = [];
+
+// Interval/RAF helpers
+function maintenanceTick() {
+    // Filter out completed particles
+    particles = particles.filter(p => {
+        if (!p || !p.element) return false;
+        const inDOM = document.body.contains(p.element);
+        if (!inDOM) return false;
+
+        const computedStyle = window.getComputedStyle(p.element);
+        const opacity = parseFloat(computedStyle.opacity);
+        if (opacity > 0 && p.timeCreated && (Date.now() - p.timeCreated < p.animationDuration * 1000 * 0.9)) {
+            return true;
+        }
+        // Remove from DOM and decrement count
+        p.element.remove();
+        activeParticleCount--;
+        return false;
+    });
+
+    // Rate-limited respawn to avoid bursts
+    if (activeParticleCount < getMaxParticles() && Date.now() >= nextSpawnTime) {
+        if (document.body.contains(particleContainerRef)) {
+            createParticle();
+        }
+        nextSpawnTime = Date.now() + RESPAWN_MIN_DELAY_MS + Math.random() * (RESPAWN_MAX_DELAY_MS - RESPAWN_MIN_DELAY_MS);
+    }
+}
+function startMaintenanceInterval() {
+    if (window.particleGenerationInterval) clearInterval(window.particleGenerationInterval);
+    window.particleGenerationInterval = setInterval(maintenanceTick, PARTICLE_RESPAWN_INTERVAL);
+}
 
 export function initParticleBackground() {
     particleContainerRef = document.getElementById('particleBackground');
@@ -19,37 +78,43 @@ export function initParticleBackground() {
     interParticleLineElements = []; 
     activeParticleCount = 0;
 
+    // Clear any previous scheduled spawns
+    spawnTimeouts.forEach(clearTimeout);
+    spawnTimeouts = [];
+    nextSpawnTime = Date.now() + 300 + Math.random() * 1200;
+
     // Create only a few particles initially
     for (let i = 0; i < 5; i++) {
         createParticle();
     }
 
-    // Schedule the rest of the particles to spawn with random delays
-    const spawnRemainingParticles = () => {
-        const particlesToSpawn = NUM_PARTICLES / 2 - 5; // Remaining particles from initial batch
-        
-        for (let i = 0; i < particlesToSpawn; i++) {
-            const randomDelay = Math.random() * 5000; // Random delay up to 5 seconds
-            setTimeout(() => {
-                if (document.body.contains(particleContainerRef)) {
-                    createParticle();
-                }
-            }, randomDelay);
-        }
-    };
-    
-    // Start spawning particles with random delays
-    spawnRemainingParticles();
-
-    // Create line elements
-    if (!lineElement) {
-        lineElement = document.createElement('div');
-        lineElement.classList.add('particle-line');
-        lineElement.style.display = 'none'; 
-        document.body.appendChild(lineElement); 
+    // Schedule the remaining particles to spawn with randomized delays (staggered ramp-up)
+    // NOTE: replaces previous spawnRemainingParticles logic
+    const remainingToSpawn = Math.max(0, getMaxParticles() - 5);
+    for (let i = 0; i < remainingToSpawn; i++) {
+        const delay = Math.random() * RAMP_UP_WINDOW_MS; // up to 25s
+        const id = setTimeout(() => {
+            if (!document.body.contains(particleContainerRef)) return;
+            if (activeParticleCount < getMaxParticles()) {
+                createParticle();
+            }
+        }, delay);
+        spawnTimeouts.push(id);
     }
 
-    for (let i = 0; i < MAX_INTER_PARTICLE_LINES; i++) {
+    // Create mouse line element only if mouse interaction is enabled
+    if (ENABLE_MOUSE_INTERACTION) {
+        if (!lineElement) {
+            lineElement = document.createElement('div');
+            lineElement.classList.add('particle-line');
+            lineElement.style.display = 'none';
+            document.body.appendChild(lineElement);
+        }
+    } else if (lineElement) {
+        lineElement.style.display = 'none';
+    }
+
+    for (let i = 0; i < getMaxInterParticleLines(); i++) {
         const ipl = document.createElement('div');
         ipl.classList.add('inter-particle-line');
         ipl.style.display = 'none';
@@ -57,70 +122,43 @@ export function initParticleBackground() {
         interParticleLineElements.push(ipl);
     }
 
-    // Mouse tracking
-    if (!window.hasParticleMouseMoveListener) {
-        window.addEventListener('mousemove', (event) => {
-            mouse.x = event.clientX;
-            mouse.y = event.clientY;
-        });
-        window.hasParticleMouseMoveListener = true;
+    // Mouse tracking (disabled when not needed)
+    if (ENABLE_MOUSE_INTERACTION) {
+        if (!window.hasParticleMouseMoveListener) {
+            window.addEventListener('mousemove', (event) => {
+                mouse.x = event.clientX;
+                mouse.y = event.clientY;
+            });
+            window.hasParticleMouseMoveListener = true;
+        }
     }
 
-    // Clear any previous intervals
-    if (window.particleGenerationInterval) {
-        clearInterval(window.particleGenerationInterval);
-    }
-    
-    // Set up continuous particle generation with random timing
-    if (window.particleGenerationInterval) {
-        clearInterval(window.particleGenerationInterval);
-    }
-    
-    window.particleGenerationInterval = setInterval(() => {
-        // Filter out completed particles
-        particles = particles.filter(p => {
-            if (!p || !p.element) return false;
-            
-            // Check if element is still in DOM and animation is complete
-            const inDOM = document.body.contains(p.element);
-            if (!inDOM) return false;
-            
-            // Check animation state - if it's complete, we'll remove it
-            const computedStyle = window.getComputedStyle(p.element);
-            const opacity = parseFloat(computedStyle.opacity);
-            
-            // Keep if opacity > 0 and animation not at end
-            if (opacity > 0 && p.timeCreated && (Date.now() - p.timeCreated < p.animationDuration * 1000 * 0.9)) {
-                return true;
-            }
-            
-            // Remove from DOM
-            p.element.remove();
-            activeParticleCount--;
-            return false;
-        });
-        
-        // Add new particles to maintain target count, but with random timing
-        const particlesToAdd = NUM_PARTICLES - activeParticleCount;
-        if (particlesToAdd > 0) {
-            // Add one particle now
-            createParticle();
-            
-            // Schedule any additional particles with random delays
-            for (let i = 1; i < particlesToAdd; i++) {
-                const randomDelay = Math.random() * 2000; // Random delay up to 2 seconds
-                setTimeout(() => {
-                    if (document.body.contains(particleContainerRef)) {
-                        createParticle();
-                    }
-                }, randomDelay);
-            }
-        }
-    }, PARTICLE_RESPAWN_INTERVAL);
+    // Clear previous and start maintenance interval
+    startMaintenanceInterval();
 
     // Start animation loop if not already running
     if (!window.particleAnimationLoopId) {
         animateParticles();
+    }
+
+    // Pause/resume on tab visibility to save CPU
+    document.removeEventListener('visibilitychange', onVisibilityChange, true);
+    document.addEventListener('visibilitychange', onVisibilityChange, true);
+}
+
+function onVisibilityChange() {
+    if (document.hidden) {
+        if (window.particleAnimationLoopId) {
+            cancelAnimationFrame(window.particleAnimationLoopId);
+            window.particleAnimationLoopId = null;
+        }
+        if (window.particleGenerationInterval) {
+            clearInterval(window.particleGenerationInterval);
+            window.particleGenerationInterval = null;
+        }
+    } else {
+        if (!window.particleAnimationLoopId) animateParticles();
+        if (!window.particleGenerationInterval) startMaintenanceInterval();
     }
 }
 
@@ -211,9 +249,13 @@ function createParticle() {
 
     // Set animation duration (significantly slower for better visibility)
     const animationDuration = 45 + Math.random() * 25; // Increased from 25+15 to 45+25 seconds
-    particleEl.style.animationDuration = `${animationDuration}s`;
-    particleEl.style.animationDelay = '0s';
-    
+    // particleEl.style.animationDuration = `${animationDuration}s`;
+    // particleEl.style.animationDelay = '0s';
+    // NEW: per-particle durations/delay for float + twinkle
+    particleEl.style.setProperty('--float-duration', `${animationDuration}s`);
+    particleEl.style.setProperty('--twinkle-duration', `${(1.6 + Math.random() * 2.2).toFixed(2)}s`);
+    particleEl.style.setProperty('--twinkle-delay', `${(Math.random() * 2).toFixed(2)}s`);
+
     // Initial opacity (explicitly start transparent)
     particleEl.style.opacity = '0';
 
@@ -239,6 +281,38 @@ function updateParticlesInteraction() {
     let closestParticleToMouse = null;
     let minDistToMouse = particleMouseAttractDistance;
     let interParticleLinePoolIndex = 0;
+
+    // Helper: line-of-sight occlusion between particle (x1,y1) and mouse (x2,y2)
+    // Returns true if any non-particle content is between them.
+    function isOccluded(x1, y1, x2, y2) {
+        // If mouse coords are undefined, treat as occluded to avoid interaction
+        if (x2 === undefined || y2 === undefined) return true;
+        const samples = 4; // sample a few points along the line
+        for (let i = 1; i <= samples; i++) {
+            const t = i / (samples + 1); // avoid sampling exactly at the ends
+            const sx = Math.round(x1 + (x2 - x1) * t);
+            const sy = Math.round(y1 + (y2 - y1) * t);
+            const el = document.elementFromPoint(sx, sy);
+            if (!el) continue; // unlikely
+            // Allow elements that are part of the particle system
+            if (
+                el.id === 'particleBackground' ||
+                el.classList?.contains('particle') ||
+                el.classList?.contains('particle-line') ||
+                el.classList?.contains('inter-particle-line') ||
+                el.closest?.('#particleBackground')
+            ) {
+                continue; // not occluding
+            }
+            // Any other element means occluded
+            return true;
+        }
+        return false;
+    }
+
+    // Check if spreadsheet is visible - if so, disable mouse interactions
+    const spreadsheetContainer = document.getElementById('spreadsheetContainer');
+    const isSpreadsheetVisible = spreadsheetContainer && spreadsheetContainer.style.display !== 'none';
 
     // Hide all inter-particle lines
     for (const line of interParticleLineElements) {
@@ -267,22 +341,10 @@ function updateParticlesInteraction() {
             continue; 
         }
         
-        const distToMouse = (mouse.x !== undefined && mouse.y !== undefined) ? 
-                            Math.sqrt((pX - mouse.x)**2 + (pY - mouse.y)**2) : Infinity;
-
-        if (distToMouse < particleMouseAttractDistance) {
-            const scaleFactor = 1 + (1 - distToMouse / particleMouseAttractDistance) * 0.8; 
-            p.element.style.transform = `scale(${scaleFactor})`;
-            p.element.style.opacity = p.baseOpacity + (1 - distToMouse / particleMouseAttractDistance) * 0.5;
-            
-            if (distToMouse < minDistToMouse) {
-                minDistToMouse = distToMouse;
-                closestParticleToMouse = {x: pX, y: pY};
-            }
-        } else {
-            p.element.style.transform = 'scale(1)';
-            p.element.style.opacity = p.baseOpacity;
-        }
+        // Skip mouse interactions if spreadsheet is visible
+    // Mouse interaction disabled: always keep base transform/opacity
+    p.element.style.transform = 'scale(1)';
+    p.element.style.opacity = p.baseOpacity;
 
         let isInteractingWithOtherParticle = false;
         for (let j = i + 1; j < particles.length; j++) { 
@@ -301,7 +363,8 @@ function updateParticlesInteraction() {
 
             if (distBetweenParticles < particleInteractionDistance && distBetweenParticles > 0) {
                 isInteractingWithOtherParticle = true;
-                if (interParticleLinePoolIndex < MAX_INTER_PARTICLE_LINES) {
+                // Use the actual pool size instead of an undefined constant
+                if (interParticleLinePoolIndex < interParticleLineElements.length) {
                     const line = interParticleLineElements[interParticleLinePoolIndex];
                     const angle = Math.atan2(otherPY - pY, otherPX - pX) * 180 / Math.PI;
                     const length = distBetweenParticles;
@@ -317,9 +380,7 @@ function updateParticlesInteraction() {
             }
         }
 
-        if (distToMouse < particleMouseAttractDistance) {
-            // Mouse interaction glow handled
-        } else if (isInteractingWithOtherParticle) {
+    if (isInteractingWithOtherParticle) {
              p.element.style.opacity = Math.min(1, p.baseOpacity + 0.3); 
              p.element.style.boxShadow = `0 0 12px var(--main-accent), 0 0 20px var(--main-accent)`;
         } else {
@@ -327,7 +388,8 @@ function updateParticlesInteraction() {
         }
     }
     
-    if (closestParticleToMouse && mouse.x !== undefined && lineElement) {
+    // Mouse line disabled entirely
+    if (ENABLE_MOUSE_INTERACTION && !isSpreadsheetVisible && closestParticleToMouse && mouse.x !== undefined && lineElement && !isOccluded(closestParticleToMouse.x, closestParticleToMouse.y, mouse.x, mouse.y)) {
         lineElement.style.display = 'block';
         const angle = Math.atan2(mouse.y - closestParticleToMouse.y, mouse.x - closestParticleToMouse.x) * 180 / Math.PI;
         const length = Math.sqrt((mouse.x - closestParticleToMouse.x)**2 + (mouse.y - closestParticleToMouse.y)**2);
@@ -351,6 +413,12 @@ export function cleanUpParticles() {
     if (lineElement && document.body.contains(lineElement)) {
         lineElement.remove();
     }
+
+    // NEW: clear any scheduled ramp-up spawns
+    spawnTimeouts.forEach(clearTimeout);
+    spawnTimeouts = [];
+    nextSpawnTime = 0;
+
     particles = [];
     interParticleLineElements = [];
 }

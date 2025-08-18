@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto Editor</title>
+    <title>AIDN</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', path='assets/favicon/favicon.ico') }}">
+    <!-- Performance: preconnect to CDNs used for CSS/JS -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -20,9 +23,10 @@
         <nav class="navbar navbar-dark bg-dark-custom">
             <div class="container-fluid justify-content-center position-relative">
                 <!-- Centered logo image -->
-                <img src="{{ url_for('static', path='assets/images/hlb-hamt.jpg') }}" 
+             <img src="{{ url_for('static', path='assets/images/hlb-hamt.jpg') }}" 
                      alt="HLB HAMT" 
-                     class="navbar-logo-img mx-auto d-block logo-faded">
+                 class="navbar-logo-img mx-auto d-block logo-faded"
+                 loading="lazy" decoding="async" fetchpriority="low">
                 <!-- Sidebar toggle button absolutely positioned left -->
                 <button class="sidebar-toggle-btn sidebar-toggle-pos" id="sidebarToggleBtn" title="Toggle Sidebar">
                     <i class="fas fa-bars"></i>
@@ -57,27 +61,6 @@
                                 <i class="fas fa-upload me-2"></i>Upload
                             </button>
                         </form>
-                    </div>
-
-                    <!-- Actions Section -->
-                    <div class="sidebar-section" id="actionsSection" style="display: none;">
-                        <h6 class="sidebar-title">
-                            <i class="fas fa-cogs me-2"></i>Actions
-                        </h6>
-                        <div class="action-buttons">
-                            <button id="undoBtn" class="btn btn-outline-warning btn-futuristic w-100 mb-2" disabled
-                                title="Undo (Ctrl+Z)">
-                                <i class="fas fa-undo me-2"></i>Undo
-                            </button>
-                            <button id="redoBtn" class="btn btn-outline-info btn-futuristic w-100 mb-2" disabled
-                                title="Redo (Ctrl+Y)">
-                                <i class="fas fa-redo me-2"></i>Redo
-                            </button>
-                            <button id="downloadBtn" class="btn btn-success btn-futuristic w-100" 
-                                title="Download (Alt+D)">
-                                <i class="fas fa-download me-2"></i>Download
-                            </button>
-                        </div>
                     </div>
 
                     <!-- Session Info -->
@@ -115,6 +98,14 @@
                                 <span class="session-label">Fullscreen</span>
                                 <span class="session-value">Alt+F</span>
                             </div>
+                               <div class="session-item">
+                                <span class="session-label"> Update Schema</span>
+                                <span class="session-value">Alt+Shift+U</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Transform to Schema</span>
+                                <span class="session-value">Alt+Shift+T</span>
+                            </div> 
                             <div class="session-item">
                                 <span class="session-label">Select</span>
                                 <span class="session-value">Alt+Shift+U</span>
@@ -126,6 +117,10 @@
                             <div class="session-item">
                                 <span class="session-label">Execute</span>
                                 <span class="session-value">Enter</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">History Navigation</span>
+                                <span class="session-value">Alt+Up / Alt+Down</span>
                             </div>
                             <div class="session-item">
                                 <span class="session-label">Undo</span>
@@ -174,6 +169,10 @@
                             <div class="session-item">
                                 <span class="session-label">Manage Mappings</span>
                                 <span class="session-value">Alt+G</span>
+                            </div>
+                            <div class="session-item">
+                                <span class="session-label">Analytics</span>
+                                <span class="session-value">Alt+A</span>
                             </div>                                           
                         </div>
                     </div>
@@ -181,10 +180,10 @@
             </div>
 
             <!-- Main Content Area -->
-            <div class="main-content-scroll-wrapper custom-scrollbar">
+            <div class="main-content-scroll-wrapper custom-scrollbar" style="content-visibility:auto; contain-intrinsic-size: 1200px 1000px;">
                 <div class="main-content">
                     <!-- Command Input Section -->
-                    <div class="command-section" id="commandContainer" style="display: none;">
+                    <div class="command-section" id="commandContainer" style="display: none; content-visibility:auto; contain-intrinsic-size: 600px 400px;">
                         <div class="command-card">
                             <div class="command-header">
                                 <h5><i class="fas fa-terminal me-2"></i>AI Command Interface</h5>
@@ -203,7 +202,7 @@
                                             </button>
                                         </div>
                                         <button id="processBtn" class="btn btn-primary btn-futuristic w-100" style="margin-top: 0;" title="Process Command (Enter)">
-                                            <i class="fas fa-magic me-2"></i>Enter
+                                            <i class="fas fa-reply fa-flip-horizontal fa-flip-vertical me-2"></i>Enter
                                         </button>
                                     </div>
                                 </div>
@@ -212,7 +211,7 @@
                     </div>
 
                     <!-- Spreadsheet Display -->
-                    <div class="spreadsheet-section" id="spreadsheetContainer" style="display: none;">
+                    <div class="spreadsheet-section" id="spreadsheetContainer" style="display: none; content-visibility:auto; contain-intrinsic-size: 900px 700px;">
                         <div class="spreadsheet-card">
                             <div class="spreadsheet-header">
                                 <h5><i class="fas fa-table me-2"></i>Spreadsheet Data</h5>
@@ -228,6 +227,23 @@
                                         <button class="btn btn-sm btn-outline-light" id="manageMappingsBtn" title="Manage Mappings (Alt+G)">
                                             <i class="fas fa-link"></i>
                                         </button>
+                                        <!-- Analytics Button -->
+                                        <button class="btn btn-sm btn-outline-light" id="analyticsBtn" title="Analytics (Alt+A)">
+                                            <i class="fas fa-chart-bar"></i>
+                                        </button>
+                                        <!-- Action Plan Button -->
+                                        <button class="btn btn-sm btn-outline-light" id="generateActionPlanBtn" title="Generate & Execute Algorithm">
+                                            <i class="fas fa-robot"></i>
+                                        </button>
+                                    </div>
+                                    <!-- Schema Management Buttons -->
+                                    <div class="schema-buttons">
+                                        <button class="btn btn-sm btn-outline-light" id="updateSchemaBtn" title="Update Schema (Alt+Shift+U)">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-light" id="transformSchemaBtn" title="Transform to Schema (Alt+Shift+T)">
+                                            <i class="fas fa-magic"></i>
+                                        </button>
                                     </div>
                                     <!-- Screen Controls -->
                                     <div class="screen-controls">
@@ -237,6 +253,22 @@
                                         <!-- Fullscreen Button -->
                                         <button class="btn btn-sm btn-outline-light" id="fullscreenBtn" tooltip="Toggle Fullscreen" title="Fullscreen (Alt+F)">
                                             <i class="fas fa-expand"></i>
+                                        </button>
+                                        <button id="undoBtn" class="btn btn-sm btn-outline-light" disabled
+                                            title="Undo (Ctrl+Z)">
+                                            <i class="fas fa-undo"></i>
+                                        </button>
+                                        <button id="redoBtn" class="btn btn-sm btn-outline-light" disabled
+                                            title="Redo (Ctrl+Y)">
+                                            <i class="fas fa-redo"></i>
+                                        </button>
+                                        <button id="downloadBtn" class="btn btn-sm btn-outline-light" 
+                                            title="Download (Alt+D)">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                        <button id="cacheBtn" class="btn btn-sm btn-outline-light" 
+                                            title="Storage Cleanup">
+                                            <i class="fas fa-broom"></i>
                                         </button>
                                     </div>
                                     <!-- Cell Selector Bar -->
@@ -260,7 +292,7 @@
         </div>
 
         <!-- Loading Overlay -->
-        <div class="loading-overlay" id="loadingContainer" style="display: none;">
+    <div class="loading-overlay" id="loadingContainer" style="display: none; content-visibility:auto; contain-intrinsic-size: 400px 300px;">
             <div class="loading-content">
                 <div class="futuristic-loader">
                     <div class="loader-ring"></div>
@@ -277,7 +309,7 @@
         </div>
 
         <!-- Error Modal -->
-        <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+    <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 400px;">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -290,14 +322,16 @@
                         An error occurred.
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i>Close
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Confirmation Modal -->
-        <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 400px;">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -310,7 +344,9 @@
                         Are you sure?
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="confirmModalCancelBtn">Cancel</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="confirmModalCancelBtn">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </button>
                         <button type="button" class="btn btn-primary" id="confirmModalConfirmBtn">Confirm</button>
                     </div>
                 </div>
@@ -318,7 +354,7 @@
         </div>
 
         <!-- Alert Modal -->
-        <div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalLabel" aria-hidden="true">
+    <div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 400px;">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -337,8 +373,40 @@
             </div>
         </div>
 
+        <!-- Action Plan Modal -->
+    <div class="modal fade" id="actionPlanModal" tabindex="-1" aria-labelledby="actionPlanModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 800px 600px;">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="actionPlanModalLabel">
+                            <i class="fas fa-robot me-2"></i>Universal Algorithm Action Plan
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Warning:</strong> The system will generate a universal algorithm based on your sample changes and apply it to the entire left spreadsheet (<span id="actionPlanRowCount">0</span> rows).
+                        </div>
+                        <h6 class="mb-3"><i class="fas fa-list-ul me-2"></i>Detected Changes:</h6>
+                        <div class="action-plan-content custom-scrollbar" id="actionPlanContent" style="max-height: 300px; overflow-y: auto; background-color: var(--bg-secondary); border-radius: 8px; padding: 15px; font-family: 'Courier New', monospace; white-space: pre-wrap;">
+                            <!-- Action plan will be inserted here -->
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </button>
+                        <button type="button" class="btn btn-primary" id="actionPlanProceedBtn">
+                            <i class="fas fa-play me-2"></i>Proceed
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Prompt Modal -->
-        <div class="modal fade" id="promptModal" tabindex="-1" aria-labelledby="promptModalLabel" aria-hidden="true">
+    <div class="modal fade" id="promptModal" tabindex="-1" aria-labelledby="promptModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 500px;">
             <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 500px;">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -364,7 +432,12 @@
         </div>
         <div class="footer-center">
             <span class="navbar-brand footer-blink footer-title">
-                Auto Editor
+                <span class="footer-text">AI Data</span>
+                <span class="footer-gears">
+                    <i class="fas fa-cog gear-1"></i>
+                    <i class="fas fa-cog gear-2"></i>
+                </span>
+                <span class="footer-text">Normalizer</span>
             </span>
         </div>
         <div class="footer-right">
@@ -372,8 +445,16 @@
         </div>
     </footer>
 
-    <!-- Add Bootstrap JavaScript before your custom scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Add Bootstrap JavaScript before your custom scripts (deferred to avoid blocking) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Global fix for removed actionsSection element - Must be very early -->
+    <script src="{{ url_for('static', path='js/global-fixes.js') }}"></script>
+    
+    <!-- Add Chart.js for token usage dashboard -->
+    <!-- Keep Chart.js synchronous at the end to preserve load order if referenced by main.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     
     <!-- Add Handsontable JavaScript library -->
     <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
@@ -381,8 +462,61 @@
     <script type="module" src="{{ url_for('static', path='js/main.js') }}"></script>
     <script type="module" src="{{ url_for('static', path='js/prompts.js') }}"></script>
 
+    <!-- Storage Cleanup Modal -->
+    <div class="modal fade" id="cacheModal" tabindex="-1" aria-labelledby="cacheModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 800px 600px;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="cacheModalLabel">
+                        <i class="fas fa-broom me-2"></i>Storage Cleanup
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Cleanup Temporary Files OR Reset Application.</strong>
+                    </div>
+                    
+                    <div class="cache-button-grid">
+                        <button type="button" class="cache-action-btn" id="deleteUploadsBtn">
+                            <i class="fas fa-file-import"></i>Clear Imported Files
+                        </button>
+                        <button type="button" class="cache-action-btn" id="deleteDownloadsBtn">
+                            <i class="fas fa-file-export"></i>Clear Exported Files
+                        </button>
+                        <button type="button" class="cache-action-btn" id="deleteJsonBtn">
+                            <i class="fas fa-file-alt"></i>Clear Settings
+                        </button>
+                        <button type="button" class="cache-action-btn" id="deletePromptsBtn">
+                            <i class="fas fa-history"></i>Clear History
+                        </button>
+                        <button type="button" class="cache-action-btn" id="deleteScriptBtn">
+                            <i class="fas fa-cogs"></i>Clear Automation
+                        </button>
+                        <button type="button" class="cache-action-btn" id="deleteMappingsBtn">
+                            <i class="fas fa-link"></i>Clear Mappings
+                        </button>
+                    </div>
+                    
+                    <div>
+                        <button type="button" class="all-clear-btn" id="allClearBtn">
+                            <i class="fas fa-broom me-2"></i>RESET WORKSPACE
+                            <br><small>Clear all temporary data (irreversible)</small>
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Mapping Management Modal -->
-    <div class="modal fade" id="mappingManagementModal" tabindex="-1" aria-labelledby="mappingManagementModalLabel" aria-hidden="true">
+    <div class="modal fade" id="mappingManagementModal" tabindex="-1" aria-labelledby="mappingManagementModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 1000px 800px;">
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header border-secondary">
@@ -396,8 +530,12 @@
                     <div class="row mb-3">
                         <div class="col-md-12">
                             <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title d-flex align-items-center mb-0">
+                                        <i class="fas fa-chart-pie me-2 text-primary"></i>Statistics
+                                    </h6>
+                                </div>
                                 <div class="card-body">
-                                    <h6 class="card-title">Statistics</h6>
                                     <div class="row" id="mappingStats">
                                         <div class="col-md-3">
                                             <small class="text-muted">Active Mappings</small>
@@ -421,54 +559,260 @@
                         </div>
                     </div>
 
-                    <!-- Mapping Actions -->
+                    <!-- Spreadsheet Mapping -->
                     <div class="row mb-3">
                         <div class="col-md-12">
-                            <button class="btn btn-primary btn-sm" id="refreshMappingsBtn">
-                                <i class="fas fa-sync-alt"></i> Refresh
-                            </button>
-                            <button class="btn btn-success btn-sm" id="createNewMappingBtn">
-                                <i class="fas fa-plus"></i> Create New Mapping
-                            </button>
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title d-flex align-items-center mb-0">
+                                        <i class="fas fa-table me-2 text-primary"></i>
+                                        Spreadsheet Mapping
+                                        <button class="btn btn-sm btn-outline-primary ms-auto me-2" id="refreshMappingsBtn">
+                                            <i class="fas fa-sync-alt"></i> Refresh
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-success" id="createNewMappingBtn">
+                                            <i class="fas fa-plus"></i> Create New Mapping
+                                        </button>
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Mappings Table -->
+                                    <div class="table-responsive">
+                                        <table class="table table-striped table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Spreadsheet</th>
+                                                    <th>Command File</th>
+                                                    <th>Commands</th>
+                                                    <th>Uses</th>
+                                                    <th>Created</th>
+                                                    <th>Last Used</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="mappingsTableBody">
+                                                <!-- Mappings will be populated here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- No mappings message -->
+                                    <div id="noMappingsMessage" class="text-center text-muted py-5" style="display: none;">
+                                        <i class="fas fa-unlink fa-3x mb-3"></i>
+                                        <h5>No mappings found</h5>
+                                        <p>Create a mapping to automatically execute commands when spreadsheets are uploaded.</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- Mappings Table -->
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Spreadsheet</th>
-                                    <th>Command File</th>
-                                    <th>Commands</th>
-                                    <th>Uses</th>
-                                    <th>Created</th>
-                                    <th>Last Used</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="mappingsTableBody">
-                                <!-- Mappings will be populated here -->
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- No mappings message -->
-                    <div id="noMappingsMessage" class="text-center text-muted py-5" style="display: none;">
-                        <i class="fas fa-unlink fa-3x mb-3"></i>
-                        <h5>No mappings found</h5>
-                        <p>Create a mapping to automatically execute commands when spreadsheets are uploaded.</p>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Modal -->
+    <div class="modal fade" id="analyticsModal" tabindex="-1" aria-labelledby="analyticsModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 1000px 800px;">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="analyticsModalLabel">
+                        <i class="fas fa-chart-bar me-2"></i>Token Usage Analytics
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Token Usage Dashboard -->
+                    <div class="row mt-1 mb-1" id="tokenUsageDashboard">
+                        <div class="col-md-12">
+                        </div>
+                    </div>
+
+                    <!-- Summary Cards Section -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title d-flex align-items-center mb-0">
+                                        <i class="fas fa-tachometer-alt me-2 text-primary"></i>
+                                        Summary Cards
+                                        <button class="btn btn-sm btn-outline-primary ms-auto" id="refreshTokenStatsBtn">
+                                            <i class="fas fa-sync-alt"></i> Refresh
+                                        </button>
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row" id="tokenSummaryCards">
+                                        <div class="col-md-3">
+                                            <div class="token-metric-card">
+                                                <div class="metric-icon">
+                                                    <i class="fas fa-coins"></i>
+                                                </div>
+                                                <div class="metric-content">
+                                                    <h5 id="totalTokensUsed" class="metric-value">0</h5>
+                                                    <small class="metric-label">Total Tokens Used</small>
+                                                    <div class="metric-trend" id="tokensTrend">
+                                                        <i class="fas fa-arrow-up text-success"></i>
+                                                        <span>+0%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="token-metric-card">
+                                                <div class="metric-icon">
+                                                    <i class="fas fa-dollar-sign"></i>
+                                                </div>
+                                                <div class="metric-content">
+                                                    <h5 id="totalCostEstimate" class="metric-value">$0.00</h5>
+                                                    <small class="metric-label">Estimated Cost</small>
+                                                    <div class="metric-trend" id="costTrend">
+                                                        <i class="fas fa-arrow-up text-success"></i>
+                                                        <span>+0%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="token-metric-card">
+                                                <div class="metric-icon">
+                                                    <i class="fas fa-layer-group"></i>
+                                                </div>
+                                                <div class="metric-content">
+                                                    <h5 id="totalBatchCommands" class="metric-value">0</h5>
+                                                    <small class="metric-label">Total Commands</small>
+                                                    <div class="metric-trend" id="batchTrend">
+                                                        <i class="fas fa-arrow-up text-success"></i>
+                                                        <span>+0%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="token-metric-card">
+                                                <div class="metric-icon">
+                                                    <i class="fas fa-robot"></i>
+                                                </div>
+                                                <div class="metric-content">
+                                                    <h5 id="avgTokensPerCommand" class="metric-value">0</h5>
+                                                    <small class="metric-label">Avg Tokens/Command</small>
+                                                    <div class="metric-trend" id="avgTrend">
+                                                        <i class="fas fa-minus text-warning"></i>
+                                                        <span>0%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Section -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title d-flex align-items-center mb-0">
+                                        <i class="fas fa-chart-pie me-2 text-primary"></i>
+                                        Summary Charts
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Top Row Charts -->
+                                    <div class="row mb-4">
+                                        <!-- Token Distribution Pie Chart -->
+                                        <div class="col-md-4">
+                                            <div class="chart-container">
+                                                <h6 class="chart-title d-flex align-items-center mb-0">
+                                                    <i class="fas fa-pie-chart me-2 text-primary"></i>Token Distribution
+                                                </h6>
+                                                <div class="chart-wrapper">
+                                                    <canvas id="tokenDistributionChart"></canvas>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Model Usage Breakdown -->
+                                        <div class="col-md-4">
+                                            <div class="chart-container">
+                                                <h6 class="chart-title d-flex align-items-center mb-0">
+                                                    <i class="fas fa-brain me-2 text-primary"></i>Model Usage
+                                                </h6>
+                                                <div class="chart-wrapper">
+                                                    <canvas id="modelUsageChart"></canvas>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Cost Breakdown -->
+                                        <div class="col-md-4">
+                                            <div class="chart-container">
+                                                <h6 class="chart-title d-flex align-items-center mb-0">
+                                                    <i class="fas fa-chart-bar me-2 text-primary"></i>Cost Analysis
+                                                </h6>
+                                                <div class="chart-wrapper">
+                                                    <canvas id="costBreakdownChart"></canvas>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Usage Timeline -->
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            <div class="chart-container">
+                                                <h6 class="chart-title d-flex align-items-center mb-0">
+                                                    <i class="fas fa-chart-line me-2 text-primary"></i>Usage Timeline
+                                                </h6>
+                                                <div class="chart-wrapper timeline-chart">
+                                                    <canvas id="usageTimelineChart"></canvas>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Batch Activity Section -->
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title d-flex align-items-center mb-0">
+                                        <i class="fas fa-history me-2 text-primary"></i>Recent Batch Activity
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="recent-activity-container">
+                                        <div id="recentActivityList" class="recent-activity-list">
+                                            <!-- Recent batch activities will be populated here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Close
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Create/Edit Mapping Modal -->
-    <div class="modal fade" id="createMappingModal" tabindex="-1" aria-labelledby="createMappingModalLabel" aria-hidden="true">
+    <div class="modal fade" id="createMappingModal" tabindex="-1" aria-labelledby="createMappingModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 800px 600px;">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header border-secondary">
@@ -504,9 +848,77 @@
                     </form>
                 </div>
                 <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Cancel
+                    </button>
                     <button type="button" class="btn btn-primary" id="saveMappingBtn" disabled>
                         <i class="fas fa-save"></i> Create Mapping
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Mapping Modal -->
+    <div class="modal fade" id="editMappingModal" tabindex="1100" aria-labelledby="editMappingModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 800px 600px;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="editMappingModalLabel">
+                        <i class="fas fa-edit me-2"></i>Edit Mapping
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editMappingForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editMappingSpreadsheetName" class="form-label">Spreadsheet Name</label>
+                                    <input type="text" class="form-control" 
+                                           id="editMappingSpreadsheetName" placeholder="e.g., sample.xlsx" readonly>
+                                    <small class="form-text text-muted">Spreadsheet name cannot be changed</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editMappingId" class="form-label">Mapping ID</label>
+                                    <input type="text" class="form-control" 
+                                           id="editMappingId" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editMappingCommands" class="form-label">Commands</label>
+                            <div class="commands-display">
+                                <div id="editMappingCommands" class="commands-text" contenteditable="true" 
+                                     style="padding: 1.25rem 1.5rem 1.25rem 4rem; min-height: 300px; max-height: 50vh; overflow-y: auto;"
+                                     data-placeholder="Enter commands, one per line..."></div>
+                            </div>
+                            <small class="form-text text-muted">Edit the commands for this mapping. Each line should contain one command.</small>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Created</label>
+                                    <div id="editMappingCreatedAt" class="form-control-plaintext">-</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Usage Count</label>
+                                    <div id="editMappingUseCount" class="form-control-plaintext">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-warning" id="updateMappingBtn">
+                        <i class="fas fa-save"></i> Update Mapping
                     </button>
                 </div>
             </div>
@@ -515,3 +927,4 @@
    
 </body>
 </html>
+

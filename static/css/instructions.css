@@ -1,0 +1,632 @@
+/* Instructions page specific styles */
+
+/* Override main.css body overflow for manual page */
+body.dark-theme {
+  overflow: auto !important; /* Allow scrolling on manual page */
+  min-height: 100vh;
+}
+
+/* Ensure particle background works on manual page */
+.particle-background {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Additional styles for the manual page */
+.manual-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background: var(--glass-bg-color);
+  backdrop-filter: blur(var(--glass-blur-amount));
+  border: 1px solid var(--glass-border-color);
+  border-radius: var(--border-radius);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  margin-bottom: 50px; /* Add bottom margin for better scrolling */
+  position: relative;
+  z-index: 2;
+}
+
+/* Ensure all text is visible */
+.manual-content p,
+.manual-content .text-muted {
+  color: var(--text-primary) !important;
+  position: relative;
+  z-index: 3;
+}
+
+/* Improve container layout */
+.container-fluid {
+  padding-bottom: 50px; /* Ensure content doesn't touch bottom */
+}
+
+.manual-header {
+  text-align: center;
+  margin-bottom: 40px;
+  padding: 30px;
+  background: linear-gradient(135deg, rgba(0, 191, 255, 0.1), rgba(25, 25, 35, 0.1));
+  border-radius: var(--border-radius);
+  border: 1px solid var(--glass-border-color);
+}
+
+.manual-section {
+  margin-bottom: 40px;
+  padding: 25px;
+  background: rgba(25, 25, 35, 0.3);
+  border-radius: var(--border-radius);
+  border: 1px solid rgba(0, 191, 255, 0.2);
+}
+
+.section-title {
+  color: var(--main-accent);
+  border-bottom: 2px solid var(--main-accent);
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.feature-card {
+  background: rgba(0, 191, 255, 0.05);
+  border: 1px solid rgba(0, 191, 255, 0.2);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  transition: var(--transition-fast);
+}
+
+.feature-card:hover {
+  border-color: var(--main-accent);
+  background: rgba(0, 191, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.error-card {
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 15px;
+}
+
+.solution-card {
+  background: rgba(40, 167, 69, 0.1);
+  border: 1px solid rgba(40, 167, 69, 0.3);
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 10px;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.shortcut-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  background: rgba(0, 191, 255, 0.05);
+  border: 1px solid rgba(0, 191, 255, 0.2);
+  border-radius: 6px;
+  transition: background 0.6s ease, transform 0.6s ease, box-shadow 0.6s ease, border-color 0.6s ease;
+}
+
+.shortcut-key {
+  background: var(--main-accent);
+  color: var(--base-bg);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+
+/* Active highlight for keyboard shortcuts (cycled automatically) */
+.shortcut-item.highlight-active {
+  background: rgba(0, 191, 255, 0.18);
+  border-color: var(--main-accent);
+  transform: scale(1.02);
+  box-shadow: 0 6px 18px rgba(0, 191, 255, 0.25);
+}
+
+.workflow-step {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: rgba(25, 25, 35, 0.5);
+  border-radius: 8px;
+  border-left: 4px solid var(--main-accent);
+}
+
+.step-number {
+  background: var(--main-accent);
+  color: var(--base-bg);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-right: 15px;
+  flex-shrink: 0;
+}
+
+.animated-demo {
+  border: 2px dashed var(--main-accent);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  background: rgba(0, 191, 255, 0.05);
+  margin: 20px 0;
+}
+
+.demo-placeholder {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.back-button {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1000;
+  background: var(--glass-bg-color);
+  backdrop-filter: blur(var(--glass-blur-amount));
+  border: 1px solid var(--glass-border-color);
+  color: var(--main-accent);
+  padding: 10px 20px;
+  border-radius: var(--border-radius);
+  text-decoration: none;
+  transition: var(--transition-fast);
+}
+
+.back-button:hover {
+  background: var(--main-accent);
+  color: var(--base-bg);
+  border-color: var(--main-accent);
+}
+
+.toc {
+  background: rgba(25, 25, 35, 0.6);
+  border: 1px solid rgba(0, 191, 255, 0.3);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.toc ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.toc li {
+  margin-bottom: 8px;
+}
+
+.toc a {
+  color: var(--text-primary);
+  text-decoration: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 12px; /* Fixed gap between icon and text */
+  min-height: 40px; /* Consistent height for all items */
+}
+
+.toc a i {
+  width: 20px; /* Fixed width for icons to align properly */
+  text-align: center;
+  flex-shrink: 0; /* Prevent icon from shrinking */
+  font-size: 1em; /* Consistent icon size */
+}
+
+.toc a span {
+  flex: 1; /* Allow text to take remaining space */
+  text-align: left; /* Ensure text alignment */
+}
+
+.toc a:hover {
+  background: rgba(0, 191, 255, 0.2);
+  color: var(--main-accent);
+  text-decoration: none;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: bold;
+}
+
+.status-success { 
+  background: rgba(40, 167, 69, 0.2); 
+  color: #28a745; 
+}
+
+.status-warning { 
+  background: rgba(255, 193, 7, 0.2); 
+  color: #ffc107; 
+}
+
+.status-error { 
+  background: rgba(220, 53, 69, 0.2); 
+  color: #dc3545; 
+}
+
+.highlight-box {
+  background: linear-gradient(135deg, rgba(0, 191, 255, 0.1), rgba(25, 25, 35, 0.1));
+  border: 1px solid var(--main-accent);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+.icon-large {
+  font-size: 2em;
+  color: var(--main-accent);
+  margin-bottom: 15px;
+}
+
+/* Animation styles for dynamic graphics */
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes manualFloat {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animated-icon {
+  animation: manualFloat 3s ease-in-out infinite;
+}
+
+.pulse-icon {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.rotating-icon {
+  animation: rotate 4s linear infinite;
+}
+
+.slide-in {
+  animation: slideIn 0.8s ease-out;
+}
+
+/* Interactive demo area */
+.demo-interactive {
+  position: relative;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 20px;
+  z-index: 2; /* Ensure demo content is above background */
+}
+
+.demo-interactive p {
+  color: var(--text-primary) !important;
+  z-index: 3;
+  position: relative;
+}
+
+.demo-step {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: rgba(0, 191, 255, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 191, 255, 0.3);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  margin-bottom: 25px; /* Add horizontal spacing between blocks */
+}
+
+.demo-step:hover {
+  background: rgba(0, 191, 255, 0.2);
+  transform: translateX(10px);
+}
+
+.demo-step .step-icon {
+  font-size: 1.5em;
+  color: var(--main-accent);
+}
+
+/* Progress bar animation */
+.progress-demo {
+  width: 100%;
+  height: 20px;
+  background: rgba(25, 25, 35, 0.5);
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+  z-index: 1; /* Keep progress bar below text */
+}
+
+.progress-demo::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--main-accent), transparent);
+  animation: loading 2s ease-in-out infinite;
+}
+
+@keyframes loading {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Simulated data flow */
+.data-flow {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  background: rgba(25, 25, 35, 0.3);
+  border-radius: 8px;
+  margin: 20px 0;
+  z-index: 2;
+  position: relative;
+}
+
+.data-flow p {
+  color: var(--text-primary) !important;
+}
+
+.flow-box {
+  padding: 15px;
+  background: rgba(0, 191, 255, 0.1);
+  border: 1px solid rgba(0, 191, 255, 0.3);
+  border-radius: 6px;
+  text-align: center;
+  flex: 1;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.flow-box:hover {
+  background: rgba(0, 191, 255, 0.2);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 191, 255, 0.3);
+}
+
+.flow-arrow {
+  font-size: 1.5em;
+  color: var(--main-accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Error showcase */
+.error-showcase {
+  background: rgba(220, 53, 69, 0.15);
+  border: 2px solid rgba(220, 53, 69, 0.5);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 15px 0;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(220, 53, 69, 0.4), inset 0 0 20px rgba(220, 53, 69, 0.1);
+}
+
+.error-showcase::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(220, 53, 69, 0.6), transparent);
+  animation: errorScan 2s ease-in-out infinite;
+  opacity: 0.8;
+}
+
+@keyframes errorScan {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Footer and general text visibility fixes */
+.text-center p.text-muted {
+  color: var(--text-secondary) !important;
+  opacity: 0.8;
+  position: relative;
+  z-index: 3;
+}
+
+/* Ensure workflow section text is visible */
+.text-center .text-muted {
+  color: var(--text-secondary) !important;
+  position: relative;
+  z-index: 3;
+}
+
+/* Template Demo Tables */
+.demo-table {
+  width: 100%;
+  margin: 15px 0;
+  border-collapse: collapse;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.demo-table th,
+.demo-table td {
+  padding: 12px 16px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(0, 191, 255, 0.2);
+  color: var(--text-primary);
+  white-space: nowrap;
+  min-width: 120px;
+}
+
+.demo-table th {
+  background: rgba(0, 191, 255, 0.15);
+  color: var(--main-accent);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+}
+
+.demo-table tr:last-child td {
+  border-bottom: none;
+}
+
+.demo-table tr:hover {
+  background: rgba(0, 191, 255, 0.05);
+}
+
+/* Specific styling for template demo flow boxes */
+.flow-box .demo-table-container {
+  margin: 10px 0;
+  text-align: left;
+}
+
+.flow-box h6 {
+  margin-bottom: 15px;
+  color: var(--main-accent);
+  font-weight: 600;
+}
+
+/* Transformation arrow styling */
+.transform-arrow {
+  font-size: 2rem;
+  color: var(--main-accent);
+  animation: pulse 2s ease-in-out infinite;
+  text-shadow: 0 0 10px rgba(0, 191, 255, 0.5);
+}
+
+/* Transformation message box - similar to flow-box but for the description */
+.transform-message-box {
+  padding: 20px;
+  background: rgba(0, 191, 255, 0.1);
+  border: 2px solid rgba(0, 191, 255, 0.3);
+  border-radius: 8px;
+  text-align: center;
+  margin: 20px auto;
+  max-width: 500px;
+  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 191, 255, 0.2);
+}
+
+.transform-message-box:hover {
+  background: rgba(0, 191, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 191, 255, 0.3);
+}
+
+.transform-message-box p {
+  margin: 0;
+  color: var(--text-primary) !important;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+/* Spacing for transformation flow */
+.transform-flow-section {
+  margin: 0; /* keep container tight; spacing handled by children */
+}
+
+.transform-flow-section .transform-arrow {
+  margin: 0; /* arrows themselves have no margin; wrappers control spacing */
+}
+
+/* Specific spacing adjustments for uniform design */
+.demo-interactive .row {
+  margin-bottom: 0;
+}
+
+.transform-flow-section .text-center {
+  margin: 25px 0; /* uniform gaps above/below arrows */
+}
+
+.transform-flow-section .text-center:last-child {
+  margin-bottom: 0; /* avoid double gap before steps */
+}
+
+.transform-message-box {
+  margin: 0 auto; /* gap provided by adjacent arrow wrappers */
+}
+
+.demo-steps-container {
+  margin-top: 25px; /* match demo-step vertical rhythm */
+}
+
+/* Instructions message box - similar decorative style to transform-message-box */
+.instructions-message-box {
+  padding: 15px 20px;
+  background: rgba(0, 191, 255, 0.08);
+  border: 1px solid rgba(0, 191, 255, 0.25);
+  border-radius: 6px;
+  text-align: center;
+  margin: 20px auto;
+  max-width: 400px;
+  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 10px rgba(0, 191, 255, 0.15);
+}
+
+.instructions-message-box:hover {
+  background: rgba(0, 191, 255, 0.12);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(0, 191, 255, 0.25);
+}
+
+.instructions-message-box p {
+  margin: 0;
+  color: var(--text-primary) !important;
+  font-weight: 400;
+  font-size: 0.9rem;
+}

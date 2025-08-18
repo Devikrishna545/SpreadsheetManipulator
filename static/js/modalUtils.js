@@ -78,8 +78,22 @@ export function showConfirm(message, title = 'Confirmation', options = {}) {
         modalBody.textContent = message;
         
         // Set button texts and styles
-        confirmBtn.textContent = config.confirmText;
-        cancelBtn.textContent = config.cancelText;
+        // Add appropriate icon based on confirmText
+        let confirmIcon = '';
+        if (config.confirmText.toLowerCase().includes('execute')) {
+            confirmIcon = '<i class="fas fa-play me-2"></i>';
+        } else if (config.confirmText.toLowerCase().includes('delete')) {
+            confirmIcon = '<i class="fas fa-trash me-2"></i>';
+        } else if (config.confirmText.toLowerCase().includes('save') || config.confirmText.toLowerCase().includes('create')) {
+            confirmIcon = '<i class="fas fa-save me-2"></i>';
+        } else if (config.confirmText.toLowerCase().includes('continue')) {
+            confirmIcon = '<i class="fas fa-arrow-right me-2"></i>';
+        } else {
+            confirmIcon = '<i class="fas fa-check me-2"></i>';
+        }
+        
+        confirmBtn.innerHTML = `${confirmIcon}${config.confirmText}`;
+        cancelBtn.innerHTML = `<i class="fas fa-times me-2"></i>${config.cancelText}`;
         confirmBtn.className = `btn ${config.confirmClass}`;
         
         // Show the modal

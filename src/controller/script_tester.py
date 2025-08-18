@@ -62,8 +62,9 @@ class ScriptTester:
             return False, f"Script has syntax error: {error_msg}", None
         
         # Step 3: Check for security concerns
-        if not self.security_manager.validate_script(script):
-            return False, "Script validation failed due to security concerns", None
+        is_safe, security_message = self.security_manager.validate_script(script)
+        if not is_safe:
+            return False, f"Script validation failed due to security concerns: {security_message}", None
         
         # Step 4: Check for common logical issues
         result, issue, fixed = self._check_logical_issues(script)

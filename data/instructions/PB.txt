@@ -2,9 +2,9 @@ Deployment Bugs to Solve
 =========================
 =========================
 
-When a set of commands is uploaded, and a command is executed (passes through the prompt execution pipeline of checking if script already exists, sandbox testing, fixing and running) and the command to be executed is not executed successfully after all 5 attempts of fixing (automatically and manually), use the Gemini Advanced method, for generating complex script (you can find it in the #file:llm_service.py, file within the #sym:_generate_complex_script method) for the 6th and 7th attempts.
+✅ When a set of commands is uploaded, and a command is executed (passes through the prompt execution pipeline of checking if script already exists, sandbox testing, fixing and running) and the command to be executed is not executed successfully after all 5 attempts of fixing (automatically and manually), use the Gemini Advanced method, for generating complex script (you can find it in the #file:llm_service.py, file within the #sym:_generate_complex_script method) for the 6th and 7th attempts.
 For some reason the none of the information about token consumption displayed in the terminal is correct. The token consumption is always showing zero, whether for complex or simple script generations it always shows zero tokens used and low consumption.
-Delete all unnecessary buttons code from front to backend ("manageMappingsBtn","updateSchemaBtn","transformSchemaBtn").
+✅ Delete all unnecessary buttons code from front to backend ("generateActionPlanBtn","updateSchemaBtn","transformSchemaBtn").
 Add a UI element on the left of the "statusBadge" to show token consumption details.
 Add an aesthetic margin whith line numbers to the commands view section, for each line of text extracted from the commands file, mapped with the spreadsheet.
 When app is launched all particles start moving into the screen at the same time. Particles should move into the screen at different intervals and randomly.
@@ -20,4 +20,12 @@ Move all the buttons of the "actionsSection" on the left side bar, into the "spr
 Add 2 gears rotating on each other between the "Auto" and the "Editor" text on the footer bar.
 Add JS animated usermanual page, giving users complete instructions on how to use the app.
 CUDA not available using CPU version, error, while Cuda is properly installed.
+Add column and row header highlighting to form a cell, when handsonTable selection is over that call.
+# Enter button should use an enter icon, not a pencil icon
+# Create another HTML page with a well formated usermanual of the app, with gifs. (The new HTML page should use same design as the index.html page). Add all error messages, and how to resolve them (from a user perspective)
+# Add light/dark mode toggle (dark mode by default). Modes persist across page refresh and app restarts
+# Remove particle-mouse interaction, when there is an element between the mouse and the particles (if the z-index of the element is lower than z-index of the particles stop the mouse-particle interaction).
+
+Handle app security.
 Clean all code for deployment.
+When all things are working fine, convert Azure VM Deployment.md into script which will ask me for each major step (step 1, 2 etc...), if it should execute or not.

@@ -10,10 +10,20 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
     const savePromptBtn = document.getElementById('savePromptBtn'); // Add prompt buttons for shortcuts
     const promptLibraryBtn = document.getElementById('promptLibraryBtn');
     const cellSelectorDisplay = document.getElementById('cellSelectorDisplay');
+    const updateSchemaBtn = document.getElementById('updateSchemaBtn');
+    const transformSchemaBtn = document.getElementById('transformSchemaBtn');
     const splitViewBtn = document.getElementById('splitViewBtn');
     const uploadCommandsBtn = document.getElementById('uploadCommandsBtn');
     const commandFileInput = document.getElementById('commandFileInput');
     
+
+    // Reset history state whenever the input is focused
+    if (commandInput) {
+        commandInput.addEventListener('focus', () => {
+            promptHistoryActive = false;
+            resetPromptHistory();
+        });
+    }
 
     document.addEventListener('keydown', function(e) {
         const isCommandInputActive = document.activeElement === commandInput;
@@ -108,6 +118,20 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             return;
         }
         
+    // Alt+A: Open analytics (only when not in input fields)
+    if (e.altKey && !e.shiftKey && !isCommandInputActive && !isCellSelectorActive && (e.key === 'a' || e.key === 'A')) {
+            e.preventDefault();
+            if (app.openAnalytics) app.openAnalytics();
+            return;
+        }
+        
+    // Alt+A: Open analytics (only when not in input fields)
+    if (e.altKey && !e.shiftKey && !isCommandInputActive && !isCellSelectorActive && (e.key === 'a' || e.key === 'A')) {
+            e.preventDefault();
+            if (app.openAnalytics) app.openAnalytics();
+            return;
+        }
+        
         // Escape: Remove focus from cellSelectorDisplay and highlight it
         if (e.key === 'Escape' && isCellSelectorActive) {
             e.preventDefault();
@@ -128,6 +152,18 @@ export function setupShortcutKeys(app) { // app object to access methods like ap
             if (splitViewBtn && !splitViewBtn.disabled) splitViewBtn.click();
             return;
         }
+        // Alt+Shift+U: Update Schema
+        if (e.altKey && e.shiftKey && (e.key === 'u' || e.key === 'U')) {
+            e.preventDefault();
+            if (updateSchemaBtn && !updateSchemaBtn.disabled) updateSchemaBtn.click();
+            return;
+        }
+        // Alt+Shift+T: Transform to Schema
+        if (e.altKey && e.shiftKey && (e.key === 't' || e.key === 'T')) {
+            e.preventDefault();
+            if (transformSchemaBtn && !transformSchemaBtn.disabled) transformSchemaBtn.click();
+            return;
+        }
         // Alt+C: Upload Commands File
         if (e.altKey && !e.shiftKey && (e.key === 'c' || e.key === 'C')) {
             e.preventDefault();
@@ -143,7 +179,9 @@ let promptHistoryCache = [];
 let promptHistoryActive = false;
 
 export async function getCurrentSessionPrompts(e){
-    // Only trigger for ArrowUp/ArrowDown to avoid interfering with other shortcuts
+    // Only trigger for Alt+ArrowUp/Alt+ArrowDown to avoid interfering with caret movement
+    if (!e.altKey) return;
+
     if (!promptHistoryActive) {
         if (e.key === 'ArrowUp') {
             promptHistoryActive = true;
@@ -153,11 +191,7 @@ export async function getCurrentSessionPrompts(e){
         if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
             handlePromptHistoryNavigation(e);
         }
-    }  
-       commandInput.addEventListener('focus', function() {
-            promptHistoryActive = false;           
-            resetPromptHistory();
-        });
+    }
 }
 
 /**
@@ -176,7 +210,8 @@ export async function handlePromptHistoryNavigation(e) {
     if (document.activeElement !== commandInput) return;
     if (!currentSessionId) return;
 
-    // Only handle up/down arrows
+    // Only handle Alt + up/down arrows
+    if (!e.altKey) return;
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
 
     e.preventDefault();

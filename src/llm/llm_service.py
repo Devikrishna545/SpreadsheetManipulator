@@ -83,6 +83,49 @@ class LLMService:
             return self._generate_complex_script(spreadsheet_data, command)
         else:
             return self._generate_simple_script(spreadsheet_data, command)
+
+    def generate_script_with_error_feedback(self, spreadsheet_data: Dict[str, Any], command: str, error_feedback: str, use_advanced_processing: bool = False) -> str:
+        """Generate a script but include execution error feedback to steer Gemini.
+
+        Args:
+            spreadsheet_data: Spreadsheet data dict (headers, data, metadata)
+            command: Original user command
+            error_feedback: Error text from the last failed execution/correction cycle
+            use_advanced_processing: Whether to use thinking/code-exec path
+
+        Returns:
+            str: Generated Python script incorporating feedback
+        """
+        try:
+            data_obj = spreadsheet_data
+            headers = data_obj.get('headers', [])
+            metadata = data_obj.get('metadata', {})
+            data_sample = data_obj.get('data', [])[:5]
+            headers_serialized = _serialize_for_json(headers)
+            metadata_serialized = _serialize_for_json(metadata)
+            data_sample_serialized = _serialize_for_json(data_sample)
+
+            processed_command = self._process_cell_references(command)
+
+            if use_advanced_processing:
+                thinking_prompt = self._create_thinking_prompt(
+                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command, error_feedback
+                )
+                thinking_response = self._call_gemini_thinking_api(thinking_prompt)
+                code_prompt = self._create_code_generation_prompt(
+                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command, thinking_response, error_feedback
+                )
+                script = self._call_gemini_code_execution_api(code_prompt, headers_serialized, data_sample_serialized)
+            else:
+                prompt = self._create_simple_prompt(
+                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command, error_feedback
+                )
+                script = self._call_gemini_simple_api(prompt)
+
+            self.print_final_token_summary()
+            return script
+        except Exception as e:
+            return self.handle_api_error(e)
     
     def _generate_simple_script(self, spreadsheet_data: Dict[str, Any], command: str) -> str:
         """Generate script using regular Gemini model for simple commands"""
@@ -326,14 +369,15 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
         """Call the simple Gemini API for code generation"""
         try:
             # Use regular model for simple code generation
+            model_name = "gemini-2.5-flash-lite-preview-06-17"
             model = genai.GenerativeModel(
-                model_name="gemini-2.5-flash-lite-preview-06-17",
+                model_name=model_name,
                 generation_config=genai.types.GenerationConfig(**self.generation_config),
                 safety_settings=self.safety_settings
             )
             
             response = model.generate_content(prompt)
-            token_manager.set_token_usage(token_manager.extract_token_usage(response))
+            token_manager.extract_token_usage(response, prompt, model_name)
             
             if hasattr(response, 'text') and response.text and response.text.strip():
                 return self._extract_script(response.text)
@@ -441,14 +485,15 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
     def _call_gemini_thinking_api(self, prompt: str) -> str:
         try:
             # Use thinking model for analysis
+            model_name = "gemini-2.5-flash-lite-preview-06-17"
             model = genai.GenerativeModel(
-                model_name="gemini-2.5-flash-lite-preview-06-17",
+                model_name=model_name,
                 generation_config=genai.types.GenerationConfig(**self.generation_config),
                 safety_settings=self.safety_settings
             )
             
             response = model.generate_content(prompt)
-            token_manager.set_token_usage(token_manager.extract_token_usage(response))
+            token_manager.extract_token_usage(response, prompt, model_name)
             
             # Try to get .text if available and non-empty
             if hasattr(response, 'text') and response.text and response.text.strip():
@@ -503,7 +548,7 @@ Sample data: {json.dumps(data_sample)}
 Use code execution to verify your solution works before providing the final answer."""
             
             response = model.generate_content(execution_prompt)
-            token_manager.set_token_usage(token_manager.extract_token_usage(response))
+            token_manager.extract_token_usage(response, execution_prompt, "gemini-2.5-flash-lite-preview-06-17")
             
             # Extract the final script
             if hasattr(response, 'text') and response.text and response.text.strip():
@@ -1013,7 +1058,7 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
             response = model.generate_content(correction_prompt)
             
             # Track token usage
-            token_manager.set_token_usage(token_manager.extract_token_usage(response))
+            token_manager.extract_token_usage(response, correction_prompt, "gemini-2.0-flash-exp")
             
             if response.text:
                 return response.text.strip()

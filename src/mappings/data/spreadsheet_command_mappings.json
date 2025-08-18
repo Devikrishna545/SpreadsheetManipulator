@@ -1,6 +1,37 @@
 {
-  "mappings": [],
-  "created_at": "2025-07-14T01:45:44.975427",
-  "last_updated": "2025-07-14T01:45:44.975427",
+  "mappings": [
+    {
+      "mapping_id": "map_20250818_082005_1",
+      "spreadsheet_filename": "sample2.xlsx",
+      "spreadsheet_hash": "sample2.xlsx_c5eef48a",
+      "command_filename": "company-map.txt",
+      "commands": [
+        "Delete all empty rows and columns.",
+        "Delete all rows containing \"Totals\" and \"Net difference\".",
+        "Delete row #1.",
+        "Create 2 new columns on the left.",
+        "Move the \"Main account\" string to the first cell of column #A.",
+        "Move the \"Name\" string to the first cell of column #B.",
+        "Delete all instances of \"Main account\" and \"Name\" strings on column #C and column #D, only.",
+        "Move all instances of any account number string to be in a cell with the same cell number, but under column #A. An account number is any 5-string number in any cell under column #C. Examples of account numbers are \"13015\", \"13000\" etc.",
+        "Clear the content from all cells containing the 'None' value. But don't delete the cells themselves.",
+        "Move all instances of an account name string to be in a cell with the same cell number, but under column #B. An account name is any string under column #D, in a cell on the same row with an account number. An account number is any 5-digit number in any cell under column #A. Examples of account numbers are \"13015\", \"13000\" etc.",
+        "Move the contents from cells #C3 - #N3 into cells #C1 - #N1.",
+        "Move the contents from cells #C4 - #O5 into cells #C2 - #O3.",
+        "Check all rows for the following strings \"Date\", \"Journal number\", \"Voucher\", \"Posting type\", \"Ledger account\", \"Description\", \"Amount in transaction currency\",\"Amount in accounting currency\" and \"Amount in reporting currency\". With the exception of the first row having the previous data, delete all other rows having that data.",
+        "Check for all duplicate instances of rows which have the same values as cell #J2, cell #K2, cell #L2, cell #M2, cell #N2 and cell #O2. Delete all the duplicate rows, only keeping the row with the first set of values (#K2, cell #L2, cell #M2, cell #N2 and cell #O2).",
+        "Go through column #B and check for each cell having content. Which ever cell has content, go to column #D and delete its counterpart. For example, if the cell #B5 has data go to cell #D5 and remove the cell content, without removing the cell.",
+        "If there are empty cells below any cell containing an account name, copy that account name into all the empty cells below it. Examples of account names are \"Other intangible assets\" and \"Acc. depreciation leasehold right\" etc."
+      ],
+      "command_count": 16,
+      "created_at": "2025-08-18T08:20:05.973530",
+      "last_used": "2025-08-18T09:40:15.802173",
+      "use_count": 1,
+      "is_active": true,
+      "last_updated": "2025-08-18T09:40:15.802173"
+    }
+  ],
+  "created_at": "2025-08-18T08:11:30.811809",
+  "last_updated": "2025-08-18T09:40:15.802173",
   "version": "1.0"
 }

@@ -4,30 +4,11 @@ Main application entry point
 Initializes controllers and launches the FastAPI application using Uvicorn
 """
 
-# TO DO
-# =======
-# Test app with real users
-# Make the "Ready" text to have a square border with rounded edges around it to match the design of the rest of the edges and borders of other elements within the app
-# Shift the "Ready" text to the left a little, to mathch the gap between the right edge of the page and the right edge of the "AI Command Interface" and the "Spreadsheet Data" sections
-# Change the icon of the "Auto Editor" text, to be a circular spinning gear icon, not a spreadsheet icon
-# Centralise the "Auto Editor" text and its icon in the header bar area
-# Add column and row header highlighting to form a cell, when handsonTable selection is over that call.
-# Enter button should use an enter icon, not a pencil icon
-# Create another HTML page with a well formated usermanual of the app, with gifs. (The new HTML page should use same design as the index.html page). Add all error messages, and how to resolve them (from a user perspective)
-# Add escape to remove focus from input field ✅
-# Add footer with copyright information
-# Add light/dark mode toggle (dark mode by default). Modes persist across page refresh and app restarts
-# Remove particle-mouse interaction, when there is an element between the mouse and the particles (if the z-index of the element is lower than z-index of the particles stop the mouse-particle interaction).
-# Add option to read spreadsheet from workbook file, currently only supports reading from single file.
-# Add visual programming option from frontend where user can create new spreadsheet json format on frontend and ask AI to generate script for applying it to the spreadsheet 🔁
-# Modify system to use default python script, if prompt operation becomes complex (pandas operation requires more than 2 steps).
-# Add auto code executor and interpreter to test script from LLM and ask LLM to regenerate the script, if test is unsuccessful. This will help reduce number of errors cuased by complex prompts requiring multiple operations.
-# This cycle should occur 3 times, after 3rd trial, system should breakout and show user error (Failed to generate script for set of instructions).
-
 import os
 import argparse
 import uvicorn
 import sys
+from dotenv import load_dotenv
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -37,6 +18,9 @@ from src.api.endpoints import init_controllers
 from src.controller.spreadsheet_controller import SpreadsheetController  
 from src.model.session_manager import SessionManager 
 from src.model.prompt_history import PromptHistory
+
+# Load environment variables from .env file
+load_dotenv()
 
 def parse_args():
     """Parse command line arguments"""
@@ -84,6 +68,19 @@ def main():
     # Only enable reload if not frozen
     if not getattr(sys, 'frozen', False):
         uvicorn_run_kwargs["reload"] = getattr(args, "reload", True)
+        # Exclude the script directory from being watched to prevent reloads
+        # when new scripts are generated during execution
+        uvicorn_run_kwargs["reload_excludes"] = [
+            "src/script/*",
+            "src/script/**/*",
+            "static/uploads/*",
+            "static/downloads/*",
+            "static/json/*",
+            "__pycache__/*",
+            "**/__pycache__/*",
+            "*.pyc",
+            "**/*.pyc"
+        ]
 
     uvicorn.run(**uvicorn_run_kwargs)
 
