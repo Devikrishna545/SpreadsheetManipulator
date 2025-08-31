@@ -1,21 +1,29 @@
-MIT License
+PROPRIETARY SOFTWARE LICENSE
 
-Copyright (c) 2025 HLB Hamt
+AIDN - Artificial Intelligence Data Normalizer
+Copyright © 2025 HLB Hamt. All Rights Reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software and its documentation are the exclusive property of HLB Hamt. 
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+USAGE RIGHTS:
+- This software is licensed for use by authorized HLB Hamt personnel and approved clients only
+- Redistribution, modification, or reverse engineering is strictly prohibited
+- Commercial use outside of HLB Hamt operations requires explicit written authorization
+- All user data processed through AIDN remains confidential and is subject to HLB Hamt privacy policies
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+RESTRICTIONS:
+- Source code access is limited to authorized developers
+- Third-party integration requires prior approval
+- Security vulnerabilities must be reported immediately to HLB Hamt IT Security
+- Unauthorized access attempts will be prosecuted to the full extent of the law
+
+NO WARRANTIES:
+This software is provided "as is" without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall HLB Hamt be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
+
+COMPLIANCE:
+- User data is processed in accordance with HLB Hamt data protection policies
+- All data processing complies with applicable financial regulations and HLB Hamt compliance standards
+- SOX compliance for financial data processing
+- GDPR compliance for data protection
+
+For questions regarding this license or to request authorization for use, contact HLB Hamt IT Department through approved channels.

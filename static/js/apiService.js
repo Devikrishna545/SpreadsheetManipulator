@@ -1,6 +1,15 @@
-import { showLoading, hideLoading, showError, updateStatus, showMainInterface, updateSessionInfo, showAlgorithmLoading } from './uiInteractions.js';
 import { showConfirm } from './modalUtils.js';
-import { resetApplicationState } from './main.js'; // Assuming main.js will export this
+import { resetApplicationState } from './main.js';
+import { showLoading, hideLoading, showError, updateStatus, showMainInterface, updateSessionInfo, showAlgorithmLoading } from './uiInteractions.js';
+
+function sessionHeaders() {
+    try {
+        if (window && window.currentSessionId) {
+            return { 'X-Session-Id': window.currentSessionId };
+        }
+    } catch {}
+    return {};
+}
 
 export async function handleFileUpload(event, fileInput) {
     event.preventDefault();
@@ -20,6 +29,7 @@ export async function handleFileUpload(event, fileInput) {
     try {
         const response = await fetch('/upload', {
             method: 'POST',
+            headers: { ...sessionHeaders() },
             body: formData
         });
         
@@ -32,7 +42,7 @@ export async function handleFileUpload(event, fileInput) {
         updateSessionInfo(file.name, 'Active');
         showMainInterface();
         updateStatus('Ready', 'active');
-        return data; // Return { sessionId, ... }
+        return data;
     } catch (error) {
         updateStatus('Error', 'error');
         showError(error.message);
@@ -58,14 +68,13 @@ export async function processCommand(sessionId, command) {
     try {
         const response = await fetch('/process', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...sessionHeaders() },
             body: JSON.stringify({ sessionId, command })
         });
         
         if (!response.ok) {
             const errorData = await response.json();
             
-            // Handle script execution failure specially
             if (response.status === 422 && errorData.detail?.error === 'SCRIPT_EXECUTION_FAILED') {
                 throw new Error(`SCRIPT_EXECUTION_FAILED: ${errorData.detail.message}`);
             }
@@ -80,12 +89,9 @@ export async function processCommand(sessionId, command) {
     } catch (error) {
         updateStatus('Error', 'error');
         
-        // Check if this is a script execution failure
         if (error.message.startsWith('SCRIPT_EXECUTION_FAILED:')) {
-            // Extract the user-friendly message
             const userMessage = error.message.replace('SCRIPT_EXECUTION_FAILED: ', '');
             showError(userMessage);
-            // Throw the error to stop sequential processing
             throw new Error('SCRIPT_EXECUTION_FAILED');
         } else {
             showError(error.message);
@@ -100,7 +106,7 @@ export async function undoModification(sessionId) {
     if (!sessionId) return null;
     showLoading('Undoing last modification...');
     try {
-        const response = await fetch(`/undo/${sessionId}`, { method: 'POST' });
+        const response = await fetch(`/undo/${sessionId}`, { method: 'POST', headers: { ...sessionHeaders() } });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Failed to undo modification');
         return data;
@@ -116,7 +122,7 @@ export async function redoModification(sessionId) {
     if (!sessionId) return null;
     showLoading('Redoing modification...');
     try {
-        const response = await fetch(`/redo/${sessionId}`, { method: 'POST' });
+        const response = await fetch(`/redo/${sessionId}`, { method: 'POST', headers: { ...sessionHeaders() } });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Failed to redo modification');
         return data;
@@ -131,8 +137,8 @@ export async function redoModification(sessionId) {
 export function downloadSpreadsheet(sessionId) {
     if (!sessionId) return;
     updateStatus('Downloading...', 'processing');
-    // Use fetch to trigger download and handle errors
-    fetch(`/download/${sessionId}`)
+    
+    fetch(`/download/${sessionId}`, { headers: { ...sessionHeaders() } })
         .then(response => {
             if (!response.ok) {
                 return response.json().then(data => {
@@ -142,11 +148,10 @@ export function downloadSpreadsheet(sessionId) {
             return response.blob();
         })
         .then(blob => {
-            // Create a temporary link to trigger download
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            // Try to extract filename from Content-Disposition header if present
-            fetch(`/download/${sessionId}`, { method: 'HEAD' })
+            
+            fetch(`/download/${sessionId}`, { method: 'HEAD', headers: { ...sessionHeaders() } })
                 .then(headResp => {
                     let filename = 'spreadsheet.xlsx';
                     const disposition = headResp.headers.get('Content-Disposition');
@@ -160,7 +165,7 @@ export function downloadSpreadsheet(sessionId) {
                     setTimeout(async () => {
                         document.body.removeChild(a);
                         window.URL.revokeObjectURL(url);
-                        // Show session cleanup dialog after download
+                        
                         const shouldReload = await showConfirm(
                             'Your session has been completed. The spreadsheet and all related data have been cleaned up.',
                             'Session Complete',
@@ -197,7 +202,7 @@ export async function generateAndExecuteAlgorithm(sessionId, actionPlan, leftDat
     try {
         const response = await fetch('/generate_algorithm', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...sessionHeaders() },
             body: JSON.stringify({ 
                 sessionId, 
                 actionPlan,
@@ -224,12 +229,12 @@ export async function generateAndExecuteAlgorithm(sessionId, actionPlan, leftDat
     }
 }
 
-// Mapping-related API functions
+// Mapping API functions
 export async function createMapping(spreadsheetFilename, commandFilename, commands) {
     try {
         const response = await fetch('/create_mapping', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...sessionHeaders() },
             body: JSON.stringify({
                 spreadsheet_filename: spreadsheetFilename,
                 command_filename: commandFilename,
@@ -245,14 +250,13 @@ export async function createMapping(spreadsheetFilename, commandFilename, comman
         return await response.json();
     } catch (error) {
         showError(`Error creating mapping: ${error.message}`);
-        // Return a consistent error response format instead of null
         return { success: false, error: error.message };
     }
 }
 
 export async function getAllMappings() {
     try {
-        const response = await fetch('/mappings');
+        const response = await fetch('/mappings', { headers: { ...sessionHeaders() } });
         
         if (!response.ok) {
             const errorData = await response.json();
@@ -269,7 +273,8 @@ export async function getAllMappings() {
 export async function deleteMapping(mappingId) {
     try {
         const response = await fetch(`/mapping/${mappingId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: { ...sessionHeaders() }
         });
         
         if (!response.ok) {
@@ -288,7 +293,7 @@ export async function updateMapping(mappingId, updates) {
     try {
         const response = await fetch(`/mapping/${mappingId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...sessionHeaders() },
             body: JSON.stringify(updates)
         });
         

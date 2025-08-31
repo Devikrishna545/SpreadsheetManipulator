@@ -1,54 +1,33 @@
-"""
-Script Fixer module
-------------------
-Specialized error correction system for simple AI command scripts
-"""
+"""Automated fixer for AI-generated scripts with sandboxing, LLM assists, and manual fallbacks."""
 
-import re
-import traceback
-import os
-import json
-import logging
-from typing import Tuple, Optional, Dict, Any
-import pandas as pd
+import re, logging
 import numpy as np
+import pandas as pd
 from src.llm.llm_service import LLMService
+from typing import Tuple, Optional, Dict, Any
 from src.llm.token_manager import token_manager
-from src.controller.script_tester import ScriptTester  # Add this import
-import logging
+from src.controller.script_tester import ScriptTester
 
 class ScriptExecutionFailureException(Exception):
-    """
-    Exception raised when script execution fails after going through
-    the complete debugging pipeline (ScriptTester + ScriptFixer)
-    """
+    """Exception raised when script execution fails after debugging pipeline."""
     def __init__(self, command: str, error_details: str):
         self.command = command
         self.error_details = error_details
         super().__init__(f"Failed to execute command '{command}' after debugging pipeline: {error_details}")
 
 class ScriptFixer:
-    """
-    Handles error correction for simple scripts generated from AI commands.
-    Provides up to 5 retry attempts with Gemini correction.
-    """
+    """Handles error correction for AI-generated scripts with up to 5 retry attempts."""
     
     def __init__(self):
-        """Initialize the script fixer with LLM service for corrections."""
+        """Initialize fixer with LLM service and tester."""
         self.llm_service = LLMService()
         self.script_tester = ScriptTester()
         self.max_retries = 5
-        self.current_script_path = None  # Track current script path for logging
+        self.current_script_path = None
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     def _build_column_mapping(self, df: pd.DataFrame) -> str:
-        """Return a letter->label mapping for the current DataFrame to guide Gemini.
-        Example lines:
-        A -> new_col_0
-        B -> new_col_1
-        C -> 0
-        D -> 1
-        """
+        """Return letter->label mapping for DataFrame to guide Gemini."""
         cols = list(df.columns)
         letters = [chr(ord('A') + i) for i in range(min(26, len(cols)))]
         lines = []
@@ -58,7 +37,7 @@ class ScriptFixer:
 
     # ----- Excel-style reference helpers (for prompt guidance only) -----
     def _excel_col_letter_to_pos(self, letters: str) -> int:
-        """Convert Excel column letters (e.g., 'A', 'J', 'AA') to 0-based positional index."""
+        """Convert Excel column letters to 0-based positional index."""
         letters = letters.strip().upper()
         pos = 0
         for ch in letters:
@@ -69,7 +48,7 @@ class ScriptFixer:
         return max(0, pos - 1)
 
     def _excel_cols_range_positions(self, start_letter: str, end_letter: str, df: pd.DataFrame) -> list:
-        """Return list of positional indices for a column letter range (inclusive), clamped to DataFrame width."""
+        """Return positional indices for column letter range, clamped to DataFrame width."""
         start = self._excel_col_letter_to_pos(start_letter)
         end = self._excel_col_letter_to_pos(end_letter)
         if start > end:
@@ -79,7 +58,7 @@ class ScriptFixer:
         return list(range(start, end + 1))
 
     def _build_excel_reference_help(self, df: pd.DataFrame) -> str:
-        """Build a short guidance block for Excel-style refs and common mappings (e.g., J2–O2)."""
+        """Build guidance block for Excel-style references and common mappings."""
         if df is None or df.empty:
             return ""
         mapping = self._build_column_mapping(df)
@@ -126,29 +105,24 @@ class ScriptFixer:
         current_script = script
         original_script = script
         
-        # Store script path for logging
         self.current_script_path = script_path
         
-        # Enhanced tracking for retry attempts
         total_attempts = 0
-        max_total_attempts = 8  # Increased to allow for Advanced Gemini attempts
+        max_total_attempts = 8
         
         # === PHASE 1: SANDBOX TESTING AND SCRIPT FIXING (Attempts 1-5) ===
         print("\n📋 PHASE 1: Sandbox Testing and Script Correction (Attempts 1-5)")
         print("-" * 70)
         
-        # Step 1: Test in sandbox environment
         execution_success, execution_error = self._test_script_in_sandbox(current_script, spreadsheet_df)
         
         if not execution_success:
             print(f"🔧 Sandbox execution failed: {execution_error}")
             
-            # Standard fix attempts (1-5)
-            for attempt in range(1, 6):  # Attempts 1-5
+            for attempt in range(1, 6):
                 total_attempts += 1
                 print(f"\n🔄 Fix Attempt {attempt}/5 (Total: {total_attempts}/{max_total_attempts})")
                 
-                # Try a manual fix for common errors before resorting to LLM
                 if attempt == 1 and "name 'row_index' is not defined" in str(execution_error):
                     print("🤖 Attempting manual fix for 'row_index' NameError by wrapping in a loop...")
                     indented_script = "    " + current_script.strip().replace("\n", "\n    ")
@@ -183,7 +157,6 @@ class ScriptFixer:
                         print(f"⚠️ LLM fix still has errors: {llm_error}")
                         execution_error = llm_error
                         
-                        # Try manual deterministic fixes as fallback
                         print("🔧 Attempting manual deterministic fixes...")
                         manual_fixed_script = self._apply_manual_fixes(llm_fixed_script, llm_error, spreadsheet_df)
                         
@@ -202,7 +175,6 @@ class ScriptFixer:
                 else:
                     print("⚠️ LLM could not provide a fix, trying manual fixes...")
                     
-                    # Try manual deterministic fixes directly
                     manual_fixed_script = self._apply_manual_fixes(current_script, execution_error, spreadsheet_df)
                     
                     if manual_fixed_script:
@@ -228,26 +200,22 @@ class ScriptFixer:
             print("\n🧠 PHASE 2: Advanced Gemini Complex Script Generation (Attempts 6-8)")
             print("-" * 70)
             
-            # Convert DataFrame to JSON format for LLM
             spreadsheet_json = {
                 'headers': list(spreadsheet_df.columns),
-                'data': spreadsheet_df.head(10).values.tolist(),  # First 10 rows for context
+                'data': spreadsheet_df.head(10).values.tolist(),
                 'metadata': {
                     'rows': len(spreadsheet_df),
                     'columns': len(spreadsheet_df.columns)
                 },
-                # Extra context for Gemini
                 'excelReferenceHelp': self._build_excel_reference_help(spreadsheet_df),
                 'columnMapping': self._build_column_mapping(spreadsheet_df)
             }
             
-            # Advanced Gemini attempts (6-8)
-            for attempt in range(6, 9):  # Attempts 6-8
+            for attempt in range(6, 9):
                 total_attempts += 1
                 print(f"\n🧠 Advanced Gemini Attempt {attempt-5}/3 (Total: {total_attempts}/{max_total_attempts})")
                 
                 try:
-                    # Use Advanced Gemini Complex Script Generation
                     error_context = f"Previous attempts failed with error: {execution_error}"
                     advanced_script = self._generate_advanced_gemini_script(
                         spreadsheet_json, command, error_context, attempt - 5
@@ -256,7 +224,6 @@ class ScriptFixer:
                     if advanced_script:
                         print("✓ Advanced Gemini generated a new script, testing...")
                         
-                        # Test the advanced script
                         advanced_success, advanced_error = self._test_script_in_sandbox(advanced_script, spreadsheet_df)
                         
                         if advanced_success:
@@ -277,7 +244,6 @@ class ScriptFixer:
                 if attempt == 8 and not execution_success:
                     print("💥 All Advanced Gemini attempts exhausted")
         
-        # If still not working after all attempts, return failure
         if not execution_success:
             print("💥 ALL ATTEMPTS FAILED: Could not fix script execution errors")
             logging.error(f"Script fixing failed after {total_attempts} attempts. Original: {original_script}, Final error: {execution_error}")
@@ -294,7 +260,13 @@ class ScriptFixer:
             security_attempts += 1
             print(f"🔍 Security check attempt {security_attempts}/{max_security_attempts}")
             
-            is_safe, security_message = security_manager.validate_script(current_script)
+            validation_result = security_manager.validate_script(current_script)
+            if isinstance(validation_result, tuple):
+                is_safe, security_message = validation_result
+            else:
+                is_safe = bool(validation_result)
+                security_message = ""
+
             if is_safe:
                 print("✅ Security validation passed!")
                 break
@@ -313,7 +285,6 @@ class ScriptFixer:
                     
                     if security_fixed_script and security_fixed_script != current_script:
                         print("✓ LLM provided security fix, testing...")
-                        # Test that the security fix still works functionally
                         security_test_success, security_test_error = self._test_script_in_sandbox(security_fixed_script, spreadsheet_df)
                         
                         if security_test_success:
@@ -321,7 +292,6 @@ class ScriptFixer:
                             print("✓ Security fix maintains functionality")
                         else:
                             print(f"⚠️ Security fix broke functionality: {security_test_error}")
-                            # Try to fix the broken security fix
                             double_fixed = self._fix_script_with_llm(
                                 security_fixed_script, security_test_error, "", command, spreadsheet_df
                             )
@@ -343,8 +313,8 @@ class ScriptFixer:
         print("-" * 50)
         
         logic_fix_attempts = 0
-        max_logic_fix_attempts = 3  # Reduced since we've already done extensive fixing
-        fix_history = []  # Track failed attempts to prevent LLM from repeating mistakes
+        max_logic_fix_attempts = 3
+        fix_history = []
 
         while logic_fix_attempts < max_logic_fix_attempts:
             try:
@@ -356,19 +326,16 @@ class ScriptFixer:
                         print(f"✅ {self.current_script_path}")
                     return modified_df, modified_cells, True
                 
-                # Check if zero modifications is acceptable for this type of command
                 if self._is_zero_changes_acceptable(command, current_script, spreadsheet_df):
                     print(f"✅ PIPELINE SUCCESS: Script executed successfully - no changes needed (operation already satisfied)")
                     if self.current_script_path:
                         print(f"✅ {self.current_script_path}")
                     return modified_df, modified_cells, True
                 
-                # Logic error detected
                 logic_fix_attempts += 1
                 print(f"⚠️ LOGIC ERROR: Script ran but made no changes. Attempting fix {logic_fix_attempts}/{max_logic_fix_attempts}")
                 
                 if logic_fix_attempts <= max_logic_fix_attempts:
-                    # Provide targeted guidance to Gemini for common causes of zero-mod changes in this project
                     column_mapping_info = self._build_column_mapping(spreadsheet_df)
                     error_message = (
                         "The script executed without syntax errors but resulted in zero modifications. "
@@ -383,7 +350,6 @@ class ScriptFixer:
                         "not df['0'])."
                     )
                     
-                    # Try LLM-based logic fix
                     fixed_script = self._fix_script_with_llm(
                         current_script, error_message, "", command, spreadsheet_df, fix_history
                     )
@@ -391,9 +357,12 @@ class ScriptFixer:
                     if fixed_script and fixed_script != current_script:
                         print("✓ LLM provided a logic fix, re-validating...")
                         
-                        # Test the new script
                         test_success, test_error = self._test_script_in_sandbox(fixed_script, spreadsheet_df)
-                        is_safe, security_message = security_manager.validate_script(fixed_script)
+                        _validation_result = security_manager.validate_script(fixed_script)
+                        if isinstance(_validation_result, tuple):
+                            is_safe, security_message = _validation_result
+                        else:
+                            is_safe, security_message = bool(_validation_result), ""
                         if test_success and is_safe:
                             print("✅ Logic fix successful and secure!")
                             current_script = fixed_script
@@ -407,7 +376,6 @@ class ScriptFixer:
                             continue
                     else:
                         print("❌ LLM could not provide a logic fix")
-                        # Per requirements, avoid deterministic hard-coding; end logic-fix loop
                         break
                 else:
                     print("💥 PHASE 4 FAILED: Maximum logic fix attempts reached")
@@ -426,29 +394,14 @@ class ScriptFixer:
         return spreadsheet_df, [], False
     
     def _execute_simple_script(self, script: str, spreadsheet_df: pd.DataFrame) -> Tuple[pd.DataFrame, list]:
-        """
-        Execute a simple script without universal transformation patterns.
-        
-        Args:
-            script: The Python script to execute
-            spreadsheet_df: The pandas DataFrame
-            
-        Returns:
-            Tuple[pd.DataFrame, list]: Modified DataFrame and list of modified cells
-        """
-        # Create a copy of the dataframe for execution
+        """Execute script without universal transformation patterns."""
         df = spreadsheet_df.copy()
         
-        # Track original values to identify modifications
         original_values = {}
         for i in range(len(df)):
             for j, col in enumerate(df.columns):
                 original_values[(i, j)] = df.iloc[i, j]
-        
-        # Create execution environment with comprehensive built-ins
-        import builtins
-        import numpy as np
-        
+                
         # Create a safe but comprehensive execution environment
         safe_builtins = {
             # Basic types
@@ -509,7 +462,7 @@ class ScriptFixer:
             'map': map,
             'filter': filter,
 
-            # I/O (print only)
+            # I/O
             'print': print,
 
             # Object introspection
@@ -518,7 +471,7 @@ class ScriptFixer:
             'id': id,
             'callable': callable,
 
-            # Import mechanism (safe subset)
+            # Import mechanism
             '__import__': __import__,
 
             # Exception handling
@@ -537,12 +490,10 @@ class ScriptFixer:
             '__builtins__': safe_builtins
         }
         
-        # Execute the script
         try:
             exec(script, exec_globals)
         except NameError as e:
             if "isinstance" in str(e):
-                # This is a fallback if 'isinstance' is missing from the sandbox
                 print("🔧 WARNING: 'isinstance' not found. Attempting to inject and retry.")
                 exec_globals['__builtins__']['isinstance'] = isinstance
                 try:
@@ -556,10 +507,8 @@ class ScriptFixer:
             raise e
 
         
-        # Get the modified dataframe
         modified_df = exec_globals['df']
         
-        # Find modified cells
         modified_cells = []
         for i in range(len(modified_df)):
             for j, col in enumerate(modified_df.columns):
@@ -567,7 +516,6 @@ class ScriptFixer:
                     old_val = original_values[(i, j)]
                     new_val = modified_df.iloc[i, j]
                     
-                    # Check if values are different (handle NaN comparison)
                     if pd.isna(old_val) and pd.isna(new_val):
                         continue
                     elif pd.isna(old_val) or pd.isna(new_val) or old_val != new_val:
@@ -578,30 +526,14 @@ class ScriptFixer:
     def _fix_script_with_llm(self, script: str, error_msg: str, error_traceback: str, 
                            command: str, spreadsheet_df: pd.DataFrame, 
                            fix_history: Optional[list] = None) -> Optional[str]:
-        """
-        Use LLM to intelligently fix a script based on the error encountered.
-        Enhanced for automated debugging system.
-        
-        Args:
-            script: The failing script
-            error_msg: Error message
-            error_traceback: Full error traceback
-            command: Original user command
-            spreadsheet_df: The DataFrame being processed
-            fix_history: A list of previous failed attempts in this cycle
-            
-        Returns:
-            Optional[str]: Fixed script or None if fixing failed
-        """
+        """Use LLM to intelligently fix script based on error encountered."""
         try:
             print("🤖 Requesting LLM script correction...")
             
-            # Prepare context for LLM
             columns_info = f"Columns: {list(spreadsheet_df.columns)}"
             shape_info = f"Shape: {spreadsheet_df.shape[0]} rows, {spreadsheet_df.shape[1]} columns"
             sample_data = spreadsheet_df.head(3).to_string() if len(spreadsheet_df) > 0 else "Empty DataFrame"
             
-            # Build the history section for the prompt
             history_section = ""
             if fix_history:
                 history_items = []
@@ -619,11 +551,9 @@ This is part of a retry loop. The following attempts have already failed. Analyz
 {chr(10).join(history_items)}
 """
             
-            # Build project-specific spreadsheet semantics to guide Gemini
             column_mapping_info = self._build_column_mapping(spreadsheet_df)
             excel_help = self._build_excel_reference_help(spreadsheet_df)
 
-            # Enhanced prompt for automated debugging (now with project semantics and mapping)
             correction_prompt = f"""
 You are an expert Python script debugger in an automated error correction system. Your task is to fix the failing script below.
 
@@ -723,13 +653,10 @@ TASK-SPECIFIC HINTS (only if applicable to the command):
 
 Generate the corrected script:"""
             
-            # Get corrected script from LLM
             corrected_script = self.llm_service.generate_script_correction(correction_prompt)
             
-            # Print token usage summary
             token_manager.print_token_usage()
             
-            # Clean up the response (remove markdown formatting if present)
             corrected_script = self._clean_script_response(corrected_script)
             
             if corrected_script and corrected_script.strip():
@@ -746,24 +673,13 @@ Generate the corrected script:"""
             return None
     
     def _clean_script_response(self, response: str) -> str:
-        """
-        Clean up the LLM response to extract just the Python script.
-        
-        Args:
-            response: Raw LLM response
-            
-        Returns:
-            str: Cleaned Python script
-        """
-        # Remove markdown code blocks if present
+        """Clean up LLM response to extract Python script."""
         if '```python' in response:
-            # Extract content between ```python and ```
             start = response.find('```python') + 9
             end = response.find('```', start)
             if end > start:
                 response = response[start:end]
         elif '```' in response:
-            # Extract content between ``` blocks
             start = response.find('```') + 3
             end = response.find('```', start)
             if end > start:
@@ -772,23 +688,12 @@ Generate the corrected script:"""
         return response.strip()
     
     def _test_script_in_sandbox(self, script: str, spreadsheet_df: pd.DataFrame) -> Tuple[bool, str]:
-        """
-        Test script execution in a safe sandbox environment
-        
-        Args:
-            script: Script to test
-            spreadsheet_df: DataFrame to test with
-            
-        Returns:
-            Tuple[bool, str]: (success, error_message)
-        """
+        """Test script execution in safe sandbox environment."""
         try:
             print(f"🧪 Testing script in sandbox...")
             
-            # Use a small sample for testing to avoid performance issues
             test_df = spreadsheet_df.head(10).copy()
             
-            # Execute the script in sandbox
             _, _ = self._execute_simple_script(script, test_df)
             
             print("✅ Sandbox test passed")
@@ -800,32 +705,17 @@ Generate the corrected script:"""
             return False, error_msg
     
     def _apply_manual_fixes(self, script: str, error_msg: str, spreadsheet_df: pd.DataFrame) -> Optional[str]:
-        """
-        Apply deterministic manual fixes for common script errors
-        
-        Args:
-            script: The failing script
-            error_msg: Error message from execution
-            spreadsheet_df: DataFrame being processed
-            
-        Returns:
-            Optional[str]: Fixed script or None if no fix available
-        """
+        """Apply deterministic manual fixes for common script errors."""
         print("🔧 Applying manual deterministic fixes...")
         print(f"🔍 Error message: {error_msg}")
         print(f"🔍 Available DataFrame columns: {list(spreadsheet_df.columns)}")
         print(f"🔍 Script to fix: {script[:200]}{'...' if len(script) > 200 else ''}")
         
-        # Priority fix: Handle any script that references columns as strings when they should be integers
-        # This is the most common cause of the Index(['12', '13', '9', '11', '10'], dtype='object') error
         if "Index([" in error_msg and "dtype='object'" in error_msg:
             print("🔧 Detected column reference type mismatch. Applying universal column fix...")
             
-            import re
             fixed_script = script
             
-            # Fix all quoted column references in the script
-            # Pattern 1: df['column'] -> df[column] (if column is numeric and exists)
             column_access_pattern = r"df\[(['\"])(\d+)\1\]"
             
             def fix_column_access(match):
@@ -836,18 +726,14 @@ Generate the corrected script:"""
             
             fixed_script = re.sub(column_access_pattern, fix_column_access, fixed_script)
             
-            # Pattern 2: Fix any list/array containing quoted numbers
-            # This handles subset=['1', '2'], by=['3', '4'], columns=['5', '6'], etc.
             list_pattern = r"(\w+\s*=\s*)\[[^\]]*['\"][0-9]+['\"][^\]]*\]"
             list_matches = re.findall(list_pattern, fixed_script)
             
             for param_prefix in list_matches:
-                # Find the full parameter assignment
                 full_pattern = rf"({re.escape(param_prefix)})\[[^\]]*\]"
                 full_match = re.search(full_pattern, fixed_script)
                 if full_match:
                     full_assignment = full_match.group(0)
-                    # Extract all quoted numbers from this assignment
                     quoted_nums = re.findall(r"['\"](\d+)['\"]", full_assignment)
                     if quoted_nums:
                         int_cols = []
@@ -861,10 +747,8 @@ Generate the corrected script:"""
                             fixed_script = fixed_script.replace(full_assignment, new_assignment)
                             print(f"✓ Fixed parameter: {full_assignment} -> {new_assignment}")
             
-            # Pattern 3: Any list comprehension with str() around column indices
             str_comprehension_pattern = r"\[str\([^)]+\)\s+for\s+[^]]+\]"
             if re.search(str_comprehension_pattern, fixed_script):
-                # Replace [str(col_idx) for col_idx in [1,2,3]] with [1,2,3]
                 comprehension_match = re.search(r"\[str\(col_idx\)\s+for\s+col_idx\s+in\s+\[([^\]]+)\]\]", fixed_script)
                 if comprehension_match:
                     indices_str = comprehension_match.group(1)
@@ -879,19 +763,15 @@ Generate the corrected script:"""
                     except (ValueError, TypeError):
                         pass
             
-            # Pattern 4: Handle Excel cell references (A1, B2, J2, etc.) if they appear as string column refs
-            # Convert Excel column letters to numeric indices if script contains cell references
             excel_pattern = r"['\"]([A-Z]+)(\d+)['\"]"
             excel_matches = re.findall(excel_pattern, fixed_script)
             if excel_matches:
                 print("🔧 Found Excel cell references, converting to numeric indices...")
                 for col_letter, row_num in excel_matches:
-                    # Convert Excel column letter to number (A=0, B=1, C=2, ..., J=9, K=10, etc.)
                     col_num = 0
                     for char in col_letter:
                         col_num = col_num * 26 + (ord(char) - ord('A'))
                     
-                    # Check if this column exists in the DataFrame
                     if col_num in spreadsheet_df.columns:
                         old_ref = f"'{col_letter}{row_num}'"
                         new_ref = str(col_num)
@@ -904,24 +784,16 @@ Generate the corrected script:"""
                 print("✓ Applied universal column reference fixes")
                 return fixed_script
         
-        # Manual fix for column reference errors in drop_duplicates
         if "Index([" in error_msg and "dtype='object'" in error_msg and ("drop_duplicates" in script or "subset" in script):
             print("🔧 Detected column reference error in drop_duplicates. Applying manual fix...")
             
-            # The issue is that str(col_idx) creates string column names, but DataFrame has integer columns
-            # Fix: Remove the str() conversion around column indices
-            import re
-            
-            # Pattern: [str(col_idx) for col_idx in [numbers]] -> [numbers directly]
             pattern = r'\[str\(col_idx\) for col_idx in \[([^\]]+)\]\]'
             match = re.search(pattern, script)
             
             if match:
                 indices_str = match.group(1)
-                # Extract the column indices and use them directly
                 try:
                     indices = [int(x.strip()) for x in indices_str.split(',')]
-                    # Check if these column indices exist in the DataFrame
                     valid_indices = [idx for idx in indices if idx in spreadsheet_df.columns]
                     
                     if valid_indices:
@@ -933,13 +805,10 @@ Generate the corrected script:"""
                 except (ValueError, TypeError):
                     pass
             
-            # Alternative pattern: subset=['9', '10', '11', '12', '13'] -> subset=[9, 10, 11, 12, 13]
             string_pattern = r"subset=\[(['\"][^'\"]+['\"],?\s*)+\]"
             if re.search(string_pattern, script):
-                # Extract quoted numbers and convert to integers
                 quoted_nums = re.findall(r"['\"](\d+)['\"]", script)
                 if quoted_nums:
-                    # Convert to integers and check if they exist as columns
                     int_cols = []
                     for num_str in quoted_nums:
                         try:
@@ -950,24 +819,19 @@ Generate the corrected script:"""
                             continue
                     
                     if int_cols:
-                        # Replace the string column references with integer references
                         old_match = re.search(string_pattern, script).group(0)
                         new_subset = f"subset={int_cols}"
                         fixed_script = script.replace(old_match, new_subset)
                         print(f"✓ Fixed string column references: {old_match} -> {new_subset}")
                         return fixed_script
             
-            # More comprehensive pattern: Any script containing quoted column numbers
-            # This handles cases where LLM generates scripts with string column names
-            max_col_to_check = max(50, len(spreadsheet_df.columns) * 2)  # Check broader range
+            max_col_to_check = max(50, len(spreadsheet_df.columns) * 2)
             if any(f"'{i}'" in script or f'"{i}"' in script for i in range(max_col_to_check)):
                 print("🔧 Found quoted column numbers in script, converting to integers...")
                 fixed_script = script
                 
-                # Convert all quoted integers that exist as DataFrame columns
-                for i in range(max_col_to_check):  # Check extended range
+                for i in range(max_col_to_check):
                     if i in spreadsheet_df.columns:
-                        # Replace both single and double quoted versions in all contexts
                         fixed_script = fixed_script.replace(f"'{i}'", str(i))
                         fixed_script = fixed_script.replace(f'"{i}"', str(i))
                 
@@ -975,17 +839,13 @@ Generate the corrected script:"""
                     print(f"✓ Converted quoted column numbers to integers")
                     return fixed_script
             
-            # Universal column reference fix for ANY pandas operation
-            # This catches column references in any method, not just drop_duplicates
             if any(method in fixed_script for method in ['drop_duplicates', 'groupby', 'sort_values', 'pivot_table', 'merge', 'join']):
                 print("🔧 Found pandas operations, applying universal column fixes...")
                 
-                # Fix any remaining quoted numbers in pandas method calls
                 pandas_methods = ['drop_duplicates', 'groupby', 'sort_values', 'pivot_table', 'merge', 'join', 'pivot', 'melt', 'aggregate', 'agg']
                 
                 for method in pandas_methods:
                     if method in fixed_script:
-                        # Look for method calls with quoted parameters
                         method_pattern = rf'{method}\([^)]*\)'
                         method_matches = re.findall(method_pattern, fixed_script)
                         
@@ -993,7 +853,6 @@ Generate the corrected script:"""
                             original_call = method_call
                             fixed_call = method_call
                             
-                            # Replace quoted numbers in the method call
                             for i in range(max_col_to_check):
                                 if i in spreadsheet_df.columns:
                                     fixed_call = fixed_call.replace(f"'{i}'", str(i))
@@ -1010,7 +869,6 @@ Generate the corrected script:"""
         if any(error_type in error_msg for error_type in ["KeyError", "not in index", "Index([", "not found in axis"]) and any(col_ref in script for col_ref in ["df[", "subset=", "columns=", "by="]):
             print("🔧 Detected general column reference error. Applying catch-all fix...")
             
-            import re
             fixed_script = script
             
             # Handle Excel cell references that appear as KeyErrors (e.g., KeyError: 'J2')
@@ -1097,7 +955,6 @@ Generate the corrected script:"""
             fixed_script = script
             
             # Pattern 1: df[column] where column is a string but should be integer
-            import re
             
             # Find all df[...] patterns and fix string column references
             df_column_pattern = r"df\[(['\"]?)(\d+)\1\]"
@@ -1160,7 +1017,6 @@ Generate the corrected script:"""
                 ).replace("df.replace(np.nan, inplace=True)", "df.replace(np.nan, '', regex=False, inplace=True)")
             
             # Pattern 3: General df.replace() calls without regex parameter
-            import re
             replace_pattern = r'df\.replace\(([^,]+),\s*([^,]+),\s*inplace=True\)'
             matches = re.findall(replace_pattern, fixed_script)
             for match in matches:
@@ -1182,7 +1038,6 @@ Generate the corrected script:"""
                 print("🔧 Converting forward iteration to reverse iteration for row deletion")
                 
                 # Pattern: for i in range(start, len(df)): -> for i in range(len(df)-1, start-1, -1):
-                import re
                 range_pattern = r'for i in range\((\d+), len\(df\)\)'
                 match = re.search(range_pattern, script)
                 if match:
@@ -1269,35 +1124,13 @@ df = df.replace('NONE', '', regex=False)
         return None
     
     def _execute_final_script(self, script: str, spreadsheet_df: pd.DataFrame) -> Tuple[pd.DataFrame, list]:
-        """
-        Execute the final validated script on the full dataset
-        
-        Args:
-            script: The validated script
-            spreadsheet_df: The full DataFrame
-            
-        Returns:
-            Tuple[pd.DataFrame, list]: Modified DataFrame and list of modified cells
-        """
+        """Execute the final validated script on the full dataset."""
         print("🚀 Executing final validated script on full dataset...")
         return self._execute_simple_script(script, spreadsheet_df)
     
     def _generate_advanced_gemini_script(self, spreadsheet_json: Dict[str, Any], command: str, 
                                        error_context: str, attempt_number: int) -> Optional[str]:
-        """
-        Generate a script using Advanced Gemini Complex Script Generation method.
-        This method leverages the _generate_complex_script method from LLMService
-        for attempts 6-8 when standard methods fail.
-        
-        Args:
-            spreadsheet_json: JSON representation of the spreadsheet
-            command: The original user command
-            error_context: Context about previous errors
-            attempt_number: Current attempt number (1-3 for attempts 6-8)
-            
-        Returns:
-            Optional[str]: Generated script or None if generation failed
-        """
+        """Generate script using Advanced Gemini Complex Script Generation for attempts 6-8."""
         try:
             print(f"🧠 Using Advanced Gemini Complex Script Generation (Attempt {attempt_number}/3)")
 
@@ -1322,17 +1155,7 @@ df = df.replace('NONE', '', regex=False)
             return None
     
     def _is_zero_changes_acceptable(self, command: str, script: str, spreadsheet_df: pd.DataFrame) -> bool:
-        """
-        Determine if zero changes is an acceptable outcome for a given command.
-        
-        Args:
-            command: The original user command
-            script: The executed script
-            spreadsheet_df: The original DataFrame
-            
-        Returns:
-            bool: True if zero changes is acceptable, False otherwise
-        """
+        """Determine if zero changes is acceptable for a given command."""
         command_lower = command.lower()
         script_lower = script.lower()
         
@@ -1401,7 +1224,6 @@ df = df.replace('NONE', '', regex=False)
                     return True
         
         # Check for specific row/column number deletion commands (e.g., "delete row 5", "delete column A")
-        import re
         if is_deletion_command:
             # Pattern for "delete row(s) #X" or "delete column(s) X"
             row_match = re.search(r'(?:delete|remove)\s+(?:row|rows?)\s*[#]?(\d+)', command_lower)
@@ -1436,8 +1258,7 @@ df = df.replace('NONE', '', regex=False)
         filter_patterns = ['where', 'filter', 'select', 'find', 'search', 'containing', 'with', 'having', 'matching']
         if any(pattern in command_lower for pattern in filter_patterns) and is_deletion_command:
             print(f"   🔍 Conditional deletion command - checking if condition exists")
-            # For these commands, we can't easily verify without re-implementing the logic,
-            # but we can be more lenient
+            # For these commands, we can't easily verify without re-implementing the logic, but we can be more lenient
             return True
         
         # Check for specific content-based deletion patterns

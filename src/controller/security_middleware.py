@@ -1,43 +1,33 @@
-"""
-Security Middleware module
-------------------------
-Implements comprehensive security middleware for the FastAPI application
-"""
+"""Comprehensive security middleware for the FastAPI application."""
 
-import time
-import hashlib
-import logging
-from typing import Dict, List, Optional, Set
-from fastapi import Request, Response, HTTPException, status
-from fastapi.middleware.base import BaseHTTPMiddleware
-from fastapi.responses import JSONResponse
-import json
-import re
 from urllib.parse import urlparse
+from typing import Any, Dict, Set
+import time, logging, json, re, ipaddress
 from collections import defaultdict, deque
-import ipaddress
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from fastapi.responses import JSONResponse
+from fastapi import Request, Response, HTTPException, status
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 security_logger = logging.getLogger("security")
 
 class SecurityMiddleware(BaseHTTPMiddleware):
-    """
-    Comprehensive security middleware for the application
-    """
+    """Comprehensive security middleware for the application."""
     
-    def __init__(self, app, config: Dict = None):
+    def __init__(self, app, config: Dict[str, Any] | None = None):
         super().__init__(app)
         self.config = config or {}
         
         # Rate limiting configuration
-        self.rate_limit_requests = self.config.get('rate_limit_requests', 100)  # requests per window
-        self.rate_limit_window = self.config.get('rate_limit_window', 300)     # 5 minutes
+        self.rate_limit_requests = self.config.get('rate_limit_requests', 100)
+        self.rate_limit_window = self.config.get('rate_limit_window', 300)
         self.rate_limit_storage = defaultdict(deque)
         
         # DDoS protection
         self.ddos_threshold = self.config.get('ddos_threshold', 500)
-        self.ddos_window = self.config.get('ddos_window', 60)  # 1 minute
+        self.ddos_window = self.config.get('ddos_window', 60)
         self.ddos_storage = defaultdict(deque)
         
         # Blocked IPs (can be expanded with external threat intelligence)
@@ -73,10 +63,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             'default': 10 * 1024 * 1024        # 10MB default
         }
 
-    async def dispatch(self, request: Request, call_next):
-        """
-        Main security middleware dispatcher
-        """
+    async def dispatch(self, request: Request, call_next) -> Response:
+        """Main security middleware dispatcher."""
         start_time = time.time()
         
         try:
@@ -132,9 +120,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             )
 
     def get_client_ip(self, request: Request) -> str:
-        """
-        Extract the real client IP address
-        """
+        """Extract the real client IP address."""
         # Check X-Forwarded-For header (for proxies/load balancers)
         if "x-forwarded-for" in request.headers:
             ips = request.headers["x-forwarded-for"].split(",")
@@ -148,9 +134,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         return request.client.host if request.client else "unknown"
 
     def is_ip_blocked(self, ip: str) -> bool:
-        """
-        Check if an IP address is blocked
-        """
+        """Check if an IP address is blocked."""
         if ip in self.blocked_ips:
             return True
             
@@ -166,9 +150,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         return False
 
     def is_ddos_attack(self, ip: str) -> bool:
-        """
-        Detect potential DDoS attacks
-        """
+        """Detect potential DDoS attacks."""
         now = time.time()
         window_start = now - self.ddos_window
         
@@ -183,9 +165,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         return len(self.ddos_storage[ip]) > self.ddos_threshold
 
     def is_rate_limited(self, ip: str) -> bool:
-        """
-        Check if IP is rate limited
-        """
+        """Check if IP is rate limited."""
         now = time.time()
         window_start = now - self.rate_limit_window
         
@@ -201,10 +181,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         self.rate_limit_storage[ip].append(now)
         return False
 
-    async def validate_request(self, request: Request):
-        """
-        Validate incoming requests for security threats
-        """
+    async def validate_request(self, request: Request) -> None:
+        """Validate incoming requests for security threats."""
         # Validate URL path
         self.validate_url_path(str(request.url))
         
@@ -219,10 +197,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         if request.method in ["POST", "PUT", "PATCH"]:
             await self.validate_request_body(request)
 
-    def validate_url_path(self, url: str):
-        """
-        Validate URL path for security threats
-        """
+    def validate_url_path(self, url: str) -> None:
+        """Validate URL path for security threats."""
         parsed_url = urlparse(url)
         path = parsed_url.path
         
@@ -243,10 +219,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 detail="Invalid path"
             )
 
-    def validate_headers(self, headers):
-        """
-        Validate request headers
-        """
+    def validate_headers(self, headers) -> None:
+        """Validate request headers."""
         # Check for suspicious user agents
         user_agent = headers.get("user-agent", "").lower()
         suspicious_agents = ["sqlmap", "nikto", "nmap", "masscan", "nessus"]
@@ -259,10 +233,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                     detail="Access denied"
                 )
 
-    async def validate_request_body(self, request: Request):
-        """
-        Validate request body content
-        """
+    async def validate_request_body(self, request: Request) -> None:
+        """Validate request body content."""
         # Check content type
         content_type = request.headers.get("content-type", "")
         
@@ -286,10 +258,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                     detail="Invalid JSON"
                 )
 
-    def validate_input(self, input_text: str, input_type: str):
-        """
-        Validate input text for malicious content
-        """
+    def validate_input(self, input_text: str, input_type: str) -> None:
+        """Validate input text for malicious content."""
         # Check for suspicious patterns
         for pattern in self.suspicious_patterns:
             if re.search(pattern, input_text, re.IGNORECASE):
@@ -308,9 +278,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             )
 
     def add_security_headers(self, response: Response) -> Response:
-        """
-        Add security headers to response
-        """
+        """Add security headers to response."""
         # Prevent XSS attacks
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -347,10 +315,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         
         return response
 
-    def log_request(self, request: Request, response: Response, client_ip: str, duration: float):
-        """
-        Log security-relevant information about requests
-        """
+    def log_request(self, request: Request, response: Response, client_ip: str, duration: float) -> None:
+        """Log security-relevant information about requests."""
         log_data = {
             "timestamp": time.time(),
             "client_ip": client_ip,
@@ -369,10 +335,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         else:
             security_logger.info(f"Request: {log_data['method']} {log_data['path']} - {log_data['status_code']}")
 
-    def cleanup_old_entries(self):
-        """
-        Cleanup old entries from rate limiting storage
-        """
+    def cleanup_old_entries(self) -> None:
+        """Cleanup old entries from rate-limiting and DDoS storage."""
         now = time.time()
         
         # Cleanup rate limiting storage

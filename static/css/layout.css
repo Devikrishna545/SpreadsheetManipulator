@@ -1,43 +1,35 @@
-/* Contains:
-    .app-container
-    .sidebar, .sidebar.collapsed, .sidebar-content, .sidebar-section, .sidebar-title
-    .main-content
-    .bg-dark-custom (Top Navigation background)
-    .navbar-brand (Excluding flicker animation, just layout aspects)
-    .sidebar-toggle-btn
-*/
-
-/* Example structure: */
+/* Layout components */
+/* App container */
 .app-container {
     display: flex;
-    /* Pixel-perfect: anchor between header and footer */
     position: fixed;
     top: calc(var(--navbar-height) + var(--header-border-width));
     bottom: var(--footer-height);
     left: 0;
     right: 0;
-    overflow: hidden; /* Prevent page scroll */
-    min-height: 0; /* allow children to size via flex */
+    overflow: hidden;
+    min-height: 0;
     box-sizing: border-box;
 }
 
+/* Sidebar */
 .sidebar {
     width: var(--sidebar-width);
     background-color: var(--glass-bg-color);
     backdrop-filter: blur(var(--glass-blur-amount));
     border-right: 1px solid var(--glass-border-color);
     padding: 15px;
-    height: 100%; /* stretch to footer */
-    min-height: 0; /* allow inner scroll */
-    overflow-x: hidden; 
+    height: 100%;
+    min-height: 0;
+    overflow-x: hidden;
     overflow-y: auto;
     transition: width var(--transition-medium), padding var(--transition-medium);
-    flex-shrink: 0; 
+    flex-shrink: 0;
 }
 
 .sidebar.collapsed {
     width: var(--sidebar-collapsed-width);
-    padding: 15px 5px; 
+    padding: 15px 5px;
 }
 
 .sidebar.collapsed .sidebar-title,
@@ -45,19 +37,22 @@
 .sidebar.collapsed .sidebar-section .session-details,
 .sidebar.collapsed .file-input-label span,
 .sidebar.collapsed .form-text {
-    display: none; 
+    display: none;
 }
 
 .sidebar.collapsed .file-input-label {
-    justify-content: center; 
+    justify-content: center;
 }
+
 .sidebar.collapsed .file-input-label i {
-    margin-right: 0; 
+    margin-right: 0;
 }
+
 .sidebar.collapsed .sidebar-section {
     padding: 10px 5px;
 }
-.sidebar.collapsed .sidebar-title i { 
+
+.sidebar.collapsed .sidebar-title i {
     display: block;
     text-align: center;
     font-size: 1.2rem;
@@ -72,7 +67,7 @@
 .sidebar-section {
     margin-bottom: 25px;
     padding: 15px;
-    background-color: rgba(0, 191, 255, 0.05); 
+    background-color: rgba(0, 191, 255, 0.05);
     border-radius: var(--border-radius);
     border: 1px solid var(--glass-border-color);
 }
@@ -86,57 +81,55 @@
     letter-spacing: 0.8px;
 }
 
+/* Main content */
 .main-content {
     flex: 1;
-    /* remove bottom padding so the content can sit flush with footer */
     padding: 10px 15px 0;
-    overflow: hidden; /* Prevent this container from scrolling */
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    height: 100%; /* Ensure it takes full height of its parent */
-    min-height: 0; /* prevent flex child overflow */
+    height: 100%;
+    min-height: 0;
 }
 
 .main-content-scroll-wrapper {
-    flex: 1 1 auto; /* Let it grow and shrink */
-    overflow-y: auto; /* Allow vertical scrolling */
+    flex: 1 1 auto;
+    overflow-y: auto;
     height: 100%;
-    padding-bottom: 0; /* Remove padding, as footer is outside this flow */
-    min-height: 0; /* ensure inner flex column can shrink */
+    padding-bottom: 0;
+    min-height: 0;
 }
 
-/* Top Navigation */
+/* Top navigation */
 .bg-dark-custom {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     height: var(--navbar-height);
-    z-index: 102; /* above footer (101) and app content */
-    background-color: rgba(10, 10, 20, 0.5); 
+    z-index: 102;
+    background-color: rgba(10, 10, 20, 0.5);
     border-bottom: 1px solid var(--glass-border-color);
-    backdrop-filter: blur(var(--glass-blur-amount)); 
-    display: flex;               /* center children vertically */
-    align-items: center;         /* vertical centering */
-    padding: 0;                  /* remove default navbar y-padding */
+    backdrop-filter: blur(var(--glass-blur-amount));
+    display: flex;
+    align-items: center;
+    padding: 0;
 }
 
-/* Ensure the Bootstrap container spans full header height and centers content */
 .bg-dark-custom .container-fluid {
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative; /* anchors absolute toggle/status elements */
-    padding: 0 15px;    /* horizontal breathing room */
+    position: relative;
+    padding: 0 15px;
 }
 
 .navbar-brand {
     font-weight: 600;
     font-size: 1.4rem;
     color: var(--main-accent);
-    /* text-shadow and animation will be in components.css or main.css */
-    display: flex; 
+    display: flex;
     align-items: center;
 }
 
@@ -150,19 +143,19 @@
     cursor: pointer;
     transition: var(--transition-fast);
 }
+
 .sidebar-toggle-btn:hover {
     color: var(--main-accent);
 }
 
+/* Page wrapper and footer */
 .page-wrapper {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  /* Footer height is now accounted for in app-container calculation */
-    padding-top: var(--navbar-height); /* prevent underlying content from appearing under fixed header */
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding-top: var(--navbar-height);
 }
 
-/* Footer always at the bottom, above everything else */
 .fixed-footer {
     position: fixed;
     left: 0;
@@ -207,11 +200,12 @@
     animation: flicker 3s infinite alternate;
 }
 
+/* Logo and positioning */
 .navbar-logo-img {
     display: block;
     margin-left: auto;
     margin-right: auto;
-    height: calc(var(--navbar-height) - 12px);   /* fit neatly inside header */
+    height: calc(var(--navbar-height) - 12px);
     max-height: calc(var(--navbar-height) - 12px);
     width: auto;
     object-fit: contain;
@@ -222,19 +216,17 @@
     opacity: 0.6;
 }
 
-/* Sidebar toggle button absolute left center */
 .sidebar-toggle-pos {
     position: absolute;
-    left: 15px; /* Match sidebar padding-left */
+    left: 15px;
     top: 50%;
     transform: translateY(-50%);
     z-index: 2;
 }
 
-/* Status badge absolute right center */
 .status-badge-pos {
     position: absolute;
-    right: 15px; /* Match main content padding-right */
+    right: 15px;
     top: 50%;
     transform: translateY(-50%);
     z-index: 2;
@@ -247,7 +239,7 @@
     text-decoration: none;
     display: inline-flex;
     align-items: center;
-    border-radius: 4px; /* Less rounded edges similar to file-input-wrapper style */
+    border-radius: 4px;
 }
 
 .user-manual-link i {

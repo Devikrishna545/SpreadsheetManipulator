@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AIDN</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', path='assets/favicon/favicon.ico') }}">
-    <!-- Performance: preconnect to CDNs used for CSS/JS -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
@@ -17,17 +16,13 @@
 </head>
 <body class="dark-theme">
     <div class="particle-background" id="particleBackground"></div>
-    <!-- Wrap everything above the footer -->
     <div class="page-wrapper d-flex flex-column min-vh-100">
-        <!-- Top Navigation -->
         <nav class="navbar navbar-dark bg-dark-custom">
             <div class="container-fluid justify-content-center position-relative">
-                <!-- Centered logo image -->
              <img src="{{ url_for('static', path='assets/images/hlb-hamt.jpg') }}" 
                      alt="HLB HAMT" 
                  class="navbar-logo-img mx-auto d-block logo-faded"
                  loading="lazy" decoding="async" fetchpriority="low">
-                <!-- Sidebar toggle button absolutely positioned left -->
                 <button class="sidebar-toggle-btn sidebar-toggle-pos" id="sidebarToggleBtn" title="Toggle Sidebar">
                     <i class="fas fa-bars"></i>
                 </button>
@@ -38,16 +33,14 @@
         </nav>
 
         <div class="app-container">
-            <!-- Left Sidebar -->
             <div class="sidebar custom-scrollbar" id="sidebar">
                 <div class="sidebar-content">
-                    <!-- Upload Section -->
                     <div class="sidebar-section">
                         <h6 class="sidebar-title">
                             <i class="fas fa-upload me-2"></i>File Management
                         </h6>
                         <form id="uploadForm" enctype="multipart/form-data" class="mb-3">
-                            <div class="file-input-wrapper" title ="Select(Alt+Shft+U)">
+                            <div class="file-input-wrapper" title ="Select (Alt+Shft+U)">
                                 <input class="form-control file-input" type="file" id="fileInput" accept=".xlsx,.xls,.csv" 
                                      aria-label="File input" required>
                                 <label for="fileInput" class="file-input-label">
@@ -63,7 +56,6 @@
                         </form>
                     </div>
 
-                    <!-- Session Info -->
                     <div class="sidebar-section" id="sessionInfo" style="display: none;">
                         <h6 class="sidebar-title">
                             <i class="fas fa-info-circle me-2"></i>Session Info
@@ -80,7 +72,6 @@
                         </div>
                     </div>
 
-                    <!-- Shortcut Keys Section -->
                     <div class="sidebar-section" id="shortcutInfo" style="display: none;">
                         <h6 class="sidebar-title">
                             <i class="fas fa-keyboard me-2"></i>Shortcuts
@@ -99,7 +90,7 @@
                                 <span class="session-value">Alt+F</span>
                             </div>
                                <div class="session-item">
-                                <span class="session-label"> Update Schema</span>
+                                <span class="session-label">Update Schema</span>
                                 <span class="session-value">Alt+Shift+U</span>
                             </div>
                             <div class="session-item">
@@ -179,10 +170,8 @@
                 </div>
             </div>
 
-            <!-- Main Content Area -->
             <div class="main-content-scroll-wrapper custom-scrollbar" style="content-visibility:auto; contain-intrinsic-size: 1200px 1000px;">
                 <div class="main-content">
-                    <!-- Command Input Section -->
                     <div class="command-section" id="commandContainer" style="display: none; content-visibility:auto; contain-intrinsic-size: 600px 400px;">
                         <div class="command-card">
                             <div class="command-header">
@@ -210,33 +199,26 @@
                         </div>
                     </div>
 
-                    <!-- Spreadsheet Display -->
                     <div class="spreadsheet-section" id="spreadsheetContainer" style="display: none; content-visibility:auto; contain-intrinsic-size: 900px 700px;">
                         <div class="spreadsheet-card">
                             <div class="spreadsheet-header">
                                 <h5><i class="fas fa-table me-2"></i>Spreadsheet Data</h5>
                                 <div class="spreadsheet-controls">
-                                    <!-- Batch Actions -->
                                     <div class="batch-actions">
                                         <button class="btn btn-sm btn-outline-light" id="uploadCommandsBtn" title="Upload Commands (Alt+C)">
                                             <i class="fas fa-file-upload"></i>
                                         </button>
-                                        <!-- Hidden file input for text commands -->
                                         <input type="file" id="commandFileInput" accept=".txt" style="display: none;" />
-                                        <!-- Manage Mappings Button -->
                                         <button class="btn btn-sm btn-outline-light" id="manageMappingsBtn" title="Manage Mappings (Alt+G)">
                                             <i class="fas fa-link"></i>
                                         </button>
-                                        <!-- Analytics Button -->
                                         <button class="btn btn-sm btn-outline-light" id="analyticsBtn" title="Analytics (Alt+A)">
                                             <i class="fas fa-chart-bar"></i>
                                         </button>
-                                        <!-- Action Plan Button -->
                                         <button class="btn btn-sm btn-outline-light" id="generateActionPlanBtn" title="Generate & Execute Algorithm">
                                             <i class="fas fa-robot"></i>
                                         </button>
                                     </div>
-                                    <!-- Schema Management Buttons -->
                                     <div class="schema-buttons">
                                         <button class="btn btn-sm btn-outline-light" id="updateSchemaBtn" title="Update Schema (Alt+Shift+U)">
                                             <i class="fas fa-sync-alt"></i>
@@ -245,12 +227,10 @@
                                             <i class="fas fa-magic"></i>
                                         </button>
                                     </div>
-                                    <!-- Screen Controls -->
                                     <div class="screen-controls">
                                         <button class="btn btn-sm btn-outline-light" id="splitViewBtn" title="Split View (Alt+Shift+S)">
                                                 <i class="fas fa-columns"></i>
                                         </button>
-                                        <!-- Fullscreen Button -->
                                         <button class="btn btn-sm btn-outline-light" id="fullscreenBtn" tooltip="Toggle Fullscreen" title="Fullscreen (Alt+F)">
                                             <i class="fas fa-expand"></i>
                                         </button>
@@ -271,7 +251,6 @@
                                             <i class="fas fa-broom"></i>
                                         </button>
                                     </div>
-                                    <!-- Cell Selector Bar -->
                                     <div class="cell-selector-bar" id="cellSelectorBar">
                                         <i class="fas fa-crosshairs me-2"></i>
                                         <input type="text" class="form-control form-control-sm cell-selector-input" id="cellSelectorDisplay" placeholder="-">
@@ -280,9 +259,7 @@
                             </div>
                             <div class="spreadsheet-body custom-scrollbar">
                                 <div id="spreadsheetData"></div>
-                                <!-- Sheet Tab Bar: bottom left inside spreadsheet container -->
                                 <div id="sheetTabContainer" style="position: absolute; left: 0; bottom: 0; z-index: 10; display: flex; gap: 4px; padding: 6px 8px; background: var(--bg-secondary, #23272b); border-radius: 0 8px 0 0; min-height: 36px;">
-                                    <!-- Sheet tabs will be dynamically inserted here -->
                                 </div>
                             </div>
                         </div>
@@ -291,8 +268,7 @@
             </div>
         </div>
 
-        <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingContainer" style="display: none; content-visibility:auto; contain-intrinsic-size: 400px 300px;">
+        <div class="loading-overlay" id="loadingContainer" style="display: none; content-visibility:auto; contain-intrinsic-size: 400px 300px;">
             <div class="loading-content">
                 <div class="futuristic-loader">
                     <div class="loader-ring"></div>
@@ -308,8 +284,7 @@
             </div>
         </div>
 
-        <!-- Error Modal -->
-    <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 400px;">
+        <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 400px;">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -330,8 +305,7 @@
             </div>
         </div>
 
-        <!-- Confirmation Modal -->
-    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 400px;">
+        <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 400px;">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -353,8 +327,7 @@
             </div>
         </div>
 
-        <!-- Alert Modal -->
-    <div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 400px;">
+        <div class="modal fade" id="alertModal" tabindex="-1" aria-labelledby="alertModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 400px;">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -373,8 +346,7 @@
             </div>
         </div>
 
-        <!-- Action Plan Modal -->
-    <div class="modal fade" id="actionPlanModal" tabindex="-1" aria-labelledby="actionPlanModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 800px 600px;">
+        <div class="modal fade" id="actionPlanModal" tabindex="-1" aria-labelledby="actionPlanModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 800px 600px;">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -390,7 +362,6 @@
                         </div>
                         <h6 class="mb-3"><i class="fas fa-list-ul me-2"></i>Detected Changes:</h6>
                         <div class="action-plan-content custom-scrollbar" id="actionPlanContent" style="max-height: 300px; overflow-y: auto; background-color: var(--bg-secondary); border-radius: 8px; padding: 15px; font-family: 'Courier New', monospace; white-space: pre-wrap;">
-                            <!-- Action plan will be inserted here -->
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -405,8 +376,7 @@
             </div>
         </div>
 
-        <!-- Prompt Modal -->
-    <div class="modal fade" id="promptModal" tabindex="-1" aria-labelledby="promptModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 500px;">
+        <div class="modal fade" id="promptModal" tabindex="-1" aria-labelledby="promptModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 600px 500px;">
             <div class="modal-dialog modal-dialog-centered modal-lg" style="max-width: 500px;">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -423,7 +393,6 @@
         </div>
     </div>
 
-    <!-- Fixed footer at the bottom, outside page-wrapper -->
     <footer id="footerWrap" class="fixed-footer">
         <div class="footer-left">
             <a href="/usermanual" class="btn btn-outline-info btn-futuristic btn-xs user-manual-link" target="_blank">
@@ -445,24 +414,17 @@
         </div>
     </footer>
 
-    <!-- Add Bootstrap JavaScript before your custom scripts (deferred to avoid blocking) -->
     <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Global fix for removed actionsSection element - Must be very early -->
     <script src="{{ url_for('static', path='js/global-fixes.js') }}"></script>
     
-    <!-- Add Chart.js for token usage dashboard -->
-    <!-- Keep Chart.js synchronous at the end to preserve load order if referenced by main.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     
-    <!-- Add Handsontable JavaScript library -->
     <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
-    <!-- Your custom scripts -->
     <script type="module" src="{{ url_for('static', path='js/main.js') }}"></script>
     <script type="module" src="{{ url_for('static', path='js/prompts.js') }}"></script>
 
-    <!-- Storage Cleanup Modal -->
     <div class="modal fade" id="cacheModal" tabindex="-1" aria-labelledby="cacheModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 800px 600px;">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -515,7 +477,6 @@
         </div>
     </div>
 
-    <!-- Mapping Management Modal -->
     <div class="modal fade" id="mappingManagementModal" tabindex="-1" aria-labelledby="mappingManagementModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 1000px 800px;">
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
@@ -559,7 +520,6 @@
                         </div>
                     </div>
 
-                    <!-- Spreadsheet Mapping -->
                     <div class="row mb-3">
                         <div class="col-md-12">
                             <div class="card">
@@ -576,7 +536,6 @@
                                     </h6>
                                 </div>
                                 <div class="card-body">
-                                    <!-- Mappings Table -->
                                     <div class="table-responsive">
                                         <table class="table table-striped table-hover">
                                             <thead>
@@ -591,12 +550,10 @@
                                                 </tr>
                                             </thead>
                                             <tbody id="mappingsTableBody">
-                                                <!-- Mappings will be populated here -->
                                             </tbody>
                                         </table>
                                     </div>
 
-                                    <!-- No mappings message -->
                                     <div id="noMappingsMessage" class="text-center text-muted py-5" style="display: none;">
                                         <i class="fas fa-unlink fa-3x mb-3"></i>
                                         <h5>No mappings found</h5>
@@ -616,7 +573,6 @@
         </div>
     </div>
 
-    <!-- Analytics Modal -->
     <div class="modal fade" id="analyticsModal" tabindex="-1" aria-labelledby="analyticsModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 1000px 800px;">
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
@@ -627,13 +583,11 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- Token Usage Dashboard -->
                     <div class="row mt-1 mb-1" id="tokenUsageDashboard">
                         <div class="col-md-12">
                         </div>
                     </div>
 
-                    <!-- Summary Cards Section -->
                     <div class="row mb-3">
                         <div class="col-md-12">
                             <div class="card">
@@ -714,7 +668,6 @@
                         </div>
                     </div>
 
-                    <!-- Charts Section -->
                     <div class="row mb-3">
                         <div class="col-md-12">
                             <div class="card">
@@ -782,7 +735,6 @@
                         </div>
                     </div>
 
-                    <!-- Recent Batch Activity Section -->
                     <div class="row">
                         <div class="col-md-12">
                             <div class="card">
@@ -794,7 +746,6 @@
                                 <div class="card-body">
                                     <div class="recent-activity-container">
                                         <div id="recentActivityList" class="recent-activity-list">
-                                            <!-- Recent batch activities will be populated here -->
                                         </div>
                                     </div>
                                 </div>
@@ -811,7 +762,6 @@
         </div>
     </div>
 
-    <!-- Create/Edit Mapping Modal -->
     <div class="modal fade" id="createMappingModal" tabindex="-1" aria-labelledby="createMappingModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 800px 600px;">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -859,7 +809,6 @@
         </div>
     </div>
 
-    <!-- Edit Mapping Modal -->
     <div class="modal fade" id="editMappingModal" tabindex="1100" aria-labelledby="editMappingModalLabel" aria-hidden="true" style="content-visibility:auto; contain-intrinsic-size: 800px 600px;">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">

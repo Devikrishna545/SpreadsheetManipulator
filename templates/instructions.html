@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AIDN | User Manual</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', path='assets/favicon/favicon.ico') }}">
-    <!-- Performance: preconnect to CDNs used for CSS/JS -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
@@ -17,14 +16,12 @@
 <body class="dark-theme">
     <div class="particle-background" id="particleBackground"></div>
     
-    <!-- Back to Application Button -->
     <a href="/" class="back-button">
         <i class="fas fa-arrow-left me-2"></i>Back to Application
     </a>
     
     <div class="container-fluid" style="padding-top: 80px; position: relative; z-index: 1;">
         <div class="manual-content">
-            <!-- Header Section -->
             <div class="manual-header">
              <img src="{{ url_for('static', path='assets/images/hlb-hamt.jpg') }}" 
                      alt="HLB HAMT" 
@@ -48,7 +45,6 @@
                 </div>
             </div>
             
-            <!-- Table of Contents -->
             <div class="toc">
                 <h4><i class="fas fa-list me-2"></i>Table of Contents</h4>
                 <ul>
@@ -63,7 +59,6 @@
                 </ul>
             </div>
             
-            <!-- Overview Section -->
             <div id="overview" class="manual-section" style="content-visibility:auto; contain-intrinsic-size: 1200px 1000px;">
                 <h2 class="section-title">
                     <i class="fas fa-info-circle"></i>
@@ -83,7 +78,6 @@
                 </div>
             </div>
             
-            <!-- Getting Started Section -->
             <div id="getting-started" class="manual-section" style="content-visibility:auto; contain-intrinsic-size: 1200px 1000px;">
                 <h2 class="section-title">
                     <i class="fas fa-play"></i>
@@ -162,7 +156,6 @@
                 </div>
             </div>
             
-            <!-- Features Section -->
             <div id="features" class="manual-section" style="content-visibility:auto; contain-intrinsic-size: 1200px 1000px;">
                 <h2 class="section-title">
                     <i class="fas fa-star"></i>
@@ -256,7 +249,6 @@
                 </div>
             </div>
             
-            <!-- Workflow Section -->
             <div id="workflow" class="manual-section" style="content-visibility:auto; contain-intrinsic-size: 1200px 1000px;">
                 <h2 class="section-title">
                     <i class="fas fa-route"></i>
@@ -404,7 +396,6 @@
                         </div>
                     </div>
                     
-                    <!-- Transformation Flow Section -->
                     <div class="transform-flow-section">
                         <div class="text-center">
                             <i class="fas fa-arrow-down transform-arrow"></i>
@@ -419,7 +410,6 @@
                         </div>
                     </div>
                     
-                    <!-- Simulated steps -->
                     <div class="demo-steps-container">
                         <div class="demo-step" onclick="highlightStep(1)">
                             <i class="fas fa-columns step-icon"></i>
@@ -456,7 +446,6 @@
                 </div>
             </div>
             
-            <!-- Keyboard Shortcuts Section -->
             <div id="shortcuts" class="manual-section" style="content-visibility:auto; contain-intrinsic-size: 1200px 1000px;">
                 <h2 class="section-title">
                     <i class="fas fa-keyboard"></i>
@@ -551,7 +540,6 @@
                 </div>
             </div>
             
-            <!-- Advanced Features Section -->
             <div id="advanced" class="manual-section" style="content-visibility:auto; contain-intrinsic-size: 1200px 1000px;">
                 <h2 class="section-title">
                     <i class="fas fa-cogs"></i>
@@ -628,7 +616,6 @@ Calculate percentage of Total relative to sum</pre>
                 </div>
             </div>
             
-            <!-- Troubleshooting Section -->
             <div id="troubleshooting" class="manual-section" style="content-visibility:auto; contain-intrinsic-size: 1200px 1000px;">
                 <h2 class="section-title">
                     <i class="fas fa-bug"></i>
@@ -755,7 +742,6 @@ Calculate percentage of Total relative to sum</pre>
                 </div>
             </div>
             
-            <!-- Tips and Best Practices Section -->
             <div id="tips" class="manual-section" style="content-visibility:auto; contain-intrinsic-size: 1200px 1000px;">
                 <h2 class="section-title">
                     <i class="fas fa-lightbulb"></i>
@@ -850,7 +836,6 @@ Calculate percentage of Total relative to sum</pre>
                 </div>
             </div>
             
-            <!-- Footer -->
             <div class="text-center mt-5 pt-4" style="border-top: 1px solid var(--glass-border-color);">
                 <p class="text-muted">
                     <i class="fas fa-copyright me-2"></i>
@@ -860,7 +845,6 @@ Calculate percentage of Total relative to sum</pre>
         </div>
     </div>
     
-    <!-- JavaScript (defer Bootstrap to reduce main-thread blocking) -->
     <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script type="module" src="{{ url_for('static', path='js/instructions.js') }}"></script>
 </body>

@@ -1,40 +1,26 @@
-"""
-Security Configuration module
----------------------------
-Centralized security configuration for the finance application
-"""
+"""Centralized security configuration for the application."""
 
 import os
-from typing import Dict, List, Set, Any
 from enum import Enum
+from typing import Any, Dict, List
 
 class SecurityLevel(Enum):
-    """Security levels for different environments"""
+    """Security levels for different environments."""
     DEVELOPMENT = "development"
     STAGING = "staging"
     PRODUCTION = "production"
 
 class SecurityConfig:
-    """
-    Centralized security configuration
-    """
+    """Centralized security configuration."""
     
     def __init__(self, environment: str = "development"):
-        """
-        Initialize security configuration
-        
-        Args:
-            environment: The environment (development, staging, production)
-        """
+        """Initialize security configuration for the given environment."""
         self.environment = SecurityLevel(environment.lower())
-        
-        # Load configuration based on environment
         self._load_config()
     
     def _load_config(self):
-        """Load configuration based on environment"""
+        """Load configuration based on environment."""
         
-        # Base security settings
         self.session_timeout = 3600  # 1 hour
         self.max_sessions_per_ip = 10
         self.rate_limit_requests = 100
@@ -42,7 +28,6 @@ class SecurityConfig:
         self.max_file_size = 50 * 1024 * 1024  # 50MB
         self.allowed_file_extensions = {'xlsx', 'xls', 'csv', 'txt'}
         
-        # Adjust based on environment
         if self.environment == SecurityLevel.PRODUCTION:
             self._load_production_config()
         elif self.environment == SecurityLevel.STAGING:
@@ -51,7 +36,7 @@ class SecurityConfig:
             self._load_development_config()
     
     def _load_production_config(self):
-        """Production security settings (strictest)"""
+        """Production security settings (strictest)."""
         self.session_timeout = 1800  # 30 minutes
         self.max_sessions_per_ip = 5
         self.rate_limit_requests = 50
@@ -64,7 +49,6 @@ class SecurityConfig:
         self.enable_content_security_policy = True
         self.log_level = "WARNING"
         
-        # Security headers for production
         self.security_headers = {
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
             "X-Content-Type-Options": "nosniff",
@@ -75,14 +59,12 @@ class SecurityConfig:
             "Permissions-Policy": self._get_strict_permissions_policy()
         }
         
-        # Allowed IP ranges (can be configured)
         self.allowed_ip_ranges = os.getenv("ALLOWED_IP_RANGES", "").split(",")
         
-        # Blocked countries (ISO codes)
         self.blocked_countries = os.getenv("BLOCKED_COUNTRIES", "").split(",")
     
     def _load_staging_config(self):
-        """Staging security settings (moderate)"""
+        """Staging security settings (moderate)."""
         self.session_timeout = 3600  # 1 hour
         self.max_sessions_per_ip = 8
         self.rate_limit_requests = 75
@@ -106,7 +88,7 @@ class SecurityConfig:
         }
     
     def _load_development_config(self):
-        """Development security settings (relaxed for debugging)"""
+        """Development security settings (relaxed for debugging)."""
         self.session_timeout = 7200  # 2 hours
         self.max_sessions_per_ip = 15
         self.rate_limit_requests = 200
@@ -126,7 +108,7 @@ class SecurityConfig:
         }
     
     def _get_strict_csp(self) -> str:
-        """Get strict Content Security Policy for production"""
+        """Get strict Content Security Policy for production."""
         return (
             "default-src 'self'; "
             "script-src 'self'; "
@@ -140,7 +122,7 @@ class SecurityConfig:
         )
     
     def _get_moderate_csp(self) -> str:
-        """Get moderate Content Security Policy for staging"""
+        """Get moderate Content Security Policy for staging."""
         return (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline'; "
@@ -153,7 +135,7 @@ class SecurityConfig:
         )
     
     def _get_strict_permissions_policy(self) -> str:
-        """Get strict Permissions Policy for production"""
+        """Get strict Permissions Policy for production."""
         return (
             "geolocation=(), "
             "camera=(), "
@@ -170,7 +152,7 @@ class SecurityConfig:
         )
     
     def _get_moderate_permissions_policy(self) -> str:
-        """Get moderate Permissions Policy for staging"""
+        """Get moderate Permissions Policy for staging."""
         return (
             "geolocation=(), "
             "camera=(), "
@@ -183,7 +165,7 @@ class SecurityConfig:
         )
     
     def get_cors_config(self) -> Dict[str, Any]:
-        """Get CORS configuration"""
+        """Get CORS configuration."""
         if self.environment == SecurityLevel.PRODUCTION:
             return {
                 "allow_origins": os.getenv("ALLOWED_ORIGINS", "").split(","),
@@ -207,7 +189,7 @@ class SecurityConfig:
             }
     
     def get_rate_limiting_config(self) -> Dict[str, Any]:
-        """Get rate limiting configuration"""
+        """Get rate limiting configuration."""
         return {
             "requests_per_minute": self.rate_limit_requests,
             "window_seconds": self.rate_limit_window,
@@ -215,7 +197,7 @@ class SecurityConfig:
         }
     
     def get_file_validation_config(self) -> Dict[str, Any]:
-        """Get file validation configuration"""
+        """Get file validation configuration."""
         return {
             "max_file_size": self.max_file_size,
             "allowed_extensions": self.allowed_file_extensions,
@@ -225,7 +207,7 @@ class SecurityConfig:
         }
     
     def get_session_config(self) -> Dict[str, Any]:
-        """Get session configuration"""
+        """Get session configuration."""
         return {
             "timeout": self.session_timeout,
             "max_sessions_per_ip": self.max_sessions_per_ip,
@@ -235,7 +217,7 @@ class SecurityConfig:
         }
     
     def get_logging_config(self) -> Dict[str, Any]:
-        """Get logging configuration"""
+        """Get logging configuration."""
         return {
             "level": self.log_level,
             "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -247,15 +229,15 @@ class SecurityConfig:
         }
     
     def is_production(self) -> bool:
-        """Check if running in production"""
+        """Check if running in production."""
         return self.environment == SecurityLevel.PRODUCTION
     
     def is_development(self) -> bool:
-        """Check if running in development"""
+        """Check if running in development."""
         return self.environment == SecurityLevel.DEVELOPMENT
     
     def get_blocked_user_agents(self) -> List[str]:
-        """Get list of blocked user agents"""
+        """Get list of blocked user agents."""
         return [
             "sqlmap",
             "nikto", 
@@ -273,7 +255,7 @@ class SecurityConfig:
         ]
     
     def get_suspicious_patterns(self) -> List[str]:
-        """Get list of suspicious request patterns"""
+        """Get list of suspicious request patterns."""
         return [
             r'\.\./',              # Path traversal
             r'<script',            # XSS

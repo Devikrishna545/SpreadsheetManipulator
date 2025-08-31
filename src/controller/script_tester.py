@@ -1,39 +1,23 @@
-"""
-Script Tester module
-------------------
-Tests and validates scripts before execution to catch syntax errors and common issues
-"""
+"""Test and validate scripts to catch syntax and common issues before execution."""
 
-import ast
-import re
-import pandas as pd
 import numpy as np
-from typing import Tuple, Optional, Dict, Any, List
+import pandas as pd
+import ast, logging, re
+from typing import List, Optional, Tuple
+
 from src.controller.security_manager import SecurityManager
-import logging
 
 class ScriptTester:
-    """
-    Tests scripts for syntax errors and common issues before execution
-    """
+    """Tests scripts for syntax errors, security, and common issues."""
     
     def __init__(self):
-        """Initialize the script tester"""
+        """Initialize the script tester."""
         self.security_manager = SecurityManager()
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     def test_script(self, script: str, sample_df: Optional[pd.DataFrame] = None) -> Tuple[bool, str, Optional[str]]:
-        """
-        Test a script for syntax errors and common issues
-        
-        Args:
-            script: The Python script to test
-            sample_df: Optional sample DataFrame for test execution
-            
-        Returns:
-            Tuple[bool, str, Optional[str]]: (is_valid, error_message, fixed_script)
-        """
-        # Step 1: Check structure compatibility first if DataFrame is provided
+        """Test a script for syntax errors and common issues."""
+    # Step 1: Check structure compatibility first if DataFrame is provided
         if sample_df is not None:
             is_compatible, structure_error, structure_fixed = self.validate_script_structure_compatibility(script, sample_df)
             if not is_compatible:
@@ -61,17 +45,17 @@ class ScriptTester:
                     return False, f"Script has syntax error: {error_msg}. Fix attempt failed with: {str(e2)}", None
             return False, f"Script has syntax error: {error_msg}", None
         
-        # Step 3: Check for security concerns
-        is_safe, security_message = self.security_manager.validate_script(script)
+    # Step 3: Check for security concerns
+        is_safe = self.security_manager.validate_script(script, script_name="script_test")
         if not is_safe:
-            return False, f"Script validation failed due to security concerns: {security_message}", None
+            return False, f"Script validation failed due to security concerns", None
         
         # Step 4: Check for common logical issues
         result, issue, fixed = self._check_logical_issues(script)
         if not result:
             return False, issue, fixed
         
-        # Step 5: Try to execute the script on a sample DataFrame if provided
+    # Step 5: Try to execute the script on a sample DataFrame if provided
         if sample_df is not None:
             success, error = self._test_execution(script, sample_df)
             if not success:
@@ -85,16 +69,7 @@ class ScriptTester:
         return True, "Script passed all tests", None
     
     def _try_fix_syntax_error(self, script: str, error_msg: str) -> Optional[str]:
-        """
-        Try to fix common syntax errors
-        
-        Args:
-            script: The script with syntax error
-            error_msg: The error message
-            
-        Returns:
-            Optional[str]: Fixed script if possible, None otherwise
-        """
+        """Try to fix common syntax errors."""
         print(f"🔧 [SCRIPT TESTER] Attempting to fix syntax error: {error_msg}")
         
         # Fix for "expected an indented block" or EOF errors
@@ -154,25 +129,20 @@ class ScriptTester:
                 fixed_script = '\n'.join(lines)
                 return fixed_script
 
-        # Fix indentation issues
         if "unindent does not match any outer indentation level" in error_msg:
             print(f"   ✓ Fixing indentation issues")
             return self._fix_indentation_issues(script)
         
-        # Fix missing loops for iterative operations
         if "unexpected indent" in error_msg and any(pattern in script for pattern in ["df.iloc[i,", "df.loc[i,"]):
             print(f"   ✓ Adding missing loop")
             return self._add_missing_loop(script)
         
-        # Fix missing colons in if/for statements
         if "expected ':'" in error_msg:
             print(f"   ✓ Fixing missing colons")
             return self._fix_missing_colons(script)
             
-        # Fix invalid syntax with brackets/parentheses
         if "invalid syntax" in error_msg:
             print(f"   ✓ Attempting to fix invalid syntax")
-            # Check for unbalanced brackets
             brackets = {'(': ')', '[': ']', '{': '}'}
             stack = []
             for char in script:
@@ -180,13 +150,10 @@ class ScriptTester:
                     stack.append(char)
                 elif char in brackets.values():
                     if not stack or brackets[stack.pop()] != char:
-                        # Unbalanced brackets detected
                         fixed = script
                         for opening, closing in brackets.items():
-                            # Count occurrences
                             opening_count = script.count(opening)
                             closing_count = script.count(closing)
-                            # Add missing brackets
                             if opening_count > closing_count:
                                 fixed += closing * (opening_count - closing_count)
                             elif closing_count > opening_count:
@@ -196,32 +163,22 @@ class ScriptTester:
         return None
     
     def _fix_indentation_issues(self, script: str) -> str:
-        """
-        Fix indentation issues in the script
-        
-        Args:
-            script: The script with indentation issues
-            
-        Returns:
-            str: Fixed script
-        """
+        """Fix indentation issues in the script."""
         lines = script.split('\n')
         fixed_lines = []
         current_indent = 0
-        
+
         for line in lines:
             stripped = line.lstrip()
             if not stripped or stripped.startswith('#'):
                 fixed_lines.append(line)  # Keep comments and empty lines as is
                 continue
-                
-            # Detect indentation decrease
+
             if stripped.startswith(('else:', 'elif ', 'except:', 'finally:')):
                 current_indent = max(0, current_indent - 4)
-                
-            # Apply current indentation
+
             fixed_lines.append(' ' * current_indent + stripped)
-            
+
             # Detect indentation increase
             if stripped.endswith(':'):
                 current_indent += 4
@@ -235,28 +192,19 @@ class ScriptTester:
         return fixed_script
     
     def _add_missing_loop(self, script: str) -> str:
-        """
-        Add a missing loop for iterative operations
-        
-        Args:
-            script: The script missing a loop
-            
-        Returns:
-            str: Fixed script with added loop
-        """
+        """Add a missing loop for iterative operations."""
         if "for " in script:
             # There's already a loop, but it might be improperly indented
             return self._fix_indentation_issues(script)
-        
+
         # Look for patterns suggesting we need a loop over DataFrame rows
         contains_iloc_with_variable = any(pattern in script for pattern in ["df.iloc[i,", "df.loc[i,"])
-        
+
         if contains_iloc_with_variable:
-            # Add a loop over all rows
             loop_header = "for i in range(len(df)):\n"
             indented_script = "    " + script.replace("\n", "\n    ")
             return loop_header + indented_script
-        
+
         # Check if we need row/column iteration
         if "df.iloc" in script:
             # This script uses iloc indexing but without a loop
@@ -265,25 +213,17 @@ class ScriptTester:
             if operations:
                 # Script uses hardcoded indices, no need for a loop
                 return script
-            
+
             # If we can't determine the pattern, add a general loop
             loop_header = "for i in range(len(df)):\n"
             indented_script = "    " + script.replace("\n", "\n    ")
             return loop_header + indented_script
-        
+
         # No clear pattern, return as is
         return script
     
     def _fix_missing_colons(self, script: str) -> str:
-        """
-        Fix missing colons in if/for statements
-        
-        Args:
-            script: The script with missing colons
-            
-        Returns:
-            str: Fixed script
-        """
+        """Fix missing colons in if/for statements."""
         # Common control structures that need colons
         control_patterns = [
             (r'(if\s+[^:]+)(?!\s*:)', r'\1:'),  # if statements
@@ -303,15 +243,7 @@ class ScriptTester:
         return fixed
     
     def _check_logical_issues(self, script: str) -> Tuple[bool, str, Optional[str]]:
-        """
-        Check for common logical issues in the script
-        
-        Args:
-            script: The script to check
-            
-        Returns:
-            Tuple[bool, str, Optional[str]]: (is_valid, error_message, fixed_script)
-        """
+        """Check for common logical issues in the script."""
         # Check for missing loop when using df.iloc with row index 'i'
         if re.search(r'df\.iloc\[i,', script) and not re.search(r'for\s+i\s+in', script):
             fixed = self._add_missing_loop(script)
@@ -329,15 +261,7 @@ class ScriptTester:
         return True, "", None
     
     def _fix_empty_blocks(self, script: str) -> str:
-        """
-        Fix empty control blocks by adding pass statements
-        
-        Args:
-            script: The script with empty blocks
-            
-        Returns:
-            str: Fixed script
-        """
+        """Fix empty control blocks by adding pass statements."""
         lines = script.split('\n')
         fixed_lines = []
         
@@ -354,26 +278,15 @@ class ScriptTester:
         return '\n'.join(fixed_lines)
     
     def _test_execution(self, script: str, sample_df: pd.DataFrame) -> Tuple[bool, str]:
-        """
-        Test execute the script on a sample DataFrame
-        
-        Args:
-            script: The script to test
-            sample_df: Sample DataFrame for testing
-            
-        Returns:
-            Tuple[bool, str]: (success, error_message)
-        """
+        """Test execute the script on a sample DataFrame."""
         print(f"🧪 [SCRIPT TESTER] Testing script execution:")
         print(f"   Sample DataFrame shape: {sample_df.shape}")
         print(f"   Sample DataFrame columns: {list(sample_df.columns)}")
         print(f"   Sample DataFrame index: {list(sample_df.index)}")
         print(f"   Script to test:\n\n{script.strip()}\n")
         
-        # Create a copy of the sample DataFrame
         df = sample_df.copy()
         
-        # Create a test environment
         test_globals = {
             'df': df,
             'pd': pd,
@@ -381,41 +294,28 @@ class ScriptTester:
             'print': print
         }
         
-        # Execute the script in the test environment
         try:
             exec(script, test_globals)
             print(f"✅ [SCRIPT TESTER] Script execution successful")
             return True, ""
         except SyntaxError as e:
-            return False, f"Script has syntax error: {e}", None
+            # Align with function annotation and caller expecting two values
+            return False, f"Script has syntax error: {e}"
         except Exception as e:
             error_message = f"Script execution failed: {e}"
             logging.error(error_message)
             return False, error_message
     
     def _try_fix_execution_error(self, script: str, error_msg: str, sample_df: pd.DataFrame) -> Optional[str]:
-        """
-        Try to fix errors that occur during script execution
-        
-        Args:
-            script: The script with execution error
-            error_msg: The error message
-            sample_df: Sample DataFrame used in testing
-            
-        Returns:
-            Optional[str]: Fixed script if possible, None otherwise
-        """
+        """Try to fix errors that occur during script execution."""
         print(f"🔧 [SCRIPT TESTER] Attempting to fix error: {error_msg}")
         
-        # Fix column reference errors in drop_duplicates (Index(['9', '10', ...], dtype='object'))
         if "Index([" in error_msg and "dtype='object'" in error_msg and "drop_duplicates" in script:
             return self._fix_column_reference_error(script, error_msg, sample_df)
         
-        # Fix "not found in axis" errors (commonly from drop operations)
         if "not found in axis" in error_msg:
             return self._fix_drop_index_error(script, error_msg, sample_df)
         
-        # Fix out of bounds errors
         if "index out of bounds" in error_msg or "IndexError: single positional indexer is out-of-bounds" in error_msg:
             return self._fix_index_out_of_bounds(script, sample_df)
         
@@ -434,21 +334,10 @@ class ScriptTester:
         return None
     
     def _fix_drop_index_error(self, script: str, error_msg: str, sample_df: pd.DataFrame) -> Optional[str]:
-        """
-        Fix "not found in axis" errors that occur when trying to drop non-existent indices
-        
-        Args:
-            script: The script with drop error
-            error_msg: The error message
-            sample_df: Sample DataFrame
-            
-        Returns:
-            Optional[str]: Fixed script if possible, None otherwise
-        """
+        """Fix "not found in axis" errors that occur when trying to drop non-existent indices."""
         print(f"🔧 [SCRIPT TESTER] Fixing drop index error for DataFrame with {len(sample_df)} rows")
         
         # Extract the index that caused the error from the error message
-        import re
         index_match = re.search(r'\[(\d+)\] not found in axis', error_msg)
         if not index_match:
             return None
@@ -493,16 +382,7 @@ if len(df) > 0:
         return None
 
     def _fix_index_out_of_bounds(self, script: str, sample_df: pd.DataFrame) -> str:
-        """
-        Fix index out of bounds errors by iterating backwards when dropping rows
-        
-        Args:
-            script: The script with index out of bounds error
-            sample_df: Sample DataFrame
-            
-        Returns:
-            str: Fixed script
-        """
+        """Fix index out of bounds errors by iterating backwards when dropping rows."""
         print(f"🔧 [SCRIPT TESTER] Fixing index out of bounds error for DataFrame with {len(sample_df)} rows")
         
         # This fix is specifically for loops that drop rows
@@ -510,7 +390,6 @@ if len(df) > 0:
             print("   Applying reverse-iteration fix for row deletion loop")
             
             # Pattern 1: range(start, len(df)) -> range(len(df)-1, start-1, -1)
-            import re
             range_pattern = r'range\((\d+), len\(df\)\)'
             match = re.search(range_pattern, script)
             if match:
@@ -530,17 +409,7 @@ if len(df) > 0:
         return script
     
     def _fix_column_access(self, script: str, sample_df: pd.DataFrame) -> str:
-        """
-        Fix column access errors by replacing column names with indices
-        
-        Args:
-            script: The script with column access errors
-            sample_df: Sample DataFrame
-            
-        Returns:
-            str: Fixed script
-        """
-        # Get column names and indices
+        """Fix column access errors by replacing column names with indices."""
         column_indices = {col: i for i, col in enumerate(sample_df.columns)}
         
         lines = script.split('\n')
@@ -562,17 +431,7 @@ if len(df) > 0:
         return '\n'.join(fixed_lines)
     
     def _fix_attribute_errors(self, script: str, error_msg: str) -> str:
-        """
-        Fix attribute errors by replacing invalid attributes
-        
-        Args:
-            script: The script with attribute errors
-            error_msg: The error message
-            
-        Returns:
-            str: Fixed script
-        """
-        # Extract the object and attribute from the error message
+        """Fix attribute errors by replacing invalid attributes."""
         match = re.search(r"'(.+?)' object has no attribute '(.+?)'", error_msg)
         if not match:
             return script
@@ -602,17 +461,7 @@ if len(df) > 0:
         return script
     
     def _fix_type_errors(self, script: str, error_msg: str) -> str:
-        """
-        Fix type errors by adding appropriate conversions
-        
-        Args:
-            script: The script with type errors
-            error_msg: The error message
-            
-        Returns:
-            str: Fixed script
-        """
-        # Extract information from the error message
+        """Fix type errors by adding appropriate conversions."""
         if "must be str, not " in error_msg:
             # String concatenation issue
             return script.replace(" + ", " + str(") + ")"
@@ -624,21 +473,11 @@ if len(df) > 0:
         return script
     
     def validate_script_structure_compatibility(self, script: str, current_df: pd.DataFrame) -> Tuple[bool, str, Optional[str]]:
-        """
-        Validate that a script is compatible with the current DataFrame structure
-        
-        Args:
-            script: The script to validate
-            current_df: The current DataFrame structure
-            
-        Returns:
-            Tuple[bool, str, Optional[str]]: (is_compatible, error_message, fixed_script)
-        """
+        """Validate that a script is compatible with the current DataFrame structure."""
         print(f"🔍 STRUCTURE COMPATIBILITY CHECK:")
         print(f"   DataFrame: {current_df.shape[0]} rows × {current_df.shape[1]} columns")
         print(f"   Columns: {list(current_df.columns)}")
         
-        # Check for hardcoded row/column indices that might be out of bounds
         max_row_in_script = -1
         max_col_in_script = -1
         
@@ -699,17 +538,7 @@ if len(df) > 0:
         return True, "", None
     
     def _fix_structure_compatibility_issues(self, script: str, current_df: pd.DataFrame, issues: List[str]) -> str:
-        """
-        Try to fix structure compatibility issues
-        
-        Args:
-            script: The script with issues
-            current_df: The current DataFrame
-            issues: List of structure issues
-            
-        Returns:
-            str: Fixed script
-        """
+        """Try to fix structure compatibility issues."""
         fixed_script = script
         current_rows, current_cols = current_df.shape
         
@@ -804,26 +633,9 @@ else:
         return fixed_script
 
     def _fix_column_reference_error(self, script: str, error_msg: str, sample_df: pd.DataFrame) -> Optional[str]:
-        """
-        Fix column reference errors in drop_duplicates operations
-        
-        This specifically handles errors like:
-        Index(['9', '10', '11', '12', '13'], dtype='object')
-        
-        The issue occurs when column indices are converted to strings but the DataFrame
-        has integer column names.
-        
-        Args:
-            script: The script with column reference error
-            error_msg: The error message
-            sample_df: Sample DataFrame
-            
-        Returns:
-            Optional[str]: Fixed script if possible, None otherwise
-        """
+        """Fix column reference errors in drop_duplicates operations."""
         print(f"🔧 [SCRIPT TESTER] Fixing column reference error in drop_duplicates")
         
-        import re
         
         # Fix pattern 1: [str(col_idx) for col_idx in [numbers]] -> [numbers directly]
         pattern1 = r'\[str\(col_idx\) for col_idx in \[([^\]]+)\]\]'

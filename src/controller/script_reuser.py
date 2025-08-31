@@ -1,20 +1,13 @@
-"""
-Script Reuser module
-------------------
-Handles prompt similarity checking and script reuse functionality to save time and tokens
-"""
+"""Reuse successful scripts by matching prompts via semantic or exact similarity."""
 
-import os
-import json
-import hashlib
-import pickle
-from typing import Dict, Any, Optional, List, Tuple
-from datetime import datetime
 import pandas as pd
+from datetime import datetime
+import os, json, hashlib, logging
+from typing import Dict, Any, Optional, List, Tuple
+
+from src.controller.file_manager import FileManager
 from src.controller.script_manager import ScriptManager
 from src.controller.script_executor import ScriptExecutor
-from src.controller.file_manager import FileManager
-import logging
 
 # Optional imports for semantic similarity
 try:
@@ -37,51 +30,41 @@ except ImportError as e:
         np = None
 
 class ScriptReuser:
-    """
-    Manages script reuse based on prompt semantic similarity
-    """
+    """Manages script reuse based on prompt semantic similarity."""
     
     def __init__(self, similarity_threshold: float = 1.0):
-        """
-        Initialize the script reuser
-        
-        Args:
-            similarity_threshold: Minimum similarity score (0-1) for script reuse
-        """
+        """Initialize the script reuser."""
         self.similarity_threshold = similarity_threshold
         self.script_manager = ScriptManager()
         self.script_executor = ScriptExecutor()
-        
+
         # Directory for storing prompt-script mappings
-        self.mapping_dir = os.path.join('src', 'mappings', 'script')
+        self.mapping_dir = os.path.join('src', 'mappings', 'scripts')
         os.makedirs(self.mapping_dir, exist_ok=True)
-        
+
         # File to store successful prompt-script mappings
         self.mapping_file = os.path.join(self.mapping_dir, 'prompt_script_mappings.json')
-        
+
         # Initialize sentence transformer model for semantic similarity
         self.model = None
         if SEMANTIC_SIMILARITY_AVAILABLE:
             try:
                 print("🔄 ScriptReuser: Loading semantic similarity model...")
-                
-                # Check for CUDA availability and configure device
+
                 device = 'cpu'  # Default to CPU
-                if SEMANTIC_SIMILARITY_AVAILABLE:
-                    try:
-                        import torch
-                        if torch.cuda.is_available():
-                            device = 'cuda'
-                            print(f"✅ ScriptReuser: CUDA detected! Using GPU: {torch.cuda.get_device_name(0)}")
-                        else:
-                            print("⚠️ ScriptReuser: CUDA not available, using CPU")
-                    except ImportError:
-                        print("⚠️ ScriptReuser: PyTorch not available, using CPU")
-                
-                # Load model with device specification
+                try:
+                    import torch
+                    if torch.cuda.is_available():
+                        device = 'cuda'
+                        print(f"✅ ScriptReuser: CUDA detected! Using GPU: {torch.cuda.get_device_name(0)}")
+                    else:
+                        print("⚠️ ScriptReuser: CUDA not available, using CPU")
+                except ImportError:
+                    print("⚠️ ScriptReuser: PyTorch not available, using CPU")
+
                 self.model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
                 print(f"✅ ScriptReuser: Semantic similarity model loaded successfully on {device.upper()}")
-                
+
             except Exception as e:
                 logging.warning(f"Failed to load sentence transformer model: {e}")
                 print(f"⚠️ ScriptReuser: Failed to load semantic model - {e}")
@@ -90,20 +73,14 @@ class ScriptReuser:
         else:
             print("⚠️ ScriptReuser: Semantic similarity libraries not available")
             print("📝 ScriptReuser: Using exact string matching for script reuse")
-            
-        # Load existing mappings
+
         self.mappings = self._load_mappings()
         print(f"📊 ScriptReuser: Loaded {len(self.mappings)} existing prompt-script mappings")
-        
+
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     def _load_mappings(self) -> List[Dict[str, Any]]:
-        """
-        Load existing prompt-script mappings from file
-        
-        Returns:
-            List[Dict[str, Any]]: List of mapping dictionaries
-        """
+        """Load existing prompt-script mappings from file."""
         if os.path.exists(self.mapping_file):
             try:
                 with open(self.mapping_file, 'r', encoding='utf-8') as f:
@@ -122,15 +99,7 @@ class ScriptReuser:
             logging.error(f"Failed to save mappings: {e}")
 
     def _get_prompt_embedding(self, prompt: str) -> Optional[Any]:
-        """
-        Get embedding for a prompt using sentence transformer
-        
-        Args:
-            prompt: The prompt text
-            
-        Returns:
-            Optional[Any]: Embedding vector or None if model not available
-        """
+        """Get embedding for a prompt using sentence transformer."""
         if self.model is None or not SEMANTIC_SIMILARITY_AVAILABLE:
             return None
             
@@ -142,16 +111,7 @@ class ScriptReuser:
             return None
 
     def _calculate_similarity(self, embedding1: Any, embedding2: Any) -> float:
-        """
-        Calculate cosine similarity between two embeddings
-        
-        Args:
-            embedding1: First embedding vector
-            embedding2: Second embedding vector
-            
-        Returns:
-            float: Similarity score between 0 and 1
-        """
+        """Calculate cosine similarity between two embeddings."""
         if not SEMANTIC_SIMILARITY_AVAILABLE:
             return 0.0
             
@@ -163,24 +123,14 @@ class ScriptReuser:
             return 0.0
 
     def _create_dataframe_hash(self, df: pd.DataFrame) -> str:
-        """
-        Create a hash of the DataFrame structure and data for compatibility checking
-        
-        Args:
-            df: DataFrame to hash
-            
-        Returns:
-            str: Hash string
-        """
+        """Create a hash of the DataFrame structure and data for compatibility checking."""
         try:
-            # Create hash based on columns, dtypes, and shape with robust type handling
             structure_info = {
                 'columns': [str(col) for col in df.columns],  # Ensure all columns are strings
                 'dtypes': {str(col): str(dtype) for col, dtype in df.dtypes.items()},  # Ensure keys and values are strings
                 'shape': [int(df.shape[0]), int(df.shape[1])]  # Ensure shape values are integers
             }
             
-            # Convert to string and hash with explicit sorting for consistency
             structure_str = json.dumps(structure_info, sort_keys=True, default=str)
             return hashlib.md5(structure_str.encode('utf-8')).hexdigest()
         except Exception as e:
@@ -189,20 +139,11 @@ class ScriptReuser:
             try:
                 basic_hash = f"{df.shape[0]}x{df.shape[1]}_{len(df.columns)}"
                 return hashlib.md5(basic_hash.encode('utf-8')).hexdigest()
-            except:
+            except Exception:
                 return "fallback_hash"
 
     def find_similar_prompt(self, prompt: str, current_df: pd.DataFrame) -> Optional[Dict[str, Any]]:
-        """
-        Find a similar prompt with a successful script that can be reused
-        
-        Args:
-            prompt: The current prompt to check
-            current_df: Current DataFrame for structure compatibility
-            
-        Returns:
-            Optional[Dict[str, Any]]: Mapping info if similar prompt found, None otherwise
-        """
+        """Find a similar prompt with a successful script that can be reused."""
         if not self.mappings:
             print(f"🔍 ScriptReuser: No existing mappings to check")
             return None
@@ -232,28 +173,22 @@ class ScriptReuser:
                     if 'embedding' not in mapping:
                         continue
 
-                    # Load stored embedding
                     if np is not None:
                         stored_embedding = np.array(mapping['embedding'])
                     else:
                         stored_embedding = mapping['embedding']
                     
-                    # Calculate similarity
                     similarity = self._calculate_similarity(current_embedding, stored_embedding)
                     
                     print(f"   📝 Mapping {matches_checked}: similarity {similarity:.3f} | prompt: '{mapping['prompt'][:50]}...'")
                     
-                    # Check if similarity meets threshold
                     if similarity >= self.similarity_threshold:
-                        # Check DataFrame structure compatibility
                         if mapping.get('df_hash') == current_df_hash:
-                            # Perfect match - same structure
                             print(f"   ✅ Perfect match: similarity {similarity:.3f} with matching DataFrame structure")
                             if similarity > best_similarity:
                                 best_similarity = similarity
                                 best_match = mapping
                         else:
-                            # Structure mismatch - still consider but with penalty
                             adjusted_similarity = similarity * 0.9  # 10% penalty for structure mismatch
                             print(f"   ⚠️ Structure mismatch: similarity {similarity:.3f} -> {adjusted_similarity:.3f} (with penalty)")
                             if adjusted_similarity >= self.similarity_threshold and adjusted_similarity > best_similarity:
@@ -305,21 +240,9 @@ class ScriptReuser:
     def save_successful_execution(self, prompt: str, script: str, script_id: str, 
                                  session_id: str, current_df: pd.DataFrame,
                                  use_advanced_processing: bool = False) -> None:
-        """
-        Save a successful prompt-script execution for future reuse
-        
-        Args:
-            prompt: The original prompt
-            script: The successful script
-            script_id: Script ID from ScriptManager
-            session_id: Session ID
-            current_df: DataFrame that was successfully processed
-            use_advanced_processing: Whether advanced processing was used
-        """
-        # Create DataFrame hash
+        """Save a successful prompt-script execution for future reuse."""
         df_hash = self._create_dataframe_hash(current_df)
 
-        # Create mapping entry
         mapping = {
             'prompt': prompt,
             'script': script,
@@ -332,22 +255,18 @@ class ScriptReuser:
             'last_used': datetime.now().isoformat()
         }
 
-        # Add embedding if semantic similarity is available
         if SEMANTIC_SIMILARITY_AVAILABLE and self.model is not None:
             embedding = self._get_prompt_embedding(prompt)
             if embedding is not None:
                 mapping['embedding'] = embedding.tolist()  # Convert to list for JSON serialization
         
-        # Check if similar prompt already exists
         for i, existing in enumerate(self.mappings):
             if existing.get('script_id') == script_id:
-                # Update existing entry
                 existing['success_count'] = existing.get('success_count', 0) + 1
                 existing['last_used'] = datetime.now().isoformat()
                 self._save_mappings()
                 return
 
-        # Add new mapping
         self.mappings.append(mapping)
         self._save_mappings()
         
@@ -356,18 +275,7 @@ class ScriptReuser:
     def reuse_script(self, mapping: Dict[str, Any], current_df: pd.DataFrame,
                     file_manager: Optional[FileManager] = None, 
                     session_id: Optional[str] = None) -> Tuple[pd.DataFrame, List[List[int]], bool]:
-        """
-        Reuse a script from a similar prompt
-        
-        Args:
-            mapping: The mapping information from find_similar_prompt
-            current_df: Current DataFrame to process
-            file_manager: File manager instance
-            session_id: Session ID for context
-            
-        Returns:
-            Tuple[pd.DataFrame, List[List[int]], bool]: (processed_df, modified_cells, success)
-        """
+        """Reuse a script from a similar prompt."""
         try:
             script = mapping['script']
             use_advanced_processing = mapping.get('use_advanced_processing', False)
@@ -385,7 +293,6 @@ class ScriptReuser:
                     script, current_df.copy(), mapping['prompt']
                 )
             
-            # Update usage statistics
             mapping['success_count'] = mapping.get('success_count', 0) + 1
             mapping['last_used'] = datetime.now().isoformat()
             self._save_mappings()
@@ -397,16 +304,7 @@ class ScriptReuser:
             return current_df, [], False
 
     def cleanup_old_mappings(self, max_age_days: int = 30, max_mappings: int = 100) -> int:
-        """
-        Clean up old or rarely used mappings
-        
-        Args:
-            max_age_days: Maximum age of mappings to keep
-            max_mappings: Maximum number of mappings to keep
-            
-        Returns:
-            int: Number of mappings cleaned up
-        """
+        """Clean up old or rarely used mappings."""
         if not self.mappings:
             return 0
 
@@ -415,7 +313,6 @@ class ScriptReuser:
         cutoff_date = datetime.now() - timedelta(days=max_age_days)
         original_count = len(self.mappings)
         
-        # Filter out old mappings
         self.mappings = [
             mapping for mapping in self.mappings
             if datetime.fromisoformat(mapping.get('last_used', mapping.get('created_at', ''))) > cutoff_date
@@ -435,12 +332,7 @@ class ScriptReuser:
         return cleaned_count
 
     def get_mapping_stats(self) -> Dict[str, Any]:
-        """
-        Get statistics about saved mappings
-        
-        Returns:
-            Dict[str, Any]: Statistics information
-        """
+        """Get statistics about saved mappings."""
         if not self.mappings:
             return {
                 'total_mappings': 0,
@@ -463,17 +355,7 @@ class ScriptReuser:
         }
 
     def _calculate_string_similarity(self, str1: str, str2: str) -> float:
-        """
-        Calculate basic string similarity using longest common subsequence
-        Fallback when semantic similarity is not available
-        
-        Args:
-            str1: First string
-            str2: Second string
-            
-        Returns:
-            float: Similarity score between 0 and 1
-        """
+        """Calculate basic string similarity using longest common subsequence fallback."""
         if not str1 or not str2:
             return 0.0
         

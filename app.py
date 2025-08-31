@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Now import from the correct paths
 from src.api.endpoints import init_controllers
 from src.controller.spreadsheet_controller import SpreadsheetController  
-from src.model.session_manager import SessionManager 
+from src.controller.session_manager import SessionManager 
 from src.model.prompt_history import PromptHistory
 
 # Load environment variables from .env file
@@ -71,8 +71,8 @@ def main():
         # Exclude the script directory from being watched to prevent reloads
         # when new scripts are generated during execution
         uvicorn_run_kwargs["reload_excludes"] = [
-            "src/script/*",
-            "src/script/**/*",
+            "src/scripts/*",
+            "src/scripts/**/*",
             "static/uploads/*",
             "static/downloads/*",
             "static/json/*",

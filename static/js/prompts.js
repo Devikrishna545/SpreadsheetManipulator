@@ -6,9 +6,8 @@ const promptModal = document.getElementById('promptModal');
 const promptList = document.getElementById('promptList');
 const closePromptModalBtn = document.getElementById('closePromptModalBtn');
 
-const PROMPT_API = '/prompts'; // Backend endpoint for prompt operations
+const PROMPT_API = '/prompts';
 
-// Predefined prompts (not deletable)
 const PREDEFINED_PROMPTS = [
     "Remove row",
     "Remove column",
@@ -16,26 +15,22 @@ const PREDEFINED_PROMPTS = [
     "Add column"
 ];
 
-// Show modal using Bootstrap
 function showPromptModal() {
     const modal = bootstrap.Modal.getOrCreateInstance(promptModal);
     modal.show();
 }
 
-// Hide modal
 function hidePromptModal() {
     const modal = bootstrap.Modal.getOrCreateInstance(promptModal);
     modal.hide();
 }
 
-// Fetch prompts from backend
 async function fetchPrompts() {
     const res = await fetch(PROMPT_API);
     if (!res.ok) return [];
     return await res.json();
 }
 
-// Save prompt to backend
 async function savePrompt(prompt) {
     await fetch(PROMPT_API, {
         method: 'POST',
@@ -44,7 +39,6 @@ async function savePrompt(prompt) {
     });
 }
 
-// Delete prompt from backend
 async function deletePrompt(prompt) {
     await fetch(PROMPT_API, {
         method: 'DELETE',
@@ -53,11 +47,9 @@ async function deletePrompt(prompt) {
     });
 }
 
-// Render prompts in modal
 function renderPromptList(prompts) {
     promptList.innerHTML = '';
 
-    // Add predefined prompts first (no delete button)
     PREDEFINED_PROMPTS.forEach((p) => {
         const li = document.createElement('li');
         li.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
@@ -75,7 +67,6 @@ function renderPromptList(prompts) {
         promptList.appendChild(li);
     });
 
-    // Filter out predefined prompts from user prompts (avoid duplicates)
     const userPrompts = prompts.filter(
         p => !PREDEFINED_PROMPTS.includes(p)
     );
@@ -85,7 +76,6 @@ function renderPromptList(prompts) {
         return;
     }
 
-    // Add user prompts (with delete button)
     userPrompts.forEach((p, idx) => {
         const li = document.createElement('li');
         li.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
@@ -119,7 +109,6 @@ function renderPromptList(prompts) {
     });
 }
 
-// Save prompt button handler
 saveBtn.addEventListener('click', async () => {
     const prompt = getCurrentPromptText().trim();
     if (!prompt) return;
@@ -128,24 +117,18 @@ saveBtn.addEventListener('click', async () => {
     setTimeout(() => saveBtn.classList.remove('btn-success'), 600);
 });
 
-// Prompt library button handler
 promptLibraryBtn.addEventListener('click', async () => {
     const prompts = await fetchPrompts();
     renderPromptList(prompts);
     showPromptModal();
 });
 
-// Close modal on close button
 closePromptModalBtn.addEventListener('click', hidePromptModal);
 
-// Hide modal when clicking outside
 promptModal.addEventListener('click', (e) => {
     if (e.target === promptModal) hidePromptModal();
 });
 
-// Responsive: Modal is already responsive via Bootstrap
-
-// Optional: Hide modal on ESC
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') hidePromptModal();
 });

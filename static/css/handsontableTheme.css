@@ -1,98 +1,63 @@
-/* Handsontable Dark Theme (Simplified) */
+/* Handsontable Dark Theme */
 .handsontable {
-    background: transparent !important; 
+    background: transparent !important;
     color: var(--text-primary) !important;
 }
 
 .handsontable th,
 .handsontable td {
-    background-color: rgba(10, 20, 30, 0.9) !important; 
+    background-color: rgba(10, 20, 30, 0.9) !important;
     color: var(--text-primary) !important;
-    border-color: var(--glass-border-color) !important; 
+    border-color: var(--glass-border-color) !important;
 }
 
 .handsontable th {
-    background-color: #1E1C26 !important; 
+    background-color: #1E1C26 !important;
     color: var(--main-accent) !important;
     font-weight: 500 !important;
-    /* border-color already set by .handsontable th, .handsontable td */
 }
 
-/* Modified cells: remove border, add non-intrusive ring */
+/* Modified cells */
 .handsontable td.modified {
-    background-color: rgba(0, 191, 255, 0.3) !important; 
-    box-shadow:
-        inset 0 0 8px rgba(0,191,255,0.7) !important,
-        0 0 0 2px rgba(0, 191, 255, 0.8) !important; /* ring, no layout shift */
+    background-color: rgba(0, 191, 255, 0.3) !important;
+    box-shadow: inset 0 0 8px rgba(0,191,255,0.7), 0 0 0 2px rgba(0, 191, 255, 0.8) !important;
     animation: highlightPulse 2s ease-in-out;
     transition: all 0.3s ease-out;
 }
 
-/* Add style for the currently focused cell during scroll animation */
+/* Focused cell during scroll animation */
 .handsontable td.scroll-focus {
-    background-color: rgba(255, 215, 0, 0.6) !important; 
-    box-shadow:
-        inset 0 0 15px rgba(255, 215, 0, 1.0) !important,
-        0 0 0 3px rgba(255, 215, 0, 1.0) !important; /* ring, no layout shift */
+    background-color: rgba(255, 215, 0, 0.6) !important;
+    box-shadow: inset 0 0 15px rgba(255, 215, 0, 1.0), 0 0 0 3px rgba(255, 215, 0, 1.0) !important;
     animation: scrollFocusPulse 0.4s ease-in-out;
     transform: scale(1.05) !important;
     z-index: 10 !important;
 }
 
-/* Header highlighting for selected cells - Enhanced specificity */
-.handsontable th.highlighted-header {
+/* Header highlighting for selected cells */
+.handsontable th.highlighted-header,
+.handsontable .ht_clone_left th.highlighted-header,
+.handsontable .ht_clone_top_left_corner th.highlighted-header,
+.handsontable .ht_master tbody th.highlighted-header,
+.handsontable .ht_clone_top th.highlighted-header,
+.handsontable .ht_master thead th.highlighted-header,
+.handsontable .ht_master th.highlighted-header {
     background-color: rgba(0, 191, 255, 0.5) !important;
     color: #ffffff !important;
-    box-shadow:
-        inset 0 0 12px rgba(0, 191, 255, 0.9) !important,
-        0 0 0 2px rgba(0, 191, 255, 1.0) !important; /* ring */
+    box-shadow: inset 0 0 12px rgba(0, 191, 255, 0.9), 0 0 0 2px rgba(0, 191, 255, 1.0) !important;
     transition: all 0.3s ease-in-out !important;
     font-weight: bold !important;
 }
 
-/* Specific styling for row headers when highlighted - Enhanced specificity */
-.handsontable .ht_clone_left th.highlighted-header,
-.handsontable .ht_clone_top_left_corner th.highlighted-header,
-.handsontable .ht_master tbody th.highlighted-header {
-    background-color: rgba(0, 191, 255, 0.5) !important;
-    color: #ffffff !important;
-    box-shadow:
-        inset 0 0 12px rgba(0, 191, 255, 0.9) !important,
-        0 0 0 2px rgba(0, 191, 255, 1.0) !important; /* ring */
-}
-
-/* Specific styling for column headers when highlighted - Enhanced specificity */
-.handsontable .ht_clone_top th.highlighted-header,
-.handsontable .ht_clone_top_left_corner th.highlighted-header,
-.handsontable .ht_master thead th.highlighted-header {
-    background-color: rgba(0, 191, 255, 0.5) !important;
-    color: #ffffff !important;
-    box-shadow:
-        inset 0 0 12px rgba(0, 191, 255, 0.9) !important,
-        0 0 0 2px rgba(0, 191, 255, 1.0) !important; /* ring */
-}
-
-/* Enhanced styling for master table headers - Highest specificity */
-.handsontable .ht_master th.highlighted-header {
-    background-color: rgba(0, 191, 255, 0.5) !important;
-    color: #ffffff !important;
-    box-shadow:
-        inset 0 0 12px rgba(0, 191, 255, 0.9) !important,
-        0 0 0 2px rgba(0, 191, 255, 1.0) !important; /* ring */
-}
-
-/* Ensure highlighted headers don't get overridden by other states */
 .handsontable th.highlighted-header:hover,
 .handsontable th.highlighted-header:focus,
 .handsontable th.highlighted-header:active {
     background-color: rgba(0, 191, 255, 0.6) !important;
     color: #ffffff !important;
-    box-shadow:
-        inset 0 0 15px rgba(0, 191, 255, 1.0) !important,
-        0 0 0 2px rgba(0, 191, 255, 1.0) !important; /* ring */
+    box-shadow: inset 0 0 15px rgba(0, 191, 255, 1.0), 0 0 0 2px rgba(0, 191, 255, 1.0) !important;
 }
 
-/* Guard: keep row header borders constant so width never changes */
+/* Row header border consistency */
 .handsontable .ht_clone_left th,
 .handsontable .ht_master tbody th {
     border-left-width: 1px !important;
@@ -100,54 +65,17 @@
 }
 
 @keyframes highlightPulse {
-    0% { 
-        background-color: rgba(0, 191, 255, 0.8) !important;
-        box-shadow: inset 0 0 20px rgba(0,191,255,1.0) !important;
-        border: 3px solid rgba(0, 191, 255, 1.0) !important;
-        transform: scale(1.05);
-    }
-    25% {
-        background-color: rgba(0, 191, 255, 0.7) !important;
-        box-shadow: inset 0 0 15px rgba(0,191,255,0.9) !important;
-        border: 3px solid rgba(0, 191, 255, 0.9) !important;
-        transform: scale(1.03);
-    }
-    50% {
-        background-color: rgba(0, 191, 255, 0.5) !important;
-        box-shadow: inset 0 0 12px rgba(0,191,255,0.8) !important;
-        border: 2px solid rgba(0, 191, 255, 0.8) !important;
-        transform: scale(1.02);
-    }
-    75% {
-        background-color: rgba(0, 191, 255, 0.4) !important;
-        box-shadow: inset 0 0 10px rgba(0,191,255,0.75) !important;
-        border: 2px solid rgba(0, 191, 255, 0.8) !important;
-        transform: scale(1.01);
-    }
-    100% { 
-        background-color: rgba(0, 191, 255, 0.3) !important;
-        box-shadow: inset 0 0 8px rgba(0,191,255,0.7) !important;
-        border: 2px solid rgba(0, 191, 255, 0.8) !important;
-        transform: scale(1.0);
-    }
+    0% { background-color: rgba(0, 191, 255, 0.8) !important; box-shadow: inset 0 0 20px rgba(0,191,255,1.0) !important; border: 3px solid rgba(0, 191, 255, 1.0) !important; transform: scale(1.05); }
+    25% { background-color: rgba(0, 191, 255, 0.7) !important; box-shadow: inset 0 0 15px rgba(0,191,255,0.9) !important; border: 3px solid rgba(0, 191, 255, 0.9) !important; transform: scale(1.03); }
+    50% { background-color: rgba(0, 191, 255, 0.5) !important; box-shadow: inset 0 0 12px rgba(0,191,255,0.8) !important; border: 2px solid rgba(0, 191, 255, 0.8) !important; transform: scale(1.02); }
+    75% { background-color: rgba(0, 191, 255, 0.4) !important; box-shadow: inset 0 0 10px rgba(0,191,255,0.75) !important; border: 2px solid rgba(0, 191, 255, 0.8) !important; transform: scale(1.01); }
+    100% { background-color: rgba(0, 191, 255, 0.3) !important; box-shadow: inset 0 0 8px rgba(0,191,255,0.7) !important; border: 2px solid rgba(0, 191, 255, 0.8) !important; transform: scale(1.0); }
 }
 
 @keyframes scrollFocusPulse {
-    0% { 
-        background-color: rgba(255, 215, 0, 0.8) !important;
-        box-shadow: inset 0 0 20px rgba(255, 215, 0, 1.0) !important;
-        transform: scale(1.08) !important;
-    }
-    50% {
-        background-color: rgba(255, 215, 0, 0.7) !important;
-        box-shadow: inset 0 0 18px rgba(255, 215, 0, 0.9) !important;
-        transform: scale(1.06) !important;
-    }
-    100% { 
-        background-color: rgba(255, 215, 0, 0.6) !important;
-        box-shadow: inset 0 0 15px rgba(255, 215, 0, 1.0) !important;
-        transform: scale(1.05) !important;
-    }
+    0% { background-color: rgba(255, 215, 0, 0.8) !important; box-shadow: inset 0 0 20px rgba(255, 215, 0, 1.0) !important; transform: scale(1.08) !important; }
+    50% { background-color: rgba(255, 215, 0, 0.7) !important; box-shadow: inset 0 0 18px rgba(255, 215, 0, 0.9) !important; transform: scale(1.06) !important; }
+    100% { background-color: rgba(255, 215, 0, 0.6) !important; box-shadow: inset 0 0 15px rgba(255, 215, 0, 1.0) !important; transform: scale(1.05) !important; }
 }
 
 /* Split View Styles */
@@ -179,7 +107,6 @@
     z-index: 10;
 }
 
-/* Styles for the editable pane */
 .split-view-pane.editable-pane .handsontable td {
     background-color: rgba(20, 30, 40, 0.9) !important;
 }

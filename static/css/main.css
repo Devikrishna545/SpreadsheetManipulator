@@ -1,4 +1,4 @@
-/* Futuristic Dark Theme Stylesheet for Spreadsheet Auto-Editor */
+/* Main stylesheet */
 
 @import url('./layout.css');
 @import url('./components.css');
@@ -7,31 +7,27 @@
 @import url('./responsive.css');
 
 :root {
-    --main-accent: #00bfff; /* Deep Sky Blue */
-    --base-bg: #10101a;     /* Very dark desaturated blue */
+    --main-accent: #00bfff;
+    --base-bg: #10101a;
     --text-primary: #e0e0e0;
     --text-secondary: #a0a0a0;
     --text-muted: #707070;
-
-    /* Adjusted for 60% transparency (0.4 alpha for the color itself) */
-    --glass-bg-color: rgba(25, 25, 35, 0.4); 
-    --glass-border-color: rgba(0, 191, 255, 0.25); /* Slightly brighter border */
-    --glass-blur-amount: 6px; /* Slightly more blur with higher transparency */
-
+    --glass-bg-color: rgba(25, 25, 35, 0.4);
+    --glass-border-color: rgba(0, 191, 255, 0.25);
+    --glass-blur-amount: 6px;
     --sidebar-width: 300px;
-    --sidebar-collapsed-width: 60px; /* Width when sidebar is collapsed */
-    --border-radius: 10px; 
+    --sidebar-collapsed-width: 60px;
+    --border-radius: 10px;
     --transition-fast: all 0.2s ease-in-out;
     --transition-medium: all 0.3s ease-in-out;
-    
-    /* New variables for layout calculations */
     --navbar-height: 56px;
     --header-border-width: 1px;
     --footer-height: 44px;
     --footer-border-width: 1px;
-    --command-section-height: 170px; /* Approximate height of command section */
+    --command-section-height: 170px;
 }
 
+/* Base styles */
 * {
     margin: 0;
     padding: 0;
@@ -42,18 +38,17 @@ body.dark-theme {
     background-color: var(--base-bg);
     color: var(--text-primary);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    overflow: hidden; /* To contain particles and prevent page scrolling */
-    position: relative; /* For particle container */
+    overflow: hidden;
+    position: relative;
 }
 
-/* Schema management buttons */
+/* Schema and column management */
 .schema-buttons {
     display: flex;
     gap: 5px;
     margin-right: 5px;
 }
 
-/* Column header styling for dual-line headers (Excel letter + column name) */
 .column-name-header {
     display: block;
     font-size: 10px;
@@ -66,14 +61,12 @@ body.dark-theme {
     margin-top: 2px;
 }
 
-/* Make sure column resize handle appears at the bottom */
 .handsontable .manualColumnResizer {
     bottom: 0;
     top: auto;
     height: 15px;
 }
 
-/* Advanced processing indicator */
 .schema-buttons .btn[title*="Transform"] {
     position: relative;
 }
@@ -86,7 +79,7 @@ body.dark-theme {
     opacity: 0.7;
 }
 
-/* Split view styling */
+/* Split view */
 .split-view-container {
     display: flex;
     width: 100%;
@@ -112,19 +105,19 @@ body.dark-theme {
     z-index: 10;
 }
 
-/* Custom scrollbar for dark/futuristic theme */
-/* Hide scrollbar by default, show on hover/scroll for custom-scrollbar containers */
+/* Custom scrollbars */
 .custom-scrollbar {
-    scrollbar-width: thin;
+    scrollbar-width: none;
     scrollbar-color: #00bcd4 #23272b;
-    /* Hide scrollbar for Webkit browsers by default */
 }
+
 .custom-scrollbar::-webkit-scrollbar {
     width: 8px;
     background: #23272b;
     opacity: 0;
     transition: opacity 0.2s;
 }
+
 .custom-scrollbar:hover::-webkit-scrollbar,
 .custom-scrollbar:active::-webkit-scrollbar,
 .custom-scrollbar:focus::-webkit-scrollbar {
@@ -136,30 +129,26 @@ body.dark-theme {
     border-radius: 6px;
     border: 2px solid #23272b;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #26c6da;
 }
+
 .custom-scrollbar::-webkit-scrollbar-corner {
     background: #23272b;
 }
 
-/* For Firefox: hide scrollbar until scroll/hover */
-.custom-scrollbar {
-    scrollbar-width: none; /* Hide by default */
-}
 .custom-scrollbar:hover,
 .custom-scrollbar:active,
 .custom-scrollbar:focus {
-    scrollbar-width: thin; /* Show on hover/active/focus */
+    scrollbar-width: thin;
 }
 
-/* Ensure spreadsheet section scrollbars match shortcutInfo */
 .spreadsheet-body.custom-scrollbar {
     overflow: auto !important;
-    /* Inherit all custom-scrollbar styles */
 }
 
-/* Chart loading overlay styles */
+/* Chart loading overlay */
 .chart-loading-overlay {
     position: absolute;
     top: 0;
@@ -175,12 +164,7 @@ body.dark-theme {
     border-radius: var(--border-radius);
 }
 
-/* All other specific CSS rules that were previously here have been removed 
-   as they are now imported from their respective files (layout.css, 
-   components.css, particles.css, handsontableTheme.css, responsive.css). 
-   This avoids redundancy and keeps main.css clean. */
-
-/* Mapping Management Button Styles */
+/* Mapping management buttons */
 #refreshMappingsBtn,
 #refreshTokenStatsBtn {
     background-color: transparent !important;
@@ -209,9 +193,8 @@ body.dark-theme {
     transition: var(--transition-fast);
 }
 
-/* Accessibility & performance: prefer-reduced-motion fallbacks */
+/* Accessibility */
 @media (prefers-reduced-motion: reduce) {
-    /* Disable non-essential transitions/animations from this file scope */
     #refreshMappingsBtn,
     #refreshTokenStatsBtn,
     #createNewMappingBtn {
