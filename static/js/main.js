@@ -1,25 +1,21 @@
-import { initParticleBackground, cleanUpParticles } from './particleEffects.js';
-import { 
-    toggleSidebar, toggleFullscreen, updateStatus, resetApplicationUI, 
-    updateUndoRedoButtons, showMainInterface, updateSessionInfo 
-} from './uiInteractions.js';
-import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet, generateAndExecuteAlgorithm as apiGenerateAndExecuteAlgorithm, createMapping as apiCreateMapping, getAllMappings as apiGetAllMappings, deleteMapping as apiDeleteMapping, updateMapping as apiUpdateMapping }
-from './apiService.js';
-import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView, generateActionPlanLog, isSplitViewEnabled, renderSheetTabs, switchSheet } from './spreadsheetHandler.js';
-import { setupShortcutKeys,getCurrentSessionPrompts,resetPromptHistory } from './shortcuts.js';
-import { initCellSelector, clearCellSelector } from './cell-selector.js';
 import { initCellTagger, scanAndHighlightTags } from './cell-tagger.js';
+import { initCellSelector, clearCellSelector } from './cell-selector.js';
 import { showAlert, showConfirm, showErrorModal } from './modalUtils.js';
+import { initParticleBackground, cleanUpParticles } from './particleEffects.js';
+import { setupShortcutKeys,getCurrentSessionPrompts,resetPromptHistory } from './shortcuts.js';
+import { toggleSidebar, toggleFullscreen, updateStatus, resetApplicationUI, updateUndoRedoButtons, showMainInterface, updateSessionInfo 
+} from './uiInteractions.js';
+import { renderSpreadsheet, loadSpreadsheetData as fetchSpreadsheetData, performTableUndo, performTableRedo, toggleSplitView, generateActionPlanLog, isSplitViewEnabled, renderSheetTabs, switchSheet 
+} from './spreadsheetHandler.js';
+import { handleFileUpload as apiHandleFileUpload, processCommand as apiProcessCommand, undoModification as apiUndoModification, redoModification as apiRedoModification, downloadSpreadsheet as apiDownloadSpreadsheet, generateAndExecuteAlgorithm as apiGenerateAndExecuteAlgorithm, createMapping as apiCreateMapping, getAllMappings as apiGetAllMappings, deleteMapping as apiDeleteMapping, updateMapping as apiUpdateMapping 
+} from './apiService.js';
 
-// Global fix for removed actionsSection element to prevent errors
 window.actionsSection = window.actionsSection || { style: {} };
 
-// Global state specific to main.js orchestration
 let currentSessionId = null;
-let currentData = null; // This will hold the entire data object { sessionId, data, headers, can_undo, can_redo, modified_cells }
-window.hotInstance = null; // Make Handsontable instance globally accessible for modules if needed
+let currentData = null;
+window.hotInstance = null;
 
-// DOM Elements that main.js directly interacts with for event setup or passing to modules
 const uploadForm = document.getElementById('uploadForm');
 const fileInput = document.getElementById('fileInput');
 const commandInput = document.getElementById('commandInput');
@@ -27,57 +23,46 @@ const processBtn = document.getElementById('processBtn');
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
 const downloadBtn = document.getElementById('downloadBtn');
-const cacheBtn = document.getElementById('cacheBtn'); // Add cache button reference
-const fullscreenBtn = document.getElementById('fullscreenBtn'); // Already in uiInteractions but listener here
-const sidebarToggleBtn = document.getElementById('sidebarToggleBtn'); // Same as fullscreenBtn
-const splitViewBtn = document.getElementById('splitViewBtn'); // Add this line
-const updateSchemaBtn = document.getElementById('updateSchemaBtn'); // Add this for schema button
-const transformSchemaBtn = document.getElementById('transformSchemaBtn'); // Add this for transform button
-const uploadCommandsBtn = document.getElementById('uploadCommandsBtn'); // Add this for upload commands button
-const manageMappingsBtn = document.getElementById('manageMappingsBtn'); // Add this for manage mappings button
-const analyticsBtn = document.getElementById('analyticsBtn'); // Add this for analytics button
+const cacheBtn = document.getElementById('cacheBtn');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+const splitViewBtn = document.getElementById('splitViewBtn');
+const updateSchemaBtn = document.getElementById('updateSchemaBtn');
+const transformSchemaBtn = document.getElementById('transformSchemaBtn');
+const uploadCommandsBtn = document.getElementById('uploadCommandsBtn');
+const manageMappingsBtn = document.getElementById('manageMappingsBtn');
+const analyticsBtn = document.getElementById('analyticsBtn');
 const generateActionPlanBtn = document.getElementById('generateActionPlanBtn');
-const commandFileInput = document.getElementById('commandFileInput'); // Add this for command file input
+const commandFileInput = document.getElementById('commandFileInput');
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize batch command mode flag
     window.isBatchCommandMode = false;
     
-    // Fix for removed actionsSection - prevent errors from cached references
-    // Create a dummy actionsSection object to prevent style access errors
     window.actionsSection = window.actionsSection || { style: {} };
     
-    // Also check if there's a global actionsSection variable reference anywhere
     if (typeof actionsSection !== 'undefined' && !actionsSection) {
         actionsSection = { style: {} };
     }
     
-    // Initialize UI elements and listeners
     uploadForm.addEventListener('submit', onFileUpload);
     processBtn.addEventListener('click', processCurrentCommand);
     undoBtn.addEventListener('click', undoLastModification);
     redoBtn.addEventListener('click', redoLastModification);
     downloadBtn.addEventListener('click', downloadCurrentSpreadsheet);
-    cacheBtn.addEventListener('click', openCacheManagement); // Add cache button listener
+    cacheBtn.addEventListener('click', openCacheManagement);
     
-    // Listeners handled by uiInteractions.js if DOM elements are passed or queried there
-    // For simplicity, keeping core interaction listeners here if they trigger app logic flow
-    fullscreenBtn.addEventListener('click', toggleFullscreen); // toggleFullscreen is from uiInteractions
-    sidebarToggleBtn.addEventListener('click', toggleSidebar); // toggleSidebar is from uiInteractions
-    splitViewBtn.addEventListener('click', toggleSplitView); // Add this line for split view button
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+    sidebarToggleBtn.addEventListener('click', toggleSidebar);
+    splitViewBtn.addEventListener('click', toggleSplitView);
     
-    // Add event listeners for schema management buttons
     updateSchemaBtn.addEventListener('click', updateSchema);
     transformSchemaBtn.addEventListener('click', transformToSchema);
     
-    // Add event listener for uploading command files
     uploadCommandsBtn.addEventListener('click', () => commandFileInput.click());
     commandFileInput.addEventListener('change', uploadCommandFile);
     
-    // Add event listener for manage mappings button
     manageMappingsBtn.addEventListener('click', openMappingManagement);
     
-    // Add event listener for analytics button
     analyticsBtn.addEventListener('click', openAnalytics);
 
     fileInput.addEventListener('change', function() {
@@ -90,20 +75,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     updateStatus('Ready', 'waiting');
-    // Defer particle init to avoid competing with first paint
     if ('requestIdleCallback' in window) {
         requestIdleCallback(() => initParticleBackground(), { timeout: 1500 });
     } else {
         setTimeout(() => initParticleBackground(), 0);
     }
-    initCellSelector(); // Initialize cell selector
-    initCellTagger(commandInput); // Initialize cell tagger with command input element
+    initCellSelector();
+    initCellTagger(commandInput);
     
-  commandInput.addEventListener('keyup', function(e) {
-      getCurrentSessionPrompts(e);
-     });   
+    commandInput.addEventListener('keyup', function(e) {
+        getCurrentSessionPrompts(e);
+    });
 
-    // Pass an 'app' object or specific methods to shortcuts
     setupShortcutKeys({
         processCurrentCommand,
         undoLastModification,
@@ -111,20 +94,21 @@ document.addEventListener('DOMContentLoaded', function() {
         downloadCurrentSpreadsheet,
         openMappingManagement,
         openAnalytics
-        // uploadForm.requestSubmit and fileInput.click are handled directly in shortcuts.js
     });
 
-    // Remove the automatic tag scanning during typing - only scan when explicitly needed
-    // We'll keep the delayed scanning but only for preview, not actual selection
     commandInput.addEventListener('input', function() {
-        // We'll keep this empty for now - scanning will only happen on Enter or command submission
     });
 
-    // Add window unload handler to clean up particles (non-blocking)
-    window.addEventListener('beforeunload', cleanUpParticles, { capture: false });
+    initSessionLifecycle();
+
+    window.addEventListener('beforeunload', () => {
+        try {
+            endSessionLifecycle();
+        } catch (e) { /* ignore */ }
+        cleanUpParticles();
+    }, { capture: false });
 });
 
-// Add this function to generate Excel-style column headers
 function generateExcelColHeaders(count) {
     const headers = [];
     
@@ -144,21 +128,16 @@ function generateExcelColHeaders(count) {
     return headers;
 }
 
-// When initializing or updating the spreadsheet, modify the configuration to use Excel-style headers
 function initializeSpreadsheet(data, container) {
-    // Get the column count from the data
     const columnCount = data.length > 0 ? data[0].length : 0;
     
-    // Generate Excel-style column headers (A, B, C, ...)
     const colHeaders = generateExcelColHeaders(columnCount);
     
-    // Create or update the Handsontable instance
     if (!hot) {
         hot = new Handsontable(container, {
             data: data,
             rowHeaders: true,
             colHeaders: colHeaders,
-            // ...other configuration options
             licenseKey: 'non-commercial-and-evaluation'
         });
     } else {
@@ -169,7 +148,6 @@ function initializeSpreadsheet(data, container) {
     }
 }
 
-// When updating the spreadsheet data, make sure to update the column headers too
 function updateSpreadsheetData(data) {
     if (hot) {
         const columnCount = data.length > 0 ? data[0].length : 0;
@@ -188,12 +166,10 @@ async function onFileUpload(event) {
         currentSessionId = result.sessionId;
         window.currentSessionId = currentSessionId;
         
-        // Store the uploaded filename globally
         if (fileInput.files && fileInput.files.length > 0) {
             window.currentSpreadsheetFilename = fileInput.files[0].name;
         }
         
-        // Check if there's a mapping for this spreadsheet
         if (result.has_mapping && result.mapped_commands && result.mapped_commands.length > 0) {
             const shouldExecute = await showConfirm(
                 `This spreadsheet has ${result.command_count} mapped commands that can be automatically executed.\n\n` +
@@ -211,11 +187,9 @@ async function onFileUpload(event) {
             }
         }
         
-        // Initial data load after upload
         const initialData = await fetchSpreadsheetData(currentSessionId);
         if (initialData) {
             currentData = initialData;
-            // If backend returns sheets, pass as workbook
             if (initialData.sheets && Array.isArray(initialData.sheets)) {
                 renderSpreadsheet({
                     sheets: initialData.sheets,
@@ -231,10 +205,8 @@ async function onFileUpload(event) {
 
 async function processCurrentCommand() {
     const commandText = commandInput.value.trim();
-    // Highlight any tagged cells one final time before sending - this is where selections should happen
     scanAndHighlightTags();
     
-    // Ensure batch command mode is off for single AI commands
     window.isBatchCommandMode = false;
     console.log('🔧 Processing single AI command - batch mode set to:', window.isBatchCommandMode);
     
@@ -245,24 +217,19 @@ async function processCurrentCommand() {
             renderSpreadsheet(currentData);
             updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
             commandInput.value = '';
-            resetPromptHistory(); // Reset prompt history navigation state        
+            resetPromptHistory();
         }
     } catch (error) {
-        // Re-throw script execution failures so they can be caught by sequential processing
         if (error.message === 'SCRIPT_EXECUTION_FAILED') {
             throw error;
         }
-        // For other errors, they're already handled by apiService.js
         console.error('Error in processCurrentCommand:', error);
     }
 }
 
-// Separate function for processing commands in batch mode (without changing the batch flag)
 async function processBatchCommand(commandText) {
-    // Highlight any tagged cells one final time before sending - this is where selections should happen
     scanAndHighlightTags();
     
-    // Note: We don't modify window.isBatchCommandMode here - it's controlled by the caller
     console.log('🔧 Processing batch command - batch mode maintained at:', window.isBatchCommandMode);
     
     try {
@@ -274,11 +241,9 @@ async function processBatchCommand(commandText) {
         }
         return result;
     } catch (error) {
-        // Re-throw script execution failures so they can be caught by sequential processing
         if (error.message === 'SCRIPT_EXECUTION_FAILED') {
             throw error;
         }
-        // For other errors, they're already handled by apiService.js
         console.error('Error in processBatchCommand:', error);
         throw error;
     }
@@ -291,7 +256,6 @@ async function undoLastModification() {
         renderSpreadsheet(currentData);
         updateUndoRedoButtons(currentData.can_undo, currentData.can_redo);
         
-        // Update both spreadsheets if in split view
         const rightContainer = document.getElementById('rightSpreadsheet');
         if (rightContainer && rightContainer.hotInstance && currentData.rightViewData) {
             rightContainer.hotInstance.loadData(currentData.rightViewData.data);
@@ -307,7 +271,6 @@ async function redoLastModification() {
         renderSpreadsheet(currentData);
         updateUndoRedoButtons(currentData.can_redo, currentData.can_redo);
         
-        // Update both spreadsheets if in split view
         const rightContainer = document.getElementById('rightSpreadsheet');
         if (rightContainer && rightContainer.hotInstance && currentData.rightViewData) {
             rightContainer.hotInstance.loadData(currentData.rightViewData.data);
@@ -318,10 +281,8 @@ async function redoLastModification() {
 
 function downloadCurrentSpreadsheet() {
     apiDownloadSpreadsheet(currentSessionId);
-    // resetApplicationState will be called by apiDownloadSpreadsheet after timeout
 }
 
-// Centralized state reset
 export function resetApplicationState() {
     currentSessionId = null;
     window.currentSessionId = null;
@@ -330,17 +291,15 @@ export function resetApplicationState() {
         window.hotInstance.destroy();
         window.hotInstance = null;
     }
-    resetApplicationUI(); // Resets the visual parts of the UI
-    resetPromptHistory(); // Reset prompt history navigation state
-    clearCellSelector(); // Clear cell selector
+    resetApplicationUI();
+    resetPromptHistory();
+    clearCellSelector();
     
-    // Clean up split view if active
     const splitContainer = document.querySelector('.split-view-container');
     if (splitContainer) {
         const parent = splitContainer.parentNode;
         const spreadsheetDataContainer = document.getElementById('spreadsheetData');
         
-        // If spreadsheetData is inside the split container, move it back
         if (spreadsheetDataContainer && spreadsheetDataContainer.parentNode !== parent) {
             while (splitContainer.firstChild) {
                 splitContainer.removeChild(splitContainer.firstChild);
@@ -349,7 +308,6 @@ export function resetApplicationState() {
             parent.appendChild(spreadsheetDataContainer);
         }
         
-        // Update button state
         const splitViewBtn = document.getElementById('splitViewBtn');
         if (splitViewBtn) {
             splitViewBtn.innerHTML = '<i class="fas fa-columns"></i>';
@@ -358,7 +316,49 @@ export function resetApplicationState() {
     }
 }
 
-// Export for prompts.js to access current prompt
+let heartbeatTimer = null;
+
+async function initSessionLifecycle() {
+    try {
+        const res = await fetch('/api/session/start', {
+            method: 'POST'
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        window.currentSessionId = data.sessionId;
+        currentSessionId = data.sessionId;
+        updateSessionInfo && updateSessionInfo(currentSessionId);
+
+        fetch('/', {
+            method: 'GET',
+            headers: { 'X-Session-Id': window.currentSessionId },
+            cache: 'no-store',
+            keepalive: true
+        }).catch(() => {});
+
+        heartbeatTimer = setInterval(() => {
+            if (!window.currentSessionId) return;
+            navigator.sendBeacon('/api/session/heartbeat', new Blob([
+                JSON.stringify({ sessionId: window.currentSessionId })
+            ], { type: 'application/json' }));
+        }, 25000);
+    } catch (e) {
+        console.warn('Session start failed', e);
+    }
+}
+
+function endSessionLifecycle() {
+    if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+    }
+    if (window.currentSessionId) {
+        navigator.sendBeacon('/api/session/end', new Blob([
+            JSON.stringify({ sessionId: window.currentSessionId })
+        ], { type: 'application/json' }));
+    }
+}
+
 export function getCurrentPromptText() {
     return commandInput.value;
 }
@@ -366,19 +366,15 @@ export function setCurrentPromptText(text) {
     commandInput.value = text;
 }
 
-// Manual Schema Update - captures schema from right spreadsheet
 function updateSchema() {
-    // Check if split view is active
     if (!isSplitViewEnabled()) {
         updateStatus('Split view required for schema functions', 'error');
         setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
         return;
     }
     
-    // Show loading state
     updateStatus('Capturing schema structure...', 'processing');
     
-    // Get data from the right spreadsheet
     const rightData = getRightSpreadsheetData();
     
     if (!rightData) {
@@ -386,13 +382,12 @@ function updateSchema() {
         setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
         return;
     }
-    
-    // Send to backend for schema capture
-    fetch('/update_schema', {
+        fetch('/update_schema', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+            headers: {
+                'Content-Type': 'application/json',
+                ...(window.currentSessionId ? { 'X-Session-Id': window.currentSessionId } : {})
+            },
         body: JSON.stringify({
             sessionId: currentSessionId,
             rightSpreadsheetData: rightData,
@@ -421,16 +416,13 @@ function updateSchema() {
     });
 }
 
-// Manual Schema Transformation - applies right spreadsheet structure to left spreadsheet
 async function transformToSchema() {
-    // Check if split view is active
     if (!isSplitViewEnabled()) {
         updateStatus('Split view must be active to use schema functions', 'error');
         setTimeout(() => updateStatus('Ready', 'waiting'), 3000);
         return;
     }
     
-    // Get data from the right spreadsheet
     const rightData = getRightSpreadsheetData();
     
     if (!rightData) {
@@ -439,7 +431,6 @@ async function transformToSchema() {
         return;
     }
     
-    // Show confirmation modal using the same modal as action plan
     const rowCount = currentData?.data?.length || 0;
     const transformationPlan = `This will transform the entire left spreadsheet (${rowCount} rows) to match the structure shown in the right spreadsheet.
 
@@ -461,12 +452,12 @@ async function executeSchemaTransformation(rightData) {
     updateStatus('Transforming left spreadsheet to match schema...', 'processing');
     
     try {
-        // Send to backend for transformation
-        const response = await fetch('/update_schema', {
+            const response = await fetch('/update_schema', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(window.currentSessionId ? { 'X-Session-Id': window.currentSessionId } : {})
+                },
             body: JSON.stringify({
                 sessionId: currentSessionId,
                 rightSpreadsheetData: rightData,
@@ -577,6 +568,7 @@ async function uploadCommandFile(event) {
     try {
         const response = await fetch('/upload_commands', {
             method: 'POST',
+            headers: { ...(window.currentSessionId ? { 'X-Session-Id': window.currentSessionId } : {}) },
             body: formData
         });
         
@@ -832,16 +824,12 @@ function onSheetTabClick(sheetIndex) {
     }
 }
 
-// ===== ANALYTICS FUNCTIONS =====
-
-// Open the analytics modal
 async function openAnalytics() {
   console.log('🚀 Opening Analytics Modal...');
   try {
     const analyticsModal = new bootstrap.Modal(document.getElementById('analyticsModal'));
     analyticsModal.show();
 
-    // Ensure Chart.js and adapter are available only when needed
     const ensureChartLibs = () => new Promise((resolve, reject) => {
       const addScript = (src, flagKey) => new Promise((res, rej) => {
         if (window[flagKey]) return res();
@@ -862,7 +850,6 @@ async function openAnalytics() {
     const { initializeTokenDashboard, cleanupTokenDashboard } = await import('./tokenDashboard.js');
     await initializeTokenDashboard();
 
-    // Cleanup charts when the modal is hidden
     const modalEl = document.getElementById('analyticsModal');
     const cleanupOnce = () => {
       modalEl.removeEventListener('hidden.bs.modal', cleanupOnce);
@@ -965,10 +952,7 @@ async function loadMappings() {
         
         const data = await response.json();
         
-        // Update statistics
         updateMappingStats(data.stats);
-        
-        // Update mappings table
         updateMappingsTable(data.mappings);
         
         updateStatus('Ready', 'active');
@@ -978,7 +962,6 @@ async function loadMappings() {
     }
 }
 
-// Update mapping statistics display
 function updateMappingStats(stats) {
     document.getElementById('activeMappingsCount').textContent = stats.active_mappings || 0;
     document.getElementById('totalCommandsCount').textContent = stats.total_commands || 0;
@@ -987,13 +970,10 @@ function updateMappingStats(stats) {
         stats.last_updated ? new Date(stats.last_updated).toLocaleDateString() : 'Never';
 }
 
-// Update mappings table
 function updateMappingsTable(mappings) {
     const tbody = document.getElementById('mappingsTableBody');
     const noMappingsMsg = document.getElementById('noMappingsMessage');
     const table = tbody.closest('table');
-    
-    // Clear existing rows
     tbody.innerHTML = '';
     
     if (!mappings || mappings.length === 0) {
@@ -1001,6 +981,7 @@ function updateMappingsTable(mappings) {
         noMappingsMsg.style.display = 'block';
         return;
     }
+    tbody.innerHTML = '';
     
     table.style.display = 'table';
     noMappingsMsg.style.display = 'none';
@@ -1011,7 +992,6 @@ function updateMappingsTable(mappings) {
     });
 }
 
-// Create a table row for a mapping
 function createMappingRow(mapping) {
     const row = document.createElement('tr');
     
@@ -1053,12 +1033,10 @@ function createMappingRow(mapping) {
     return row;
 }
 
-// Open create mapping modal
 function openCreateMappingModal() {
     const createModal = new bootstrap.Modal(document.getElementById('createMappingModal'));
     createModal.show();
     
-    // Reset form
     document.getElementById('createMappingForm').reset();
     document.getElementById('mappingCommands').value = '';
     document.getElementById('saveMappingBtn').disabled = true;
@@ -1506,24 +1484,14 @@ window.openAnalytics = openAnalytics;
 // Expose the onSheetTabClick function to the global scope for tab clicks
 window.onSheetTabClick = onSheetTabClick;
 
-// ========== Cache Management Functions ==========
-
-/**
- * Open the cache management modal
- */
 function openCacheManagement() {
     const modal = new bootstrap.Modal(document.getElementById('cacheModal'));
     modal.show();
     
-    // Setup modal event listeners if not already set
     setupCacheModalListeners();
 }
 
-/**
- * Setup event listeners for cache modal buttons
- */
 function setupCacheModalListeners() {
-    // Remove existing listeners to prevent duplicates
     const buttonsConfig = [
         { id: 'deleteUploadsBtn', handler: deleteUploads },
         { id: 'deleteDownloadsBtn', handler: deleteDownloads },
@@ -1559,7 +1527,6 @@ async function deleteUploads() {
     );
     
     if (confirmed) {
-        // Close the cache management modal
         const cacheModal = bootstrap.Modal.getInstance(document.getElementById('cacheModal'));
         if (cacheModal) {
             cacheModal.hide();
@@ -1585,9 +1552,6 @@ async function deleteUploads() {
     }
 }
 
-/**
- * Delete all downloaded files
- */
 async function deleteDownloads() {
     const confirmed = await showConfirm(
         'Are you sure you want to clear all exported files? This action cannot be undone.',
@@ -1599,7 +1563,6 @@ async function deleteDownloads() {
     );
     
     if (confirmed) {
-        // Close the cache management modal
         const cacheModal = bootstrap.Modal.getInstance(document.getElementById('cacheModal'));
         if (cacheModal) {
             cacheModal.hide();

@@ -1,32 +1,25 @@
 """
-API Endpoints module
------------------
-Defines RESTful API endpoints for the application using FastAPI with enhanced security and logging
+API Endpoints for the application using FastAPI with security and logging.
 """
 
-import os
-import threading
-import time
-import hashlib
+from pydantic import BaseModel
+import os, threading, time, pathlib, json
 from typing import Optional, Dict, Any, List
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks, Request
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
-import pathlib
-import json
-import pandas as pd
-from src.controller.spreadsheet_controller import SpreadsheetController
-from src.model.session_manager import SessionManager
-from src.model.prompt_history import PromptHistory
-from src.controller.script_fixer import ScriptExecutionFailureException
-from src.controller.mapping_manager import MappingManager
-from src.controller.security_manager import SecurityManager
-from src.controller.session_manager import session_manager
-from src.controller.security_logger import SecurityLevel
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks, Request
 
-# Create FastAPI app with security settings
+from src.model.prompt_history import PromptHistory
+from src.controller.security_logger import SecurityLevel
+from src.controller.session_manager import SessionManager
+from src.controller.mapping_manager import MappingManager
+from src.controller.session_manager import session_manager
+from src.controller.security_manager import SecurityManager
+from src.controller.spreadsheet_controller import SpreadsheetController
+from src.controller.script_fixer import ScriptExecutionFailureException
+
 app = FastAPI(
     title="EditorLive Finance Application",
     description="Secure finance application for spreadsheet processing",
@@ -36,50 +29,94 @@ app = FastAPI(
 # Initialize security components
 security_manager = SecurityManager()
 
-# Rate limiting storage (simple in-memory for now)
-rate_limit_storage = {}
+class SessionStartResponse(BaseModel):
+    sessionId: str
+    ip: str
+    userAgent: str
 
-# Session tracking middleware
-@app.middleware("http")
-async def session_middleware(request: Request, call_next):
-    """Track user sessions and log activity"""
-    # Get or create session
+class SessionRequest(BaseModel):
+    sessionId: str
+
+@app.post("/api/session/start", response_model=SessionStartResponse)
+async def start_session(request: Request):
+    """Create a new session and start terminal/security logs."""
     client_ip = get_client_ip(request)
     user_agent = request.headers.get("user-agent", "unknown")
+
+    session_id = session_manager.create_session(user_ip=client_ip, user_agent=user_agent)
+    return SessionStartResponse(sessionId=session_id, ip=client_ip, userAgent=user_agent)
+
+@app.post("/api/session/heartbeat")
+async def session_heartbeat(req: SessionRequest):
+    """Lightweight heartbeat to mark session as active and add a low-level event."""
+    try:
+        session_manager.log_security_event(
+            req.sessionId,
+            SecurityLevel.LOW,
+            "heartbeat",
+            "💓 Session heartbeat",
+            {},
+            "WebClient"
+        )
+    except Exception:
+        # Ignore missing/ended sessions
+        pass
+    return {"ok": True}
+
+@app.post("/api/session/end")
+async def end_session(req: SessionRequest):
+    """End the session and flush terminal/security log summaries."""
+    try:
+        session_manager.end_session(req.sessionId)
+    except Exception:
+        # Ignore errors on best-effort end
+        pass
+    return {"ok": True}
+
+rate_limit_storage = {}
+
+@app.middleware("http")
+async def session_middleware(request: Request, call_next):
+    """Track user sessions and log activity (best-effort if session exists)."""
+    user_agent = request.headers.get("user-agent", "unknown")
+
+    # Prefer explicit client-provided session id (created via /api/session/start)
+    session_id = request.headers.get("X-Session-Id") or request.query_params.get("sessionId")
     
-    # Create session if needed (in real app, would use cookies/JWT)
-    session_id = f"{client_ip}_{hashlib.md5(user_agent.encode()).hexdigest()[:8]}"
-    
-    # Log page access
-    session_manager.log_page_view(
-        session_id, 
-        str(request.url.path), 
-        request.method
-    )
+    if session_id:
+        # Log page access only when session is known
+        try:
+            session_manager.log_page_view(
+                session_id,
+                str(request.url.path),
+                request.method
+            )
+        except Exception:
+            pass
     
     # Process request
     response = await call_next(request)
     
     # Log response status
-    if response.status_code >= 400:
-        session_manager.log_security_event(
-            session_id,
-            SecurityLevel.MEDIUM if response.status_code < 500 else SecurityLevel.HIGH,
-            "http_error",
-            f"🚨 HTTP Error {response.status_code} on {request.url.path}",
-            {
-                'status_code': response.status_code,
-                'method': request.method,
-                'path': str(request.url.path),
-                'user_agent': user_agent
-            },
-            "WebServer"
-        )
+    if response.status_code >= 400 and session_id:
+        try:
+            session_manager.log_security_event(
+                session_id,
+                SecurityLevel.MEDIUM if response.status_code < 500 else SecurityLevel.HIGH,
+                "http_error",
+                f"🚨 HTTP Error {response.status_code} on {request.url.path}",
+                {
+                    'status_code': response.status_code,
+                    'method': request.method,
+                    'path': str(request.url.path),
+                    'user_agent': user_agent
+                },
+                "WebServer"
+            )
+        except Exception:
+            pass
     
     return response
-
-# Rate limiting storage (simple in-memory for now)
-rate_limit_storage = {}
 
 def get_client_ip(request: Request) -> str:
     """Extract client IP address"""
@@ -106,26 +143,27 @@ def check_rate_limit(request: Request, max_requests: int = 100, window_seconds: 
     
     request_count = len(rate_limit_storage[client_ip])
     
-    # Create session ID for logging
-    user_agent = request.headers.get("user-agent", "unknown")
-    session_id = f"{client_ip}_{hashlib.md5(user_agent.encode()).hexdigest()[:8]}"
-    
-    # Log rate limit check
-    session_manager.log_security_event(
-        session_id,
-        SecurityLevel.MEDIUM if request_count >= max_requests else SecurityLevel.LOW,
-        "rate_limiting",
-        f"⏱️ Rate limit check: {request_count}/{max_requests} requests",
-        {
-            'client_ip': client_ip,
-            'endpoint': str(request.url.path),
-            'request_count': request_count,
-            'rate_limit': max_requests,
-            'window_seconds': window_seconds,
-            'utilization_percent': round((request_count / max_requests) * 100, 1)
-        },
-        "RateLimiter"
-    )
+    # Use client-provided session ID if available for logging
+    session_id = request.headers.get("X-Session-Id") or request.query_params.get("sessionId")
+    if session_id:
+        try:
+            session_manager.log_security_event(
+                session_id,
+                SecurityLevel.MEDIUM if request_count >= max_requests else SecurityLevel.LOW,
+                "rate_limiting",
+                f"⏱️ Rate limit check: {request_count}/{max_requests} requests",
+                {
+                    'client_ip': client_ip,
+                    'endpoint': str(request.url.path),
+                    'request_count': request_count,
+                    'rate_limit': max_requests,
+                    'window_seconds': window_seconds,
+                    'utilization_percent': round((request_count / max_requests) * 100, 1)
+                },
+                "RateLimiter"
+            )
+        except Exception:
+            pass
     
     # Check if limit exceeded
     if request_count >= max_requests:
@@ -135,7 +173,6 @@ def check_rate_limit(request: Request, max_requests: int = 100, window_seconds: 
     rate_limit_storage[client_ip].append(current_time)
     return True
 
-# Dependency for rate limiting
 def rate_limit_dependency(request: Request):
     """FastAPI dependency for rate limiting with enhanced logging"""
     if not check_rate_limit(request):
@@ -144,7 +181,6 @@ def rate_limit_dependency(request: Request):
             detail="Rate limit exceeded. Please try again later."
         )
 
-# Dependency for basic request validation
 def validate_request_dependency(request: Request):
     """FastAPI dependency for basic request validation"""
     client_ip = get_client_ip(request)
@@ -161,13 +197,11 @@ def validate_request_dependency(request: Request):
     if "../" in path or "..\\" in path:
         raise HTTPException(status_code=400, detail="Invalid request path")
 
-# Get the base directory (adjust if needed)
 BASE_DIR = pathlib.Path(__file__).parent.parent.parent
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
-# Setup templates
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Define Pydantic models for request/response validation
@@ -195,7 +229,6 @@ class ErrorResponse(BaseModel):
 class PromptHistoryResponse(BaseModel):
     prompt: Optional[str] = None
 
-# Add these new model classes after your existing models
 class TableChangesRequest(BaseModel):
     sessionId: str
     changes: List[Dict[str, Any]]
@@ -213,10 +246,6 @@ class MappingResponse(BaseModel):
     created_at: str
     use_count: int
     is_active: bool
-
-# PLACEHOLDER: SchemaRequest model removed
-# This model was used for schema-related endpoints that have been removed
-# New implementation will use different request models
 
 class Controllers:
     spreadsheet_controller = None
@@ -266,6 +295,11 @@ async def index(request: Request):
     """Render the main application page."""
     return templates.TemplateResponse("index.html", {"request": request})
 
+@app.get("/usermanual", response_class=HTMLResponse)
+async def user_manual(request: Request):
+    """Render the user manual page."""
+    return templates.TemplateResponse("instructions.html", {"request": request})
+
 @app.get("/api/health", response_model=HealthResponse)
 def health_check():
     """
@@ -284,8 +318,6 @@ async def security_status(request: Request):
     """
     Security status endpoint (restricted access)
     """
-    client_ip = get_client_ip(request)
-    
     # Basic security statistics
     security_stats = {
         "security_manager": "active",
@@ -304,20 +336,12 @@ async def get_security_alerts(request: Request):
     """
     Get pending security alerts (basic implementation)
     """
-    client_ip = get_client_ip(request)
-    
     alerts = []  # Basic implementation
     return {"alerts": alerts, "count": len(alerts)}
 
 @app.post("/upload", response_model=UploadResponse, dependencies=[Depends(rate_limit_dependency), Depends(validate_request_dependency)])
 async def upload_file(request: Request, file: UploadFile = File(...)):
     """Handle spreadsheet file uploads with basic security validation."""
-    client_ip = get_client_ip(request)
-    user_agent = request.headers.get("user-agent", "")
-    
-    # Log access
-    start_time = time.time()
-    
     try:
         if not file.filename:
             raise HTTPException(status_code=400, detail="No selected file")
@@ -365,18 +389,14 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
             response_data["has_mapping"] = False
         
         return response_data
-        
+
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal server error")
-        
     except ValueError as e:
         # Convert ValueError to HTTPException
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # Other exceptions
-        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/view/{session_id}")
 def view_spreadsheet(session_id: str):
@@ -485,10 +505,8 @@ def save_prompt(request: PromptRequest):
     return {"success": True}
 
 
-from fastapi import Request as FastAPIRequest
-
 @app.delete("/prompts")
-async def delete_prompt(request: FastAPIRequest):
+async def delete_prompt(request: Request):
     """
     Delete a prompt from the prompts file.
     Expects JSON: { "prompt": "..." }
@@ -518,7 +536,6 @@ async def delete_prompt(request: FastAPIRequest):
     return {"success": True}
 
 
-# Add this new endpoint after your existing endpoints
 @app.post("/table_changes")
 def process_table_changes(request: TableChangesRequest):
     """Process changes made directly in the table."""
@@ -576,9 +593,9 @@ def transform_to_schema(session_id: str, request: dict):
 
 @app.post("/upload_commands")
 async def upload_command_file(
-    file: UploadFile = File(...), 
+    file: UploadFile = File(...),
     sessionId: str = None,
-    request: FastAPIRequest = None
+    request: Request = None,
 ):
     """
     Upload a text file containing commands to execute sequentially.
@@ -869,42 +886,33 @@ async def get_token_usage_stats():
     """
     try:
         from src.llm.token_manager import token_manager
-        import random
-        from datetime import datetime, timedelta
-        
-        # Get real dashboard statistics
+        from datetime import datetime
+
         dashboard_stats = token_manager.get_dashboard_stats()
         batch_history = token_manager.get_batch_history()
-        
-        # Generate timeline data from batch history and current session
+
         timeline_data = []
         if batch_history:
-            # Use real batch history for timeline
             for batch in batch_history[-7:]:  # Last 7 batches
                 timeline_data.append({
                     "date": batch.get('timestamp', datetime.now().isoformat())[:10],
                     "tokens": batch.get('total_tokens', 0),
                     "cost": batch.get('estimated_cost', 0)
                 })
-        
-        # Process model usage data - only real data
+
         model_usage_data = []
         for model, usage in dashboard_stats.get('model_usage', {}).items():
-            # Shorten model names for display
             short_name = model.replace('gemini-', '').replace('-preview', '').replace('-06-17', '')
             model_usage_data.append({
-                "name": short_name[:15],  # Limit length
+                "name": short_name[:15],
                 "usage": usage
             })
-        
-        # Process recent activities from batch history
+
         recent_activities = []
         recent_batches = dashboard_stats.get('recent_batches', [])
-        
         if recent_batches:
             print(f"📊 Found {len(recent_batches)} batch sessions in history")
-            # Use only real batch history data - no sample data
-            for i, batch in enumerate(recent_batches[-50:]):  # Last 50 batches
+            for i, batch in enumerate(recent_batches[-50:]):
                 batch_number = len(recent_batches) - len(recent_batches[-50:]) + i + 1
                 recent_activities.append({
                     "batchName": f"Batch Command #{batch_number}",
@@ -917,26 +925,23 @@ async def get_token_usage_stats():
             print(f"📋 Returning {len(recent_activities)} recent activities from persistent storage")
         else:
             print("📭 No batch history found in persistent storage - returning empty recent activities")
-        
-        # No sample data - let frontend handle empty state
-        
-        # Calculate trends (simple calculation based on recent vs older data)
+
         tokens_trend = 0
         cost_trend = 0
         batch_trend = 0
         avg_trend = 0
-        
+
         if len(batch_history) >= 2:
             recent_tokens = sum(batch.get('total_tokens', 0) for batch in batch_history[-3:])
             older_tokens = sum(batch.get('total_tokens', 0) for batch in batch_history[-6:-3])
             if older_tokens > 0:
                 tokens_trend = int(((recent_tokens - older_tokens) / older_tokens) * 100)
-            
+
             recent_cost = sum(batch.get('estimated_cost', 0) for batch in batch_history[-3:])
             older_cost = sum(batch.get('estimated_cost', 0) for batch in batch_history[-6:-3])
             if older_cost > 0:
                 cost_trend = int(((recent_cost - older_cost) / older_cost) * 100)
-        
+
         response_data = {
             "summary": {
                 "totalTokens": int(dashboard_stats.get('total_tokens', 0)),
@@ -966,13 +971,13 @@ async def get_token_usage_stats():
             },
             "recentActivity": recent_activities
         }
-        
+
         print(f"🔍 Final response data - Recent activities: {len(recent_activities)} items")
         if recent_activities:
             print(f"📝 Sample activity: {recent_activities[0]}")
-        
+
         return response_data
-        
+
     except Exception as e:
         print(f"Error getting token usage stats: {e}")
         import traceback
@@ -1004,8 +1009,6 @@ async def get_token_usage_stats():
             },
             "recentActivity": []
         }
-
-# ========== Cache Management Endpoints ==========
 
 @app.delete("/cache/clear/uploads")
 async def clear_uploads():
@@ -1149,7 +1152,7 @@ async def clear_prompts():
 async def clear_scripts():
     """Clear all generated Python scripts"""
     try:
-        scripts_dir = BASE_DIR / "src" / "script"
+        scripts_dir = BASE_DIR / "src" / "scripts"
         deleted_count = 0
         
         if scripts_dir.exists():
@@ -1180,41 +1183,34 @@ async def clear_mappings():
     """Clear all mapping configuration files"""
     try:
         data_mappings_dir = BASE_DIR / "src" / "mappings" / "data"
-        script_mappings_dir = BASE_DIR / "src" / "mappings" / "script"
+        script_mappings_dir = BASE_DIR / "src" / "mappings" / "scripts"
         deleted_count = 0
-        
+
         # Clear data mappings
         if data_mappings_dir.exists():
-            files_to_delete = [f for f in data_mappings_dir.iterdir() 
-                             if f.is_file() and f.suffix == '.json']
-            
+            files_to_delete = [f for f in data_mappings_dir.iterdir() if f.is_file() and f.suffix == '.json']
             for file_path in files_to_delete:
                 try:
                     file_path.unlink()
                     deleted_count += 1
                 except Exception as e:
                     print(f"Error deleting file {file_path}: {e}")
-        
+
         # Clear script mappings
         if script_mappings_dir.exists():
-            files_to_delete = [f for f in script_mappings_dir.iterdir() 
-                             if f.is_file() and f.suffix == '.json']
-            
+            files_to_delete = [f for f in script_mappings_dir.iterdir() if f.is_file() and f.suffix == '.json']
             for file_path in files_to_delete:
                 try:
                     file_path.unlink()
                     deleted_count += 1
                 except Exception as e:
                     print(f"Error deleting file {file_path}: {e}")
-        
-        return JSONResponse(
-            status_code=200,
-            content={
-                "success": True,
-                "message": f"Deleted {deleted_count} mapping configuration files",
-                "deleted_count": deleted_count
-            }
-        )
+
+        return JSONResponse(status_code=200, content={
+            "success": True,
+            "message": f"Deleted {deleted_count} mapping configuration files",
+            "deleted_count": deleted_count
+        })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error clearing mappings: {str(e)}")
 
@@ -1296,10 +1292,3 @@ async def clear_all_cache():
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error performing all clear: {str(e)}")
-
-@app.get("/usermanual", response_class=HTMLResponse)
-async def user_manual(request: Request):
-    """
-    Serve the user manual page
-    """
-    return templates.TemplateResponse("instructions.html", {"request": request})

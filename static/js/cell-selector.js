@@ -1,22 +1,13 @@
-/**
- * Cell Selector Module
- * Handles tracking and displaying selected cells in spreadsheet
- */
-
-// Import modal utilities
 import { showErrorModal } from './modalUtils.js';
 
-// Create a fallback error handler in case modalUtils isn't loaded
 function showError(message) {
     if (typeof showErrorModal === 'function') {
         showErrorModal(message);
     } else if (typeof window.showError === 'function') {
         window.showError(message);
     } else if (window.bootstrap && bootstrap.Modal) {
-        // Try to use bootstrap directly if available
         let errorModal = document.getElementById('errorModal');
         if (!errorModal) {
-            // Create an error modal if it doesn't exist
             errorModal = document.createElement('div');
             errorModal.id = 'errorModal';
             errorModal.className = 'modal fade';
@@ -41,17 +32,13 @@ function showError(message) {
             new bootstrap.Modal(errorModal).show();
         }
     } else {
-        // Fallback to console error only
         console.error('Cell Selector Error:', message);
     }
 }
 
-let currentSelectionArray = null; // Stores the array from hotInstance.getSelected()
+let currentSelectionArray = null;
 let isSelectionActive = false;
 
-/**
- * Convert column index to Excel-style letter (0=A, 1=B, etc.)
- */
 function getColumnLetter(colIndex) {
     let result = '';
     let index = colIndex;
@@ -64,43 +51,33 @@ function getColumnLetter(colIndex) {
     return result;
 }
 
-/**
- * Convert Excel-style column letter (A, B, AA) to 0-indexed column number
- */
 function parseColumnLetter(columnName) {
     let col = 0;
-    if (!columnName) return -1; // Handle empty or null input
+    if (!columnName) return -1;
     columnName = columnName.toUpperCase();
     for (let i = 0; i < columnName.length; i++) {
         const charCode = columnName.charCodeAt(i);
-        if (charCode < 65 || charCode > 90) return -1; // Invalid character
+        if (charCode < 65 || charCode > 90) return -1;
         col = col * 26 + (charCode - 64);
     }
-    return col - 1; // Adjust to be 0-indexed
+    return col - 1;
 }
 
-/**
- * Convert cell ID string (e.g., "A1") to {row, col}
- */
 function parseCellId(cellIdStr) {
     if (!cellIdStr) return null;
-    const match = cellIdStr.trim().match(/^([A-Z]+)([1-9][0-9]*)$/i); // Ensure row number starts from 1
+    const match = cellIdStr.trim().match(/^([A-Z]+)([1-9][0-9]*)$/i);
     if (!match) return null;
     
     const colStr = match[1];
     const rowStr = match[2];
     
     const col = parseColumnLetter(colStr);
-    const row = parseInt(rowStr, 10) - 1; // 1-indexed to 0-indexed
+    const row = parseInt(rowStr, 10) - 1;
     
     if (isNaN(row) || row < 0 || col < 0) return null;
     return { row, col };
 }
 
-/**
- * Format cell selection for display
- * selectionArrays is an array of [startRow, startCol, endRow, endCol]
- */
 function formatCellSelection(selectionArrays) {
     if (!selectionArrays || selectionArrays.length === 0 || !window.hotInstance || window.hotInstance.isDestroyed) {
         return '-';
@@ -111,8 +88,7 @@ function formatCellSelection(selectionArrays) {
     const maxRows = hot.countRows();
     const maxCols = hot.countCols();
 
-    if (maxRows === 0 || maxCols === 0) { // Table not fully initialized or empty
-        // Fallback to simple formatting if table dimensions are unknown
+    if (maxRows === 0 || maxCols === 0) {
         return selectionArrays.map(sel => {
             const [r, c, r2, c2] = sel;
             const startCell = `${getColumnLetter(c)}${r + 1}`;
@@ -129,39 +105,35 @@ function formatCellSelection(selectionArrays) {
         const isFullRowSelection = (c === 0 && c2 === maxCols - 1);
 
         if (isFullColumnSelection) {
-            if (c === c2) return getColumnLetter(c); // Single full column "A"
-            return `${getColumnLetter(c)}:${getColumnLetter(c2)}`; // Full column range "A:C"
+            if (c === c2) return getColumnLetter(c);
+            return `${getColumnLetter(c)}:${getColumnLetter(c2)}`;
         }
         if (isFullRowSelection) {
-            if (r === r2) return `${r + 1}`; // Single full row "1"
-            return `${r + 1}:${r2 + 1}`; // Full row range "1:3"
+            if (r === r2) return `${r + 1}`;
+            return `${r + 1}:${r2 + 1}`;
         }
 
-        // Standard cell or cell range
         const startCell = `${getColumnLetter(c)}${r + 1}`;
-        if (r === r2 && c === c2) { // Single cell
+        if (r === r2 && c === c2) {
             return startCell;
-        } else { // Range
+        } else {
             const endCell = `${getColumnLetter(c2)}${r2 + 1}`;
             return `${startCell}:${endCell}`;
         }
     }).join(', ');
 }
 
-/**
- * Update the cell selector display
- */
-export function updateCellSelector(selection) { // selection is from hotInstance.getSelected()
+export function updateCellSelector(selection) {
     const displayInput = document.getElementById('cellSelectorDisplay');
     if (!displayInput) return;
     if (!window.hotInstance || window.hotInstance.isDestroyed) {
         displayInput.value = '-';
         return;
     }
-    currentSelectionArray = selection; // Store the raw selection array
+    currentSelectionArray = selection;
     isSelectionActive = (selection && selection.length > 0);
     const formattedSelection = formatCellSelection(selection);
-    displayInput.value = formattedSelection; // Use .value for input field
+    displayInput.value = formattedSelection;
     const selectorBar = document.getElementById('cellSelectorBar');
     if (selectorBar) {
         if (isSelectionActive) {
@@ -172,13 +144,10 @@ export function updateCellSelector(selection) { // selection is from hotInstance
     }
 }
 
-/**
- * Clear cell selector display
- */
 export function clearCellSelector() {
     const displayInput = document.getElementById('cellSelectorDisplay');
     if (displayInput) {
-        displayInput.value = ''; // Use .value for input field
+        displayInput.value = '';
         displayInput.placeholder = '-';
     }
     
@@ -191,47 +160,33 @@ export function clearCellSelector() {
     isSelectionActive = false;
 }
 
-/**
- * Get current selection
- */
 export function getCurrentSelection() {
-    return currentSelectionArray; // Return the stored raw selection
+    return currentSelectionArray;
 }
 
-/**
- * Check if selection is active
- */
 export function isSelectionActiveState() {
     return isSelectionActive;
 }
 
-/**
- * Initialize cell selector functionality
- */
 export function initCellSelector() {
     const displayInput = document.getElementById('cellSelectorDisplay');
-    clearCellSelector(); // Initialize display
+    clearCellSelector();
 
     if (displayInput) {
-        // Add standard change event listener
         displayInput.addEventListener('change', handleCellSelectorChange);
         
-        // Add custom event for cell tagging that won't shift focus
         displayInput.addEventListener('cellTagChange', function(event) {
             const value = this.value.trim().toUpperCase();
             handleCellSelection(value, event.detail?.preventFocusShift);
         });
 
-        // Enhanced key handling for the cell selector
         displayInput.addEventListener('keydown', function(event) {
-            // If escape is pressed, blur the input and add highlight effect
             if (event.key === 'Escape') {
                 event.preventDefault();
                 this.blur();
                 this.classList.add('highlight-escape');
                 setTimeout(() => this.classList.remove('highlight-escape'), 600);
                 
-                // Focus back to the table if it exists
                 if (window.hotInstance) {
                     const currentSel = window.hotInstance.getSelected();
                     if (currentSel && currentSel.length > 0) {
@@ -243,11 +198,9 @@ export function initCellSelector() {
                 return;
             }
             
-            // Prevent table navigation keys from propagating when input is focused
             event.stopPropagation();
         });
         
-        // Handle focus to select all text for easy replacement
         displayInput.addEventListener('focus', function() {
             this.select();
         });
@@ -256,41 +209,30 @@ export function initCellSelector() {
     const selectorBar = document.getElementById('cellSelectorBar');
     if (selectorBar) {
         selectorBar.addEventListener('click', function(event) {
-            // If click is on the input itself, let it be.
             if (event.target === displayInput) return;
-            // Focus back to spreadsheet if it exists and not clicking on input
             if (window.hotInstance) {
                 const currentSel = window.hotInstance.getSelected();
                 if (currentSel && currentSel.length > 0) {
                     const [firstSelection] = currentSel;
                     window.hotInstance.selectCell(firstSelection[0], firstSelection[1]);
                 } else {
-                    window.hotInstance.selectCell(0,0); // Default focus
+                    window.hotInstance.selectCell(0,0);
                 }
-                // Ensure Handsontable listens for keyboard events
                 const activeEditor = window.hotInstance.getActiveEditor();
                 if (activeEditor) activeEditor.focus();
                 else if (window.hotInstance.rootElement.contains(document.activeElement)) {
-                     // if focus is already within HOT, ensure its listeners are active
-                     // This part is tricky as HOT manages its own focus.
-                     // Often, just selecting a cell is enough.
+                     
                 }
             }
         });
     }
 }
 
-/**
- * Handle cell selector value changes
- */
 function handleCellSelectorChange(event) {
     const value = event.target.value.trim().toUpperCase();
-    handleCellSelection(value, false); // Standard change doesn't prevent focus shift
+    handleCellSelection(value, false);
 }
 
-/**
- * Process cell selection with option to prevent focus shift
- */
 function handleCellSelection(value, preventFocusShift = false) {
     if (!value || !window.hotInstance) {
         if (value === '' && window.hotInstance) {
@@ -312,14 +254,12 @@ function handleCellSelection(value, preventFocusShift = false) {
     const selectionsToMake = [];
     
     try {
-        // Parse cell references (existing code)
         const parts = value.split(',').map(part => part.trim());
         if (parts.some(part => !part)) throw new Error("Empty cell or range in selection list.");
 
         for (const part of parts) {
             let matched = false;
 
-            // 1. Cell Range: A1:C3
             let match = part.match(/^([A-Z]+)([1-9][0-9]*):([A-Z]+)([1-9][0-9]*)$/);
             if (match) {
                 const startCoords = parseCellId(match[1] + match[2]);
@@ -335,7 +275,6 @@ function handleCellSelection(value, preventFocusShift = false) {
                 } else { throw new Error(`Invalid cell range format: ${part}`); }
             }
 
-            // 2. Column Range: A:C
             if (!matched) {
                 match = part.match(/^([A-Z]+):([A-Z]+)$/);
                 if (match) {
@@ -348,7 +287,6 @@ function handleCellSelection(value, preventFocusShift = false) {
                 }
             }
 
-            // 3. Row Range: 1:5
             if (!matched) {
                 match = part.match(/^([1-9][0-9]*):([1-9][0-9]*)$/);
                 if (match) {
@@ -361,16 +299,14 @@ function handleCellSelection(value, preventFocusShift = false) {
                 }
             }
             
-            // 4. Single Cell: A1
             if (!matched) {
-                const coords = parseCellId(part); // parseCellId handles ^([A-Z]+)([1-9][0-9]*)$
+                const coords = parseCellId(part);
                 if (coords) {
                     selectionsToMake.push([coords.row, coords.col, coords.row, coords.col]);
                     matched = true;
                 }
             }
 
-            // 5. Single Column: A
             if (!matched) {
                 match = part.match(/^([A-Z]+)$/);
                 if (match) {
@@ -382,7 +318,6 @@ function handleCellSelection(value, preventFocusShift = false) {
                 }
             }
 
-            // 6. Single Row: 1
             if (!matched) {
                 match = part.match(/^([1-9][0-9]*)$/);
                 if (match) {
@@ -400,27 +335,22 @@ function handleCellSelection(value, preventFocusShift = false) {
         }
 
         if (selectionsToMake.length > 0) {
-            // Validate selections against table bounds
             for (const sel of selectionsToMake) {
                 if (sel[0] < 0 || sel[1] < 0 || sel[2] >= maxRows || sel[3] >= maxCols) {
                     throw new Error(`Selection out of bounds: ${formatCellSelection([sel])}`);
                 }
             }
             
-            // Select cells but don't focus if preventFocusShift is true
             if (preventFocusShift) {
-                // Just highlight without focusing
                 const originalActiveElement = document.activeElement;
                 hot.selectCells(selectionsToMake);
                 
-                // Return focus to the original element if needed
                 if (originalActiveElement && originalActiveElement !== document.activeElement) {
                     setTimeout(() => {
                         originalActiveElement.focus();
                     }, 10);
                 }
             } else {
-                // Standard selection with focus
                 hot.selectCells(selectionsToMake);
             }
         } else if (value !== '-') {

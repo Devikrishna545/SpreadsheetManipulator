@@ -1,29 +1,17 @@
-"""
-Input Validator module
---------------------
-Comprehensive input validation and sanitization for the finance application
-"""
+"""Input validation and sanitization utilities for the finance application."""
 
-import re
-import os
-import magic
-import hashlib
-from typing import Dict, List, Optional, Any, Tuple
-from pathlib import Path
 import pandas as pd
-import zipfile
-import logging
+from typing import Dict, Any
+import re, os, io, magic, hashlib, zipfile, logging
 
 # Configure logging
 validator_logger = logging.getLogger("input_validator")
 
 class InputValidator:
-    """
-    Comprehensive input validation for finance application
-    """
-    
+    """Comprehensive input validation for the application."""
+
     def __init__(self):
-        """Initialize the input validator"""
+        """Initialize validation settings and patterns."""
         
         # File validation settings
         self.max_file_sizes = {
@@ -36,7 +24,7 @@ class InputValidator:
         self.allowed_extensions = {'xlsx', 'xls', 'csv', 'txt'}
         
         self.allowed_mime_types = {
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # .xlsx
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', # .xlsx
             'application/vnd.ms-excel',                                          # .xls
             'text/csv',                                                          # .csv
             'text/plain',                                                        # .txt
@@ -46,7 +34,7 @@ class InputValidator:
         # Dangerous file signatures (magic bytes)
         self.dangerous_signatures = {
             b'\x4d\x5a': 'Executable file',           # PE executable
-            b'\x7f\x45\x4c\x46': 'ELF executable',   # Linux executable
+            b'\x7f\x45\x4c\x46': 'ELF executable',    # Linux executable
             b'#!/bin/': 'Script file',                # Shell script
             b'#!/usr/bin/': 'Script file',            # Shell script
             b'<?php': 'PHP script',                   # PHP script
@@ -101,17 +89,7 @@ class InputValidator:
         ]
 
     def validate_file_upload(self, file_path: str, original_filename: str, file_content: bytes) -> Dict[str, Any]:
-        """
-        Comprehensive file upload validation
-        
-        Args:
-            file_path: Path to the uploaded file
-            original_filename: Original filename from the client
-            file_content: File content as bytes
-            
-        Returns:
-            Dict containing validation results
-        """
+        """Validate filename, size, signature, MIME, content, and malware patterns."""
         validation_result = {
             'is_valid': True,
             'errors': [],
@@ -120,6 +98,7 @@ class InputValidator:
         }
         
         try:
+            detected_mime = 'unknown'
             # 1. Filename validation
             filename_validation = self.validate_filename(original_filename)
             if not filename_validation['is_valid']:
@@ -145,8 +124,10 @@ class InputValidator:
             try:
                 detected_mime = magic.from_buffer(file_content, mime=True)
                 if detected_mime not in self.allowed_mime_types:
-                    validation_result['warnings'].append(f"Detected MIME type '{detected_mime}' not in allowed list")
-            except:
+                    validation_result['warnings'].append(
+                        f"Detected MIME type '{detected_mime}' not in allowed list"
+                    )
+            except Exception:
                 validation_result['warnings'].append("Could not detect MIME type")
             
             # 5. Content validation based on file type
@@ -173,7 +154,7 @@ class InputValidator:
             validation_result['file_info'] = {
                 'size': file_size,
                 'extension': file_extension,
-                'detected_mime': detected_mime if 'detected_mime' in locals() else 'unknown',
+                'detected_mime': detected_mime,
                 'hash_sha256': hashlib.sha256(file_content).hexdigest()
             }
             
@@ -266,9 +247,7 @@ class InputValidator:
         return result
 
     def validate_excel_content(self, file_content: bytes) -> Dict[str, Any]:
-        """
-        Validate Excel file content
-        """
+        """Validate Excel file structure and flag suspicious contents."""
         result = {'is_valid': True, 'errors': []}
         
         try:
@@ -276,7 +255,6 @@ class InputValidator:
             if file_content.startswith(b'PK'):
                 # Validate ZIP structure without extracting
                 try:
-                    import io
                     zip_buffer = io.BytesIO(file_content)
                     with zipfile.ZipFile(zip_buffer, 'r') as zip_file:
                         # Check for required XLSX files
@@ -311,9 +289,7 @@ class InputValidator:
         return result
 
     def validate_csv_content(self, file_content: bytes) -> Dict[str, Any]:
-        """
-        Validate CSV file content
-        """
+        """Validate CSV content, encoding, and basic structure."""
         result = {'is_valid': True, 'errors': []}
         
         try:
@@ -339,9 +315,8 @@ class InputValidator:
             
             # Try to parse with pandas for additional validation
             try:
-                import io
                 csv_buffer = io.StringIO(content_str)
-                df = pd.read_csv(csv_buffer, nrows=100)  # Only read first 100 rows for validation
+                df = pd.read_csv(csv_buffer, nrows=100)
                 
                 # Check for reasonable column count
                 if len(df.columns) > 1000:
@@ -359,9 +334,7 @@ class InputValidator:
         return result
 
     def validate_text_content(self, file_content: bytes) -> Dict[str, Any]:
-        """
-        Validate text file content
-        """
+        """Validate text file content and detect suspicious patterns."""
         result = {'is_valid': True, 'errors': []}
         
         try:
@@ -396,9 +369,7 @@ class InputValidator:
         return result
 
     def check_malware_patterns(self, file_content: bytes) -> Dict[str, Any]:
-        """
-        Check for malware-like patterns in file content
-        """
+        """Check for malware-like strings in the file content."""
         result = {'is_valid': True, 'errors': []}
         
         # Convert to string for pattern matching
@@ -430,9 +401,7 @@ class InputValidator:
         return result
 
     def validate_text_input(self, input_text: str, input_type: str = "general") -> Dict[str, Any]:
-        """
-        Validate text input for security threats
-        """
+        """Validate text input for SQLi, XSS, command injection, and traversal."""
         result = {'is_valid': True, 'errors': [], 'warnings': []}
         
         if not input_text:
@@ -487,9 +456,7 @@ class InputValidator:
         return result
 
     def sanitize_filename(self, filename: str) -> str:
-        """
-        Sanitize filename to prevent security issues
-        """
+        """Sanitize filename to prevent security issues."""
         # Remove path components
         filename = os.path.basename(filename)
         
@@ -508,9 +475,7 @@ class InputValidator:
         return filename
 
     def sanitize_text_input(self, input_text: str) -> str:
-        """
-        Sanitize text input
-        """
+        """Sanitize text input by removing dangerous tags and protocols."""
         if not input_text:
             return ""
         

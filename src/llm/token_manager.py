@@ -1,12 +1,5 @@
-"""
-Token Management module
------------------------
-Centralizes Gemini token usage tracking and reporting using TikToken.
-"""
-import os
-import tiktoken
-import json
-import os
+"""Token Management module for Gemini token usage tracking and reporting using TikToken."""
+import os, json, tiktoken
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -16,26 +9,22 @@ class TokenManager:
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.total_requests = 0
-        self.current_model = None  # Track current model for accurate pricing
+        self.current_model = None
         
-        # Batch command tracking
         self.is_batch_mode = False
-        self.batch_commands = []  # Store individual command metrics
-        self.batch_models_used = set()  # Track unique models used in batch
+        self.batch_commands = []
+        self.batch_models_used = set()
         
-        # Batch history tracking for dashboard
-        self.batch_history = []  # Store completed batch sessions
-        self.max_history_size = 50  # Keep last 50 batch sessions
+        self.batch_history = []
+        self.max_history_size = 50
         self.batch_history_file = os.path.join('static', 'json', 'batch_history.json')
         
-        # Initialize TikToken encoder for GPT models (good approximation for Gemini)
         try:
-            self.encoder = tiktoken.get_encoding("cl100k_base")  # GPT-4 encoding
+            self.encoder = tiktoken.get_encoding("cl100k_base")
         except Exception as e:
             print(f"⚠️ Warning: Could not initialize TikToken encoder: {e}")
             self.encoder = None
         
-        # Load existing batch history on startup
         self._load_batch_history()
 
     def _load_batch_history(self):
@@ -55,7 +44,6 @@ class TokenManager:
     def _save_batch_history(self):
         """Save batch history to JSON file"""
         try:
-            # Ensure the directory exists
             os.makedirs(os.path.dirname(self.batch_history_file), exist_ok=True)
             
             data = {
@@ -72,27 +60,17 @@ class TokenManager:
             print(f"❌ Error saving batch history: {e}")
 
     def count_tokens(self, text: str) -> int:
-        """
-        Count tokens in a text string using TikToken
-        
-        Args:
-            text: The text to count tokens for
-            
-        Returns:
-            int: Number of tokens
-        """
+        """Count tokens in a text string using TikToken"""
         if not self.encoder or not text:
             return 0
             
         try:
             if isinstance(text, dict) or isinstance(text, list):
-                # Convert complex objects to JSON string first
                 text = json.dumps(text, default=str)
             
             tokens = self.encoder.encode(str(text))
             token_count = len(tokens)
             
-            # Debug logging for very small/large counts to help troubleshoot
             if token_count == 0 and text.strip():
                 print(f"⚠️ Warning: Zero tokens counted for non-empty text: '{text[:50]}...'")
             elif token_count > 10000:
@@ -101,22 +79,12 @@ class TokenManager:
             return token_count
         except Exception as e:
             print(f"⚠️ Warning: Token counting failed: {e}")
-            # Fallback: rough estimation (1 token ≈ 4 characters)
             fallback_count = len(str(text)) // 4
             print(f"🔄 Using fallback estimation: {fallback_count} tokens")
             return fallback_count
 
     def track_api_call(self, prompt: str, response: str) -> dict:
-        """
-        Track an API call with accurate token counting
-        
-        Args:
-            prompt: The input prompt sent to the API
-            response: The response received from the API
-            
-        Returns:
-            dict: Token usage information
-        """
+        """Track an API call with accurate token counting"""
         input_tokens = self.count_tokens(prompt)
         output_tokens = self.count_tokens(response)
         
@@ -128,16 +96,13 @@ class TokenManager:
             "model_name": self.current_model or "unknown"
         }
         
-        # Update internal tracking
         self.set_token_usage(usage)
         
-        # If we're in batch mode, add to batch commands
         if self.is_batch_mode:
             self.batch_commands.append(usage)
             if self.current_model:
                 self.batch_models_used.add(self.current_model)
         else:
-            # For individual commands, create a single-command batch session
             self._save_individual_command_session(usage)
         
         print(f"📊 [TOKEN TRACKING] Input: {input_tokens}, Output: {output_tokens}, Total: {usage['total_tokens']}")
@@ -164,11 +129,9 @@ class TokenManager:
         
         self.batch_history.append(batch_session)
         
-        # Keep only the last max_history_size sessions
         if len(self.batch_history) > self.max_history_size:
             self.batch_history = self.batch_history[-self.max_history_size:]
         
-        # Save batch history to JSON file
         self._save_batch_history()
         print(f"💾 [INDIVIDUAL COMMAND] Saved command session to batch history")
 
@@ -180,7 +143,6 @@ class TokenManager:
             self.total_output_tokens += usage.get('output_tokens', 0)
             self.total_requests += usage.get('api_requests', 0)
             
-            # If in batch mode, store individual command metrics
             if self.is_batch_mode:
                 command_metric = {
                     'input_tokens': usage.get('input_tokens', 0),
@@ -191,7 +153,6 @@ class TokenManager:
                 }
                 self.batch_commands.append(command_metric)
                 
-                # Track models used in batch
                 if command_metric['model_name']:
                     self.batch_models_used.add(command_metric['model_name'])
 
@@ -236,7 +197,6 @@ class TokenManager:
         if self.is_batch_mode and self.batch_commands:
             self._print_batch_summary()
             
-            # Store batch session in history for dashboard
             batch_session = {
                 'timestamp': datetime.now().isoformat(),
                 'commands': len(self.batch_commands),
@@ -257,11 +217,9 @@ class TokenManager:
             
             self.batch_history.append(batch_session)
             
-            # Keep only the last max_history_size sessions
             if len(self.batch_history) > self.max_history_size:
                 self.batch_history = self.batch_history[-self.max_history_size:]
             
-            # Save batch history to JSON file
             self._save_batch_history()
         
         self.is_batch_mode = False
@@ -273,25 +231,17 @@ class TokenManager:
         """Check if currently in batch mode"""
         return self.is_batch_mode
 
+    def is_in_batch_mode(self) -> bool:
+        """Check if currently in batch mode"""
+        return self.is_batch_mode
+
     def extract_token_usage(self, response, prompt: str = "", model_name: str = None) -> dict:
-        """
-        Extract token usage info using TikToken instead of relying on API metadata.
-        
-        Args:
-            response: The API response object
-            prompt: The original prompt sent to the API
-            model_name: The model name being used (optional)
-            
-        Returns:
-            dict: Token usage information
-        """
-        # Update current model if provided
+        """Extract token usage info using TikToken instead of relying on API metadata."""
         if model_name:
             self.current_model = model_name
-        # Extract response text
+            
         response_text = ""
         try:
-            # Try different ways to extract response text
             if hasattr(response, 'text') and response.text:
                 response_text = response.text
             elif hasattr(response, 'candidates') and response.candidates:
@@ -306,7 +256,6 @@ class TokenManager:
                         response_text = str(content)
                 else:
                     response_text = str(candidate)
-            # Try accessing result attribute for newer Gemini API responses
             elif hasattr(response, 'result') and response.result:
                 result = response.result
                 if hasattr(result, 'candidates') and result.candidates:
@@ -319,7 +268,6 @@ class TokenManager:
             else:
                 response_text = str(response)
                 
-            # Debug logging
             print(f"[DEBUG] Extracted response text length: {len(response_text)} characters")
             if len(response_text) < 200:
                 print(f"[DEBUG] Response text preview: {response_text[:200]}")
@@ -328,11 +276,9 @@ class TokenManager:
             print(f"⚠️ Warning: Could not extract response text for token counting: {e}")
             response_text = str(response)
         
-        # Count tokens using TikToken
         input_tokens = self.count_tokens(prompt) if prompt else 0
         output_tokens = self.count_tokens(response_text)
         
-        # Store the model name for pricing
         if model_name:
             self.current_model = model_name
         
@@ -344,16 +290,13 @@ class TokenManager:
             "model_name": model_name or self.current_model
         }
         
-        # Update internal tracking immediately
         self.set_token_usage(usage)
         
-        # If we're in batch mode, add to batch commands
         if self.is_batch_mode:
             self.batch_commands.append(usage)
             if self.current_model:
                 self.batch_models_used.add(self.current_model)
         else:
-            # For individual commands, create a single-command batch session
             self._save_individual_command_session(usage)
         
         print(f"🔍 [TOKEN EXTRACTION] Prompt tokens: {input_tokens}, Response tokens: {output_tokens}, Total: {usage['total_tokens']}")
@@ -366,7 +309,6 @@ class TokenManager:
         if not usage:
             return
             
-        # For single commands (not in batch mode), show standard summary
         if not self.is_batch_mode:
             print("="*60)
             print("📊 GEMINI TOKEN USAGE SUMMARY")
@@ -376,11 +318,9 @@ class TokenManager:
             print(f"🔹 Total tokens used:         {usage.get('total_tokens', 0):,}")
             print(f"🔹 API requests made:         {usage.get('api_requests', 0)}")
             
-            # Show model information
             model_used = usage.get('model_name') or self.current_model or 'Unknown'
             print(f"🔹 Model used:                {model_used}")
             
-            # Estimate cost with model-specific pricing
             total_tokens = usage.get('total_tokens', 0)
             estimated_cost = self._estimate_cost(
                 usage.get('input_tokens', 0), 
@@ -397,21 +337,17 @@ class TokenManager:
             else:
                 print("💡 Token usage: Heavy usage - consider optimization")
             print("="*60)
-        # In batch mode, we don't print individual summaries for each command
-        # The summary will be printed when batch mode ends
 
     def _print_batch_summary(self):
         """Print comprehensive summary for batch command processing"""
         if not self.batch_commands:
             return
             
-        # Calculate totals from batch commands
         total_input = sum(cmd.get('input_tokens', 0) for cmd in self.batch_commands)
         total_output = sum(cmd.get('output_tokens', 0) for cmd in self.batch_commands)
         total_tokens = total_input + total_output
         total_requests = sum(cmd.get('api_requests', 0) for cmd in self.batch_commands)
         
-        # Calculate total cost across all models used
         total_cost = 0
         model_breakdown = {}
         
@@ -428,7 +364,6 @@ class TokenManager:
             model_breakdown[model]['output_tokens'] += cmd.get('output_tokens', 0)
             model_breakdown[model]['requests'] += cmd.get('api_requests', 0)
             
-            # Add to total cost
             cost = self._estimate_cost(
                 cmd.get('input_tokens', 0),
                 cmd.get('output_tokens', 0),
@@ -448,7 +383,6 @@ class TokenManager:
         print(f"💰 Total estimated cost:      ${total_cost:.6f}")
         print("="*70)
         
-        # Show breakdown by model if multiple models were used
         if len(model_breakdown) > 1:
             print("🔹 Model breakdown:")
             for model, stats in model_breakdown.items():
@@ -465,7 +399,6 @@ class TokenManager:
         
         print("="*70)
         
-        # Usage level assessment
         if total_tokens < 10000:
             print("💡 Batch usage: Light - very cost effective")
         elif total_tokens < 50000:
@@ -482,24 +415,19 @@ class TokenManager:
     
     def get_dashboard_stats(self) -> dict:
         """Get comprehensive statistics for the token usage dashboard"""
-        # Calculate overall statistics from batch history
         total_batches = len(self.batch_history)
         total_commands = sum(batch.get('commands', 0) for batch in self.batch_history)
         total_tokens_from_batches = sum(batch.get('total_tokens', 0) for batch in self.batch_history)
         total_cost_from_batches = sum(batch.get('estimated_cost', 0) for batch in self.batch_history)
         
-        # Get current session stats
         session_summary = self.get_session_summary()
         
-        # Combine session and batch history stats
         total_tokens = session_summary.get('total_tokens', 0) + total_tokens_from_batches
         total_cost = session_summary.get('estimated_cost', 0) + total_cost_from_batches
         
-        # Calculate average tokens per command
         total_all_commands = session_summary.get('total_requests', 0) + total_commands
         avg_tokens_per_command = total_tokens / total_all_commands if total_all_commands > 0 else 0
         
-        # Model usage statistics
         model_usage = {}
         for batch in self.batch_history:
             for model in batch.get('models_used', []):
@@ -508,7 +436,6 @@ class TokenManager:
                 else:
                     model_usage[model] = 1
         
-        # Current session model
         current_model = session_summary.get('current_model')
         if current_model and session_summary.get('total_requests', 0) > 0:
             if current_model in model_usage:
@@ -524,95 +451,46 @@ class TokenManager:
             'total_input_tokens': session_summary.get('total_input_tokens', 0) + sum(batch.get('total_input_tokens', 0) for batch in self.batch_history),
             'total_output_tokens': session_summary.get('total_output_tokens', 0) + sum(batch.get('total_output_tokens', 0) for batch in self.batch_history),
             'model_usage': model_usage,
-            'recent_batches': self.batch_history[-10:] if self.batch_history else []  # Last 10 batches
+            'recent_batches': self.batch_history[-10:] if self.batch_history else []
         }
 
     def _estimate_cost(self, input_tokens: int, output_tokens: int, model_name: str = None) -> float:
-        """
-        Estimate cost based on current Gemini API pricing (July 2025)
-        Pricing per 1M tokens from: https://ai.google.dev/gemini-api/docs/pricing
-        
-        Args:
-            input_tokens: Number of input tokens
-            output_tokens: Number of output tokens
-            model_name: Model name used for the request
-            
-        Returns:
-            float: Estimated cost in USD
-        """
-        # Detect model from current model or environment if not provided
+        """Estimate cost based on current Gemini API pricing (July 2025)"""
         if not model_name:
             model_name = self.current_model or os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite-preview-06-17')
         
-        # Current Gemini API pricing (July 2025) - prices per 1M tokens
         pricing_table = {
-            # Gemini 2.5 Flash-Lite Preview (most cost-effective)
             'gemini-2.5-flash-lite-preview-06-17': {
-                'input': 0.10,   # $0.10 per 1M tokens
-                'output': 0.40,  # $0.40 per 1M tokens
-                'description': 'Flash-Lite Preview'
+                'input': 0.10, 'output': 0.40, 'description': 'Flash-Lite Preview'
             },
-            
-            # Gemini 2.5 Flash 
             'gemini-2.5-flash': {
-                'input': 0.30,   # $0.30 per 1M tokens
-                'output': 2.50,  # $2.50 per 1M tokens (includes thinking tokens)
-                'description': 'Flash'
+                'input': 0.30, 'output': 2.50, 'description': 'Flash'
             },
-            
-            # Gemini 2.5 Pro
             'gemini-2.5-pro': {
-                'input': 1.25,   # $1.25 per 1M tokens (<=200k), $2.50 (>200k)
-                'output': 10.00, # $10.00 per 1M tokens (<=200k), $15.00 (>200k)
-                'description': 'Pro'
+                'input': 1.25, 'output': 10.00, 'description': 'Pro'
             },
-            
-            # Gemini 2.0 Flash (current generation)
             'gemini-2.0-flash': {
-                'input': 0.10,   # $0.10 per 1M tokens
-                'output': 0.40,  # $0.40 per 1M tokens
-                'description': 'Flash 2.0'
+                'input': 0.10, 'output': 0.40, 'description': 'Flash 2.0'
             },
-            
-            # Gemini 2.0 Flash Experimental
             'gemini-2.0-flash-exp': {
-                'input': 0.10,   # $0.10 per 1M tokens (assuming same as 2.0 Flash)
-                'output': 0.40,  # $0.40 per 1M tokens
-                'description': 'Flash 2.0 Experimental'
+                'input': 0.10, 'output': 0.40, 'description': 'Flash 2.0 Experimental'
             },
-            
-            # Gemini 2.0 Flash Thinking Experimental
             'gemini-2.0-flash-thinking-exp-01-21': {
-                'input': 0.10,   # $0.10 per 1M tokens
-                'output': 0.40,  # $0.40 per 1M tokens (includes thinking tokens)
-                'description': 'Flash 2.0 Thinking Experimental'
+                'input': 0.10, 'output': 0.40, 'description': 'Flash 2.0 Thinking Experimental'
             },
-            
-            # Gemini 2.0 Flash-Lite
             'gemini-2.0-flash-lite': {
-                'input': 0.075,  # $0.075 per 1M tokens
-                'output': 0.30,  # $0.30 per 1M tokens
-                'description': 'Flash-Lite 2.0'
+                'input': 0.075, 'output': 0.30, 'description': 'Flash-Lite 2.0'
             },
-            
-            # Legacy models (deprecated but might still be used)
             'gemini-1.5-flash': {
-                'input': 0.075,  # $0.075 per 1M tokens (<=128k), $0.15 (>128k)
-                'output': 0.30,  # $0.30 per 1M tokens (<=128k), $0.60 (>128k)
-                'description': 'Flash 1.5 (Deprecated)'
+                'input': 0.075, 'output': 0.30, 'description': 'Flash 1.5 (Deprecated)'
             },
-            
             'gemini-1.5-pro': {
-                'input': 1.25,   # $1.25 per 1M tokens (<=128k), $2.50 (>128k)
-                'output': 5.00,  # $5.00 per 1M tokens (<=128k), $10.00 (>128k)
-                'description': 'Pro 1.5 (Deprecated)'
+                'input': 1.25, 'output': 5.00, 'description': 'Pro 1.5 (Deprecated)'
             }
         }
         
-        # Find exact model match first
         model_pricing = pricing_table.get(model_name)
         
-        # If no exact match, try pattern matching
         if not model_pricing:
             model_lower = model_name.lower()
             if 'gemini-2.5-flash-lite' in model_lower:
@@ -634,11 +512,9 @@ class TokenManager:
             elif 'gemini-1.5-pro' in model_lower:
                 model_pricing = pricing_table['gemini-1.5-pro']
             else:
-                # Default to most cost-effective model pricing
                 model_pricing = pricing_table['gemini-2.5-flash-lite-preview-06-17']
                 print(f"⚠️ Warning: Unknown model '{model_name}', using Flash-Lite pricing as default")
         
-        # Calculate costs (pricing is per 1M tokens)
         input_cost = (input_tokens / 1_000_000) * model_pricing['input']
         output_cost = (output_tokens / 1_000_000) * model_pricing['output']
         total_cost = input_cost + output_cost
@@ -666,9 +542,7 @@ class TokenManager:
         }
 
     def print_final_token_summary(self):
-        """
-        Print a comprehensive token usage summary for the current session.
-        """
+        """Print a comprehensive token usage summary for the current session."""
         summary = self.get_session_summary()
         
         print("\n" + "="*70)
@@ -683,7 +557,6 @@ class TokenManager:
         print(f"💰 Total estimated cost:      ${summary['estimated_cost']:.6f}")
         print("="*70)
         
-        # Usage level assessment
         total = summary['total_tokens']
         if total < 10000:
             print("💡 Session usage: Light - very cost effective")

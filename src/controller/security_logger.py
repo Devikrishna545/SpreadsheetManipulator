@@ -1,43 +1,25 @@
-"""
-Security Session Logger
-----------------------
-Logs all security events for each user session with categorized severity levels
-"""
+"""Security session logger for categorized events per user session."""
 
-import os
-import logging
-from datetime import datetime
-from typing import Dict, Optional, List
+import os, logging
 from enum import Enum
-
+from typing import Any, Dict
+from datetime import datetime
 
 class SecurityLevel(Enum):
-    """Security event severity levels"""
+    """Security event severity levels."""
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
 
-
 class SecuritySessionLogger:
-    """
-    Manages security logging for user sessions with emoji-enhanced output
-    """
+    """Manage security logging for user sessions with emoji-enhanced output."""
     
     def __init__(self, log_directory: str = "src/logs/security"):
-        """
-        Initialize the security session logger
-        
-        Args:
-            log_directory: Directory to store security logs
-        """
+        """Initialize the security session logger and ensure log directory exists."""
         self.log_directory = log_directory
         self.active_sessions: Dict[str, dict] = {}
-        
-        # Ensure log directory exists
         os.makedirs(log_directory, exist_ok=True)
-        
-        # Security level emojis and colors
         self.level_config = {
             SecurityLevel.LOW: {
                 'emoji': '🟢',
@@ -62,24 +44,12 @@ class SecuritySessionLogger:
         }
     
     def start_session(self, session_id: str, user_ip: str = "unknown", user_agent: str = "unknown") -> str:
-        """
-        Start a new security logging session
-        
-        Args:
-            session_id: Unique session identifier
-            user_ip: User's IP address
-            user_agent: User's browser agent
-            
-        Returns:
-            str: Log file path for this session
-        """
-        # Generate timestamp-based filename (DDMMYYYYHHMMSS)
+        """Start a new security logging session and return the log file path."""
         now = datetime.now()
         timestamp = now.strftime("%d%m%Y%H%M%S")
         filename = f"{timestamp}.txt"
         filepath = os.path.join(self.log_directory, filename)
         
-        # Session metadata
         session_data = {
             'session_id': session_id,
             'start_time': now.isoformat(),
@@ -90,35 +60,20 @@ class SecuritySessionLogger:
             'event_count': 0
         }
         
-        # Store session info
         self.active_sessions[session_id] = session_data
-        
-        # Create log file with metadata header
         self._write_session_header(filepath, session_data)
         
         return filepath
     
-    def log_security_event(self, session_id: str, level: SecurityLevel, event_type: str, 
-                          message: str, details: Dict = None, source: str = "system"):
-        """
-        Log a security event for a session
-        
-        Args:
-            session_id: Session identifier
-            level: Security level (LOW, MEDIUM, HIGH, CRITICAL)
-            event_type: Type of security event
-            message: Event message
-            details: Additional event details
-            source: Source of the event
-        """
+    def log_security_event(self, session_id: str, level: SecurityLevel, event_type: str,
+                           message: str, details: Dict[str, Any] | None = None, source: str = "system") -> None:
+        """Log a security event for a session."""
         if session_id not in self.active_sessions:
-            # Auto-start session if not exists
             self.start_session(session_id)
         
         session = self.active_sessions[session_id]
         session['event_count'] += 1
         
-        # Prepare security event
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         event_emoji = self._get_event_emoji(event_type)
         level_emoji = self.level_config[level]['emoji']
@@ -133,10 +88,8 @@ class SecuritySessionLogger:
             'source': source
         }
         
-        # Add to session events
         session['events'][level.value].append(event_data)
         
-        # Format log entry
         log_entry = f"""
 {level_emoji} [{timestamp}] Event #{session['event_count']} | {level.value} | {source}
 {event_emoji} {event_type.upper()}: {message}
@@ -149,23 +102,14 @@ class SecuritySessionLogger:
         
         log_entry += f"{'─' * 50}\n"
         
-        # Append to session log file
         try:
             with open(session['log_file'], 'a', encoding='utf-8') as f:
                 f.write(log_entry)
         except Exception as e:
             logging.error(f"Failed to write security log: {e}")
     
-    def log_script_validation(self, session_id: str, script: str, is_safe: bool, reason: str):
-        """
-        Log script validation events
-        
-        Args:
-            session_id: Session identifier
-            script: The script being validated
-            is_safe: Whether script passed validation
-            reason: Validation result reason
-        """
+    def log_script_validation(self, session_id: str, script: str, is_safe: bool, reason: str) -> None:
+        """Log the result of a script validation."""
         level = SecurityLevel.LOW if is_safe else SecurityLevel.HIGH
         event_type = "script_validation"
         message = f"Script validation {'✅ PASSED' if is_safe else '❌ FAILED'}: {reason}"
@@ -179,19 +123,9 @@ class SecuritySessionLogger:
         
         self.log_security_event(session_id, level, event_type, message, details, "SecurityManager")
     
-    def log_file_upload(self, session_id: str, filename: str, file_size: int, 
-                       file_type: str, is_allowed: bool, reason: str = ""):
-        """
-        Log file upload security events
-        
-        Args:
-            session_id: Session identifier
-            filename: Name of uploaded file
-            file_size: Size of file in bytes
-            file_type: MIME type of file
-            is_allowed: Whether upload was allowed
-            reason: Reason for allow/deny
-        """
+    def log_file_upload(self, session_id: str, filename: str, file_size: int,
+                        file_type: str, is_allowed: bool, reason: str = "") -> None:
+        """Log a file upload security event."""
         level = SecurityLevel.LOW if is_allowed else SecurityLevel.MEDIUM
         event_type = "file_upload"
         status = "✅ ALLOWED" if is_allowed else "🚫 BLOCKED"
@@ -208,19 +142,9 @@ class SecuritySessionLogger:
         
         self.log_security_event(session_id, level, event_type, message, details, "FileValidator")
     
-    def log_rate_limit_event(self, session_id: str, user_ip: str, endpoint: str, 
-                           is_blocked: bool, request_count: int, limit: int):
-        """
-        Log rate limiting events
-        
-        Args:
-            session_id: Session identifier
-            user_ip: User's IP address
-            endpoint: API endpoint accessed
-            is_blocked: Whether request was blocked
-            request_count: Current request count
-            limit: Rate limit threshold
-        """
+    def log_rate_limit_event(self, session_id: str, user_ip: str, endpoint: str,
+                             is_blocked: bool, request_count: int, limit: int) -> None:
+        """Log a rate limiting check event."""
         level = SecurityLevel.MEDIUM if is_blocked else SecurityLevel.LOW
         event_type = "rate_limiting"
         status = "🚫 BLOCKED" if is_blocked else "✅ ALLOWED"
@@ -237,33 +161,20 @@ class SecuritySessionLogger:
         
         self.log_security_event(session_id, level, event_type, message, details, "RateLimiter")
     
-    def end_session(self, session_id: str):
-        """
-        End a security logging session and write summary
-        
-        Args:
-            session_id: Session identifier
-        """
+    def end_session(self, session_id: str) -> None:
+        """End a security logging session and write summary."""
         if session_id in self.active_sessions:
             session = self.active_sessions[session_id]
             
-            # Write session summary with categorized events
             end_time = datetime.now()
             session['end_time'] = end_time.isoformat()
             
             self._write_session_summary(session, end_time)
             
-            # Remove from active sessions
             del self.active_sessions[session_id]
     
-    def _write_session_header(self, filepath: str, session_data: dict):
-        """
-        Write session metadata header to log file
-        
-        Args:
-            filepath: Path to log file
-            session_data: Session metadata
-        """
+    def _write_session_header(self, filepath: str, session_data: dict) -> None:
+        """Write session metadata header to the log file."""
         header = f"""{'🛡️' * 20}
 🔐 SECURITY SESSION LOG
 {'🛡️' * 20}
@@ -288,14 +199,8 @@ class SecuritySessionLogger:
         except Exception as e:
             logging.error(f"Failed to create security log file: {e}")
     
-    def _write_session_summary(self, session: dict, end_time: datetime):
-        """
-        Write session summary with categorized events
-        
-        Args:
-            session: Session data
-            end_time: Session end time
-        """
+    def _write_session_summary(self, session: dict, end_time: datetime) -> None:
+        """Write session summary with categorized events."""
         summary = f"""
 
 {'🏁' * 20}
@@ -312,7 +217,6 @@ class SecuritySessionLogger:
 
 """
         
-        # Add categorized events summary
         for level in SecurityLevel:
             events = session['events'][level.value]
             config = self.level_config[level]
@@ -322,7 +226,7 @@ class SecuritySessionLogger:
 {config['section_emoji']} {config['header']} ({len(events)} events)
 {'─' * 50}
 """
-                for event in events[-5:]:  # Show last 5 events of each level
+                for event in events[-5:]:  # last 5 events of each level
                     summary += f"{config['emoji']} [{event['timestamp']}] {event['type']}: {event['message']}\n"
                 
                 if len(events) > 5:
@@ -342,15 +246,7 @@ END OF SECURITY LOG
             logging.error(f"Failed to write security summary: {e}")
     
     def _get_event_emoji(self, event_type: str) -> str:
-        """
-        Get emoji for event type
-        
-        Args:
-            event_type: Type of security event
-            
-        Returns:
-            str: Appropriate emoji
-        """
+        """Get an emoji representing a given security event type."""
         emoji_map = {
             'script_validation': '🔍',
             'file_upload': '📤',
@@ -368,16 +264,8 @@ END OF SECURITY LOG
         }
         return emoji_map.get(event_type.lower(), '🔒')
     
-    def get_session_stats(self, session_id: str) -> Dict:
-        """
-        Get statistics for a session
-        
-        Args:
-            session_id: Session identifier
-            
-        Returns:
-            Dict: Session statistics
-        """
+    def get_session_stats(self, session_id: str) -> Dict[str, Any]:
+        """Get high-level statistics for a session."""
         if session_id not in self.active_sessions:
             return {}
         
@@ -392,13 +280,8 @@ END OF SECURITY LOG
         
         return stats
     
-    def cleanup_old_logs(self, days_to_keep: int = 30):
-        """
-        Clean up old security log files
-        
-        Args:
-            days_to_keep: Number of days to keep logs
-        """
+    def cleanup_old_logs(self, days_to_keep: int = 30) -> None:
+        """Remove security log files older than the provided number of days."""
         try:
             cutoff_time = datetime.now().timestamp() - (days_to_keep * 24 * 60 * 60)
             

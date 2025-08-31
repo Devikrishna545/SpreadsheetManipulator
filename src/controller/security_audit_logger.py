@@ -1,22 +1,13 @@
-"""
-Security Audit Logger module
---------------------------
-Comprehensive security logging and monitoring for the finance application
-"""
+"""Comprehensive security logging and monitoring utilities."""
 
-import os
-import json
-import time
-import logging
-import threading
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
 from enum import Enum
-import hashlib
+from datetime import datetime
+from typing import Any, Dict, List
 from collections import defaultdict, deque
+import hashlib, json, logging, os, threading, time
 
 class SecurityEventType(Enum):
-    """Types of security events"""
+    """Types of security events."""
     LOGIN_ATTEMPT = "login_attempt"
     SESSION_CREATED = "session_created"
     SESSION_EXPIRED = "session_expired"
@@ -37,52 +28,37 @@ class SecurityEventType(Enum):
     SYSTEM_ERROR = "system_error"
 
 class SecuritySeverity(Enum):
-    """Security event severity levels"""
+    """Security event severity levels."""
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
 class SecurityAuditLogger:
-    """
-    Comprehensive security audit logger
-    """
+    """Comprehensive security audit logger."""
     
     def __init__(self, log_directory: str = "logs", max_log_size: int = 10 * 1024 * 1024):
-        """
-        Initialize the security audit logger
-        
-        Args:
-            log_directory: Directory to store log files
-            max_log_size: Maximum size for log files before rotation
-        """
+        """Initialize the security audit logger."""
         self.log_directory = log_directory
         self.max_log_size = max_log_size
         
-        # Create log directory
         os.makedirs(log_directory, exist_ok=True)
         
-        # Initialize loggers
         self._setup_loggers()
         
-        # Event tracking
         self.event_counts = defaultdict(int)
         self.event_history = defaultdict(deque)
         self.alert_thresholds = self._get_alert_thresholds()
         
-        # Thread lock for concurrent access
         self.lock = threading.Lock()
         
-        # Cache for IP geolocation (if available)
         self.ip_cache = {}
         
-        # Alert notifications queue
         self.pending_alerts = deque()
 
     def _setup_loggers(self):
-        """Setup different types of loggers"""
+        """Setup file-based loggers for events, access, and threats."""
         
-        # Security events logger
         self.security_logger = logging.getLogger("security_events")
         self.security_logger.setLevel(logging.INFO)
         
@@ -95,7 +71,6 @@ class SecurityAuditLogger:
         security_handler.setFormatter(security_formatter)
         self.security_logger.addHandler(security_handler)
         
-        # Access logger
         self.access_logger = logging.getLogger("access_log")
         self.access_logger.setLevel(logging.INFO)
         
@@ -108,7 +83,6 @@ class SecurityAuditLogger:
         access_handler.setFormatter(access_formatter)
         self.access_logger.addHandler(access_handler)
         
-        # Threat intelligence logger
         self.threat_logger = logging.getLogger("threat_intelligence")
         self.threat_logger.setLevel(logging.WARNING)
         
@@ -122,7 +96,7 @@ class SecurityAuditLogger:
         self.threat_logger.addHandler(threat_handler)
 
     def _get_alert_thresholds(self) -> Dict[SecurityEventType, Dict[str, int]]:
-        """Get alert thresholds for different event types"""
+        """Get alert thresholds for different event types."""
         return {
             SecurityEventType.RATE_LIMIT_EXCEEDED: {"count": 5, "window": 300},
             SecurityEventType.SUSPICIOUS_REQUEST: {"count": 3, "window": 300},
@@ -146,24 +120,11 @@ class SecurityAuditLogger:
         details: Dict[str, Any] = None,
         additional_context: Dict[str, Any] = None
     ):
-        """
-        Log a security event
-        
-        Args:
-            event_type: Type of security event
-            severity: Severity level
-            client_ip: Client IP address
-            user_agent: User agent string
-            request_path: Request path
-            session_id: Session ID (if available)
-            details: Event-specific details
-            additional_context: Additional context information
-        """
+        """Log a security event with context and severity."""
         
         with self.lock:
             timestamp = time.time()
             
-            # Create event data
             event_data = {
                 "timestamp": timestamp,
                 "datetime": datetime.fromtimestamp(timestamp).isoformat(),
@@ -177,14 +138,11 @@ class SecurityAuditLogger:
                 "additional_context": additional_context or {}
             }
             
-            # Add IP geolocation if available
             event_data["ip_info"] = self._get_ip_info(client_ip)
             
-            # Generate event hash for deduplication
             event_hash = self._generate_event_hash(event_data)
             event_data["event_hash"] = event_hash
             
-            # Log the event
             log_message = self._format_log_message(event_data)
             
             if severity in [SecuritySeverity.HIGH, SecuritySeverity.CRITICAL]:
@@ -192,10 +150,8 @@ class SecurityAuditLogger:
             else:
                 self.security_logger.info(log_message)
             
-            # Track event for alerting
             self._track_event_for_alerting(event_type, client_ip, timestamp)
             
-            # Check if alert should be triggered
             self._check_alert_conditions(event_type, client_ip, severity)
 
     def log_access(
@@ -210,9 +166,7 @@ class SecurityAuditLogger:
         request_size: int = 0,
         response_size: int = 0
     ):
-        """
-        Log access/request information
-        """
+        """Log access/request information."""
         
         access_data = {
             "timestamp": time.time(),
@@ -239,9 +193,7 @@ class SecurityAuditLogger:
         validation_result: Dict[str, Any],
         session_id: str = ""
     ):
-        """
-        Log file upload events
-        """
+        """Log file upload events."""
         
         severity = SecuritySeverity.MEDIUM if validation_result.get('is_valid', True) else SecuritySeverity.HIGH
         
@@ -269,9 +221,7 @@ class SecurityAuditLogger:
         execution_time: float,
         session_id: str = ""
     ):
-        """
-        Log script execution events
-        """
+        """Log script execution events."""
         
         details = {
             "script_hash": script_hash,
@@ -296,9 +246,7 @@ class SecurityAuditLogger:
         rejection_reason: str,
         session_id: str = ""
     ):
-        """
-        Log script rejection events
-        """
+        """Log script rejection events."""
         
         details = {
             "script_hash": script_hash,
@@ -321,11 +269,8 @@ class SecurityAuditLogger:
         user_agent: str = "",
         session_id: str = ""
     ):
-        """
-        Log suspicious activity
-        """
+        """Log suspicious activity."""
         
-        # Determine event type based on activity
         event_type_mapping = {
             "xss": SecurityEventType.XSS_ATTEMPT,
             "sql_injection": SecurityEventType.SQL_INJECTION_ATTEMPT,
@@ -351,15 +296,11 @@ class SecurityAuditLogger:
         )
 
     def _get_ip_info(self, ip: str) -> Dict[str, Any]:
-        """
-        Get IP information (geolocation, ASN, etc.)
-        This is a placeholder - you can integrate with services like MaxMind GeoIP
-        """
+        """Get basic IP information (placeholder for GeoIP integration)."""
         
         if ip in self.ip_cache:
             return self.ip_cache[ip]
         
-        # Basic IP classification
         ip_info = {
             "ip": ip,
             "is_private": self._is_private_ip(ip),
@@ -369,12 +310,9 @@ class SecurityAuditLogger:
             "organization": "unknown"
         }
         
-        # Cache the result
         self.ip_cache[ip] = ip_info
         
-        # Limit cache size
         if len(self.ip_cache) > 10000:
-            # Remove oldest entries
             keys_to_remove = list(self.ip_cache.keys())[:1000]
             for key in keys_to_remove:
                 del self.ip_cache[key]
@@ -382,33 +320,30 @@ class SecurityAuditLogger:
         return ip_info
 
     def _is_private_ip(self, ip: str) -> bool:
-        """Check if IP is in private ranges"""
+        """Check if IP is in private ranges."""
         try:
             import ipaddress
             ip_obj = ipaddress.ip_address(ip)
             return ip_obj.is_private
-        except:
+        except Exception:
             return False
 
     def _generate_event_hash(self, event_data: Dict[str, Any]) -> str:
-        """Generate a hash for event deduplication"""
-        # Create a string representation for hashing
+        """Generate a short hash for event deduplication."""
         hash_data = f"{event_data['event_type']}{event_data['client_ip']}{event_data.get('details', {})}"
         return hashlib.sha256(hash_data.encode()).hexdigest()[:16]
 
     def _format_log_message(self, event_data: Dict[str, Any]) -> str:
-        """Format log message"""
+        """Format log message as compact JSON string."""
         return json.dumps(event_data, separators=(',', ':'))
 
     def _track_event_for_alerting(self, event_type: SecurityEventType, client_ip: str, timestamp: float):
-        """Track events for alerting purposes"""
+        """Track events for alerting purposes."""
         
         key = f"{event_type.value}:{client_ip}"
         
-        # Add to event history
         self.event_history[key].append(timestamp)
         
-        # Keep only recent events
         threshold_config = self.alert_thresholds.get(event_type, {"window": 300})
         window = threshold_config["window"]
         cutoff_time = timestamp - window
@@ -417,7 +352,7 @@ class SecurityAuditLogger:
             self.event_history[key].popleft()
 
     def _check_alert_conditions(self, event_type: SecurityEventType, client_ip: str, severity: SecuritySeverity):
-        """Check if alert conditions are met"""
+        """Check if alert conditions are met."""
         
         if event_type not in self.alert_thresholds:
             return
@@ -432,7 +367,7 @@ class SecurityAuditLogger:
             self._generate_alert(event_type, client_ip, event_count, severity)
 
     def _generate_alert(self, event_type: SecurityEventType, client_ip: str, event_count: int, severity: SecuritySeverity):
-        """Generate a security alert"""
+        """Generate a security alert."""
         
         alert = {
             "timestamp": time.time(),
@@ -446,19 +381,10 @@ class SecurityAuditLogger:
         
         self.pending_alerts.append(alert)
         
-        # Log the alert
         self.threat_logger.critical(f"ALERT: {alert['message']}")
 
     def get_security_summary(self, hours: int = 24) -> Dict[str, Any]:
-        """
-        Get security summary for the specified time period
-        
-        Args:
-            hours: Number of hours to analyze
-            
-        Returns:
-            Security summary statistics
-        """
+        """Get a simplified security summary over the last N hours."""
         
         cutoff_time = time.time() - (hours * 3600)
         
@@ -470,13 +396,10 @@ class SecurityAuditLogger:
             "severity_distribution": defaultdict(int)
         }
         
-        # This is a simplified implementation
-        # In a real scenario, you'd parse log files or query a database
-        
         return summary
 
     def get_pending_alerts(self) -> List[Dict[str, Any]]:
-        """Get and clear pending alerts"""
+        """Get and clear pending alerts."""
         
         with self.lock:
             alerts = list(self.pending_alerts)
@@ -484,7 +407,7 @@ class SecurityAuditLogger:
             return alerts
 
     def cleanup_old_logs(self, days: int = 30):
-        """Clean up log files older than specified days"""
+        """Clean up log files older than specified days."""
         
         cutoff_time = time.time() - (days * 24 * 3600)
         

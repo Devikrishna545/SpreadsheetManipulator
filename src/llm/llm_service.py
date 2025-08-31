@@ -1,22 +1,14 @@
-"""
-Gemini LLM Service module
------------------
-Handles interactions with the Google Gemini API to generate Python scripts
-"""
-import os
-import json
-import re
+"""Gemini LLM Service for generating Python scripts via Google Gemini API"""
+
+import pandas as pd
 from typing import Dict, Any
+import os, json, re, datetime
 import google.generativeai as genai
-from dotenv import load_dotenv
+
 from src.llm.token_manager import token_manager
 
 def _serialize_for_json(obj):
-    """
-    Recursively convert datetime, pd.Timestamp, and similar objects to strings for JSON serialization.
-    """
-    import datetime
-    import pandas as pd
+    """Recursively convert datetime objects to strings for JSON serialization."""
     if isinstance(obj, dict):
         return {k: _serialize_for_json(v) for k, v in obj.items()}
     elif isinstance(obj, list):
@@ -27,75 +19,40 @@ def _serialize_for_json(obj):
         return obj
 
 class LLMService:
-    """
-    Service for interacting with Google Gemini API
-    """
+    """Service for interacting with Google Gemini API"""
+    
     def __init__(self):
         self.api_key = os.getenv('GEMINI_API_KEY')
-        self.model = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash-thinking-exp-01-21')  # Use thinking model
+        self.model = os.getenv('GEMINI_MODEL', 'gemini-2.5-pro')
         
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
         
-        # Configure the Gemini API
         genai.configure(api_key=self.api_key)
         
-        # Set up the model configuration for thinking and code execution
         self.generation_config = {
-            "temperature": 0.1,  # Lower temperature for more consistent code generation
+            "temperature": 0.1,
             "top_p": 0.95,
             "top_k": 32,
             "max_output_tokens": 64000,
         }
         
         self.safety_settings = [
-            {
-                "category": "HARM_CATEGORY_HARASSMENT",
-                "threshold": "BLOCK_NONE"
-            },
-            {
-                "category": "HARM_CATEGORY_HATE_SPEECH",
-                "threshold": "BLOCK_NONE"
-            },
-            {
-                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_NONE"
-            },
-            {
-                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                "threshold": "BLOCK_NONE"
-            }
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_LOW_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_LOW_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_LOW_AND_ABOVE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_LOW_AND_ABOVE"}
         ]
 
     def generate_script(self, spreadsheet_data: Dict[str, Any], command: str, use_advanced_processing: bool = False) -> str:
-        """
-        Generate script using appropriate processing mode based on complexity
-        
-        Args:
-            spreadsheet_data: Spreadsheet data dictionary
-            command: User command text
-            use_advanced_processing: Whether to use thinking and code execution tools
-            
-        Returns:
-            str: Generated Python script
-        """
+        """Generate script using appropriate processing mode based on complexity"""
         if use_advanced_processing:
             return self._generate_complex_script(spreadsheet_data, command)
         else:
             return self._generate_simple_script(spreadsheet_data, command)
 
     def generate_script_with_error_feedback(self, spreadsheet_data: Dict[str, Any], command: str, error_feedback: str, use_advanced_processing: bool = False) -> str:
-        """Generate a script but include execution error feedback to steer Gemini.
-
-        Args:
-            spreadsheet_data: Spreadsheet data dict (headers, data, metadata)
-            command: Original user command
-            error_feedback: Error text from the last failed execution/correction cycle
-            use_advanced_processing: Whether to use thinking/code-exec path
-
-        Returns:
-            str: Generated Python script incorporating feedback
-        """
+        """Generate a script including execution error feedback to steer Gemini."""
         try:
             data_obj = spreadsheet_data
             headers = data_obj.get('headers', [])
@@ -131,31 +88,26 @@ class LLMService:
         """Generate script using regular Gemini model for simple commands"""
         max_attempts = 5
         last_error_msg = None
+        
         for attempt in range(max_attempts):
             try:
-                # Extract data from spreadsheet_data
                 data_obj = spreadsheet_data 
                 headers = data_obj.get('headers', [])
                 metadata = data_obj.get('metadata', {})
                 data_sample = data_obj.get('data', [])[:5]
-                # Serialize all data for JSON
+                
                 headers_serialized = _serialize_for_json(headers)
                 metadata_serialized = _serialize_for_json(metadata)
                 data_sample_serialized = _serialize_for_json(data_sample)
                 
-                # Process the command to handle cell references if present
                 processed_command = self._process_cell_references(command)
                 
-                # Pass error message to prompt if previous attempt failed
                 code_prompt = self._create_simple_prompt(
-                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command,
-                    last_error_msg
+                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command, last_error_msg
                 )
                 final_script = self._call_gemini_simple_api(code_prompt)
                 
-                # Print token summary for this command
                 self.print_final_token_summary()
-                
                 return final_script
                 
             except Exception as e:
@@ -163,7 +115,6 @@ class LLMService:
                 last_error_msg = error_msg
                 
                 if attempt == max_attempts - 1:
-                    # Print token summary even for failed attempts
                     self.print_final_token_summary()
                     return self.handle_api_error(Exception(f"Failed to generate working script after {max_attempts} attempts. Last error: {error_msg}"))
         
@@ -173,40 +124,32 @@ class LLMService:
         """Generate script using thinking and code execution for complex transformations"""
         max_attempts = 5
         last_error_msg = None
+        
         for attempt in range(max_attempts):
             try:
-                # Extract data from spreadsheet_data
                 data_obj = spreadsheet_data 
                 headers = data_obj.get('headers', [])
                 metadata = data_obj.get('metadata', {})
                 data_sample = data_obj.get('data', [])[:5]
-                # Serialize all data for JSON
+                
                 headers_serialized = _serialize_for_json(headers)
                 metadata_serialized = _serialize_for_json(metadata)
                 data_sample_serialized = _serialize_for_json(data_sample)
                 
-                # Process the command to handle cell references if present
                 processed_command = self._process_cell_references(command)
                 
-                # Step 1: Use thinking mode to analyze and plan
                 thinking_prompt = self._create_thinking_prompt(
-                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command,
-                    last_error_msg
+                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command, last_error_msg
                 )
                 thinking_response = self._call_gemini_thinking_api(thinking_prompt)
                 
-                # Step 2: Generate code with execution
                 code_prompt = self._create_code_generation_prompt(
-                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command, thinking_response,
-                    last_error_msg
+                    headers_serialized, metadata_serialized, data_sample_serialized, processed_command, thinking_response, last_error_msg
                 )
                 final_script = self._call_gemini_code_execution_api(code_prompt, headers_serialized, data_sample_serialized)
                 
                 print("✓ Complex script generated successfully")
-                
-                # Print token summary for this command
                 self.print_final_token_summary()
-                
                 return final_script
                 
             except Exception as e:
@@ -216,7 +159,6 @@ class LLMService:
                 
                 if attempt == max_attempts - 1:
                     print(f"\nALL {max_attempts} COMPLEX ATTEMPTS FAILED")
-                    # Print token summary even for failed attempts
                     self.print_final_token_summary()
                     return self.handle_api_error(Exception(f"Failed to generate working script after {max_attempts} attempts. Last error: {error_msg}"))
                 
@@ -240,12 +182,14 @@ Sample data (first few rows): {json.dumps(data_sample)}
 """
         if last_error_msg:
             prompt += f"\n<previous_error>\nThe previous attempt failed with this error:\n{last_error_msg}\n</previous_error>\n"
+        
         prompt += """
 <task>
 Write a Python script that modifies the Pandas DataFrame named 'df' according to the user's command.
 The script should handle edge cases and error conditions gracefully.
 DO NOT import modules other than pandas and numpy, which are already imported.
 </task>
+
 <instructions>
 1. The DataFrame is already loaded and available as 'df'
 2. Your modifications should be made directly to 'df'
@@ -298,6 +242,7 @@ Sample data (first few rows): {json.dumps(data_sample)}
 """
         if last_error_msg:
             prompt += f"\n<previous_error>\nThe previous attempt failed with this error:\n{last_error_msg}\n</previous_error>\n"
+        
         prompt += """
 Think through this problem step by step:
 
@@ -368,8 +313,7 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
     def _call_gemini_simple_api(self, prompt: str) -> str:
         """Call the simple Gemini API for code generation"""
         try:
-            # Use regular model for simple code generation
-            model_name = "gemini-2.5-flash-lite-preview-06-17"
+            model_name = "gemini-2.5-pro"
             model = genai.GenerativeModel(
                 model_name=model_name,
                 generation_config=genai.types.GenerationConfig(**self.generation_config),
@@ -395,84 +339,48 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
             raise Exception(f"Gemini simple API failed: {error_msg}")
 
     def get_last_token_usage(self):
-        """
-        Get the last Gemini token usage stats.
-        Returns:
-            dict or None
-        """
+        """Get the last Gemini token usage stats."""
         return token_manager.get_token_usage()
 
     def print_final_token_summary(self):
-        """
-        Print final token summary - delegates to token_manager for compatibility
-        """
+        """Print final token summary - delegates to token_manager for compatibility"""
         token_manager.print_token_usage()
 
     def get_total_token_usage(self):
-        """
-        Get total token usage stats - delegates to token_manager
-        """
+        """Get total token usage stats - delegates to token_manager"""
         return token_manager.get_total_token_usage()
 
     def reset_token_usage(self):
-        """
-        Reset token usage counters - delegates to token_manager
-        """
+        """Reset token usage counters - delegates to token_manager"""
         token_manager.reset_token_usage()
 
     def _process_cell_references(self, command: str) -> str:
-        """
-        Process cell references in the command text to ensure proper mapping
-        between frontend display (Excel-style) and backend DataFrame indices.
-        
-        IMPORTANT: Every visible row in the grid is treated as a normal row.
-        Row 1 is always the first visible row in the grid, even if it contains headers.
-        
-        Frontend shows: Row 1, 2, 3... (user visible, starting with first visible row)
-        Backend uses:   Index 0, 1, 2... (DataFrame indices)
-        
-        Args:
-            command: The original command text
-            
-        Returns:
-            str: Processed command with cell references handled
-        """
+        """Process cell references in the command text to ensure proper mapping between frontend display and backend DataFrame indices."""
         import re
         
         processed_command = command
         
-        # Handle row references like "row #1", "rows #1", "row #2", etc.
-        # Convert user-visible row numbers to DataFrame indices (subtract 1)
         def replace_row_ref(match):
             row_num = int(match.group(1))
-            # Simple 1-based to 0-based conversion (row #N → index N-1)
-            # No special handling for header rows - every visible row counts
-            df_index = row_num - 1  # Convert to 0-based index
+            df_index = row_num - 1
             return f"row index {df_index}"
         
-        # Pattern to match "row #N" or "rows #N"
         processed_command = re.sub(r'rows?\s*#(\d+)', replace_row_ref, processed_command, flags=re.IGNORECASE)
         
-        # Handle range references like "rows #1 and #2", "rows #1-#3"
         def replace_row_range(match):
             start_row = int(match.group(1))
             end_row = int(match.group(2))
-            # Direct 1-based to 0-based conversion
             start_index = start_row - 1
             end_index = end_row - 1
             return f"row indices {start_index} to {end_index}"
         
-        # Pattern to match "rows #N and #M" or "rows #N-#M"
         processed_command = re.sub(r'rows?\s*#(\d+)\s+(?:and|to|-)\s*#(\d+)', replace_row_range, processed_command, flags=re.IGNORECASE)
         
-        # Handle multiple rows like "rows #1, #2 and #3"
         def replace_multiple_rows(match):
             row_nums = re.findall(r'#(\d+)', match.group(0))
-            # Direct 1-based to 0-based conversion for all row numbers
             indices = [str(int(num) - 1) for num in row_nums]
             return f"row indices {', '.join(indices)}"
         
-        # Pattern to match multiple row references with commas
         processed_command = re.sub(r'rows?\s*(?:#\d+[,\s]*)+(?:and\s*)?#\d+', replace_multiple_rows, processed_command, flags=re.IGNORECASE)
         
         print(f"🔧 [LLM] Cell reference processing:")
@@ -484,8 +392,7 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
 
     def _call_gemini_thinking_api(self, prompt: str) -> str:
         try:
-            # Use thinking model for analysis
-            model_name = "gemini-2.5-flash-lite-preview-06-17"
+            model_name = "gemini-2.5-pro"
             model = genai.GenerativeModel(
                 model_name=model_name,
                 generation_config=genai.types.GenerationConfig(**self.generation_config),
@@ -495,27 +402,23 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
             response = model.generate_content(prompt)
             token_manager.extract_token_usage(response, prompt, model_name)
             
-            # Try to get .text if available and non-empty
             if hasattr(response, 'text') and response.text and response.text.strip():
                 return response.text
 
-            # If .text is missing or empty, check candidates and their finish_reason
             if hasattr(response, 'candidates') and response.candidates:
                 candidate = response.candidates[0]
-                # finish_reason == 2 means STOP (see docs)
                 finish_reason = getattr(candidate, 'finish_reason', None)
-                # Try to extract text from candidate parts
+                
                 if hasattr(candidate, 'content') and getattr(candidate.content, 'parts', None):
                     parts = candidate.content.parts
-                    # Concatenate all text parts if present
                     text_parts = [getattr(part, 'text', '') for part in parts if hasattr(part, 'text')]
                     combined = "\n".join([t for t in text_parts if t.strip()])
                     if combined.strip():
                         return combined.strip()
-                # If finish_reason is 2 (STOP) and no text, return a safe message
+                
                 if finish_reason == 2:
                     return "(No thinking response generated: Gemini returned STOP with no content.)"
-                # Otherwise, return a generic message
+                
                 return "(No thinking response generated: Gemini returned no usable content.)"
 
             return "(No thinking response generated: Gemini returned no candidates.)"
@@ -525,14 +428,12 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
 
     def _call_gemini_code_execution_api(self, prompt: str, headers: list, data_sample: list) -> str:
         try:
-            # Create model WITHOUT explicit tools parameter (let Gemini auto-enable code execution)
             model = genai.GenerativeModel(
-                model_name="gemini-2.5-flash-lite-preview-06-17",
+                model_name="gemini-2.5-pro",
                 generation_config=genai.types.GenerationConfig(**self.generation_config),
                 safety_settings=self.safety_settings
             )
             
-            # Enhanced prompt for code execution
             execution_prompt = f"""{prompt}
 
 Before providing the final code, please:
@@ -548,20 +449,18 @@ Sample data: {json.dumps(data_sample)}
 Use code execution to verify your solution works before providing the final answer."""
             
             response = model.generate_content(execution_prompt)
-            token_manager.extract_token_usage(response, execution_prompt, "gemini-2.5-flash-lite-preview-06-17")
+            token_manager.extract_token_usage(response, execution_prompt, "gemini-2.5-pro")
             
-            # Extract the final script
             if hasattr(response, 'text') and response.text and response.text.strip():
                 script = self._extract_script(response.text)
                 return script
             elif hasattr(response, 'candidates') and response.candidates:
                 candidate = response.candidates[0]
                 if hasattr(candidate, 'content') and getattr(candidate.content, 'parts', None):
-                    # Look for text parts that contain the final code
                     for part in candidate.content.parts:
                         if hasattr(part, 'text') and part.text.strip():
                             script = self._extract_script(part.text)
-                            if script and 'df' in script:  # Basic validation
+                            if script and 'df' in script:
                                 return script
             
             raise Exception("No valid code generated from code execution API")
@@ -571,26 +470,21 @@ Use code execution to verify your solution works before providing the final answ
             raise Exception(f"Gemini code execution API failed: {error_msg}")
 
     def _extract_script(self, response: str) -> str:
-        # Look for code blocks first
         code_block_pattern = r'```(?:python)?\s*([\s\S]*?)\s*```'
         matches = re.findall(code_block_pattern, response)
         if matches:
-            # Return the last code block (most likely the final solution)
             return matches[-1].strip()
         
-        # If no code blocks, look for lines that seem like Python code
         lines = response.split('\n')
         code_lines = []
         in_code_section = False
         
         for line in lines:
             stripped = line.strip()
-            # Start collecting if we see DataFrame operations
             if any(keyword in stripped for keyword in ['df[', 'df.', 'pd.', 'np.']):
                 in_code_section = True
             
             if in_code_section:
-                # Stop if we hit explanatory text
                 if stripped and not (
                     stripped.startswith('#') or 
                     any(keyword in stripped for keyword in ['df', 'pd', 'np', '=', 'import', 'print']) or
@@ -606,8 +500,6 @@ Use code execution to verify your solution works before providing the final answ
 
     def handle_api_error(self, error: Exception) -> str:
         error_message = str(error)
-        
-        # Escape quotes and special characters in error message to prevent syntax errors
         safe_error_msg = error_message.replace('"', '\\"').replace("'", "\\'").replace('\n', '\\n')
         
         script = f"""# Error occurred in LLM API: {safe_error_msg}
@@ -618,39 +510,21 @@ df['LLM_ERROR'] = "Script generation failed. Please try a different command."
         return script.strip()
 
     def generate_universal_algorithm(self, action_plan: str, left_data: list, right_data: list) -> str:
-        """
-        Generate a universal algorithm from an action plan using thinking mode
-        
-        Args:
-            action_plan: The action plan describing changes made
-            left_data: The left spreadsheet data (FULL dataset)
-            right_data: The right spreadsheet data (sample/template)
-            
-        Returns:
-            str: Generated Python script implementing the universal algorithm
-        """
+        """Generate a universal algorithm from an action plan using thinking mode"""
         max_attempts = 5
         last_error_msg = None
 
-        # Use limited sample for analysis to avoid token limits, but make algorithm work on ALL data
-        # CRITICAL: Sample is only for understanding pattern, algorithm must work on ENTIRE dataset
-        MAX_SAMPLE_ROWS = 25  # Increased for better pattern understanding
+        MAX_SAMPLE_ROWS = 25
         MAX_RIGHT_SAMPLE = min(len(right_data), MAX_SAMPLE_ROWS) if right_data else 0
-        
-        # For left data, use more rows for better pattern analysis but still limit for tokens
-        MAX_LEFT_SAMPLE = min(len(left_data), 50) if left_data else 0  # Increased from 20 to 50
+        MAX_LEFT_SAMPLE = min(len(left_data), 50) if left_data else 0
         
         left_sample = left_data[:MAX_LEFT_SAMPLE] if left_data and len(left_data) > 0 else []
         right_sample = right_data[:MAX_RIGHT_SAMPLE] if right_data and len(right_data) > 0 else []
 
-        # Extract headers and full dataset info for code execution
         headers = left_data[0] if left_data and len(left_data) > 0 else []
-        
-        # For code execution, use a representative sample but include full dataset info
-        data_rows = left_data[1:min(31, len(left_data))] if left_data and len(left_data) > 1 else []  # Use up to 30 data rows
+        data_rows = left_data[1:min(31, len(left_data))] if left_data and len(left_data) > 1 else []
         data_sample_for_exec = [dict(zip(headers, row)) for row in data_rows]
         
-        # Store full dataset size information - THIS IS CRITICAL
         full_left_rows = len(left_data)
         full_left_cols = len(left_data[0]) if left_data and len(left_data) > 0 else 0
         
@@ -660,13 +534,11 @@ df['LLM_ERROR'] = "Script generation failed. Please try a different command."
                 print(f"GEMINI UNIVERSAL ALGORITHM GENERATION - ATTEMPT {attempt + 1}")
                 print(f"{'='*60}")
                 
-                # Step 1: Use thinking mode to analyze the action plan
                 thinking_prompt = self._create_algorithm_thinking_prompt(
                     action_plan, left_sample, right_sample, full_left_rows, full_left_cols, last_error_msg
                 )
                 thinking_response = self._call_gemini_thinking_api(thinking_prompt)
                 
-                # Step 2: Generate the universal algorithm
                 algorithm_prompt = self._create_algorithm_generation_prompt(
                     action_plan, left_sample, right_sample, full_left_rows, full_left_cols, thinking_response, last_error_msg
                 )
@@ -674,15 +546,12 @@ df['LLM_ERROR'] = "Script generation failed. Please try a different command."
                 
                 print("✓ Universal algorithm generated successfully")
                 
-                # Validate the algorithm for full dataset processing
                 validation_warnings = self._validate_algorithm_for_full_dataset_processing(final_script, full_left_rows)
                 if validation_warnings:
                     print("⚠️  ALGORITHM VALIDATION WARNINGS:")
                     print(validation_warnings)
                 
-                # Print token summary for universal algorithm generation
                 self.print_final_token_summary()
-                
                 return final_script
                 
             except Exception as e:
@@ -795,16 +664,7 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
         return prompt
 
     def _validate_algorithm_for_full_dataset_processing(self, algorithm_script: str, full_rows: int) -> str:
-        """
-        Validate that the algorithm doesn't contain patterns that would limit data processing
-        
-        Args:
-            algorithm_script: The generated algorithm script
-            full_rows: Number of rows in the full dataset
-            
-        Returns:
-            str: Warning message if issues found, empty string if no issues
-        """
+        """Validate that the algorithm doesn't contain patterns that would limit data processing"""
         warning_patterns = [
             ("df.head(", "df.head() only processes the first few rows"),
             ("df.iloc[:30", f"df.iloc[:30] only processes first 30 rows, but dataset has {full_rows} rows"),
@@ -826,45 +686,24 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
         return ""
 
     def generate_universal_algorithm_with_error_feedback(self, action_plan: str, left_data: list, right_data: list, error_feedback: str = None) -> str:
-        """
-        Generate a universal algorithm with optional error feedback for retry scenarios
-        
-        Args:
-            action_plan: The action plan describing changes made
-            left_data: The left spreadsheet data (FULL dataset)
-            right_data: The right spreadsheet data (sample/template)
-            error_feedback: Error message from previous attempt (if any)
-            
-        Returns:
-            str: Generated Python script implementing the universal algorithm
-        """
-        # If no error feedback, use the regular method
+        """Generate a universal algorithm with optional error feedback for retry scenarios"""
         if error_feedback is None:
             return self.generate_universal_algorithm(action_plan, left_data, right_data)
         
-        # Generate algorithm with error feedback
-        max_attempts = 5  # Increased for better error recovery
+        max_attempts = 5
         last_error_msg = error_feedback
 
-        # Use limited sample for analysis to avoid token limits, but make algorithm work on ALL data
-        # CRITICAL: Sample is only for understanding pattern, algorithm must work on ENTIRE dataset
-        MAX_SAMPLE_ROWS = 25  # Increased for better pattern understanding
+        MAX_SAMPLE_ROWS = 25
         MAX_RIGHT_SAMPLE = min(len(right_data), MAX_SAMPLE_ROWS) if right_data else 0
-        
-        # For left data, use more rows for better pattern analysis but still limit for tokens
-        MAX_LEFT_SAMPLE = min(len(left_data), 50) if left_data else 0  # Increased from 20 to 50
+        MAX_LEFT_SAMPLE = min(len(left_data), 50) if left_data else 0
         
         left_sample = left_data[:MAX_LEFT_SAMPLE] if left_data and len(left_data) > 0 else []
         right_sample = right_data[:MAX_RIGHT_SAMPLE] if right_data and len(right_data) > 0 else []
 
-        # Extract headers and full dataset info for code execution
         headers = left_data[0] if left_data and len(left_data) > 0 else []
-        
-        # For code execution, use a representative sample but include full dataset info
-        data_rows = left_data[1:min(31, len(left_data))] if left_data and len(left_data) > 1 else []  # Use up to 30 data rows
+        data_rows = left_data[1:min(31, len(left_data))] if left_data and len(left_data) > 1 else []
         data_sample_for_exec = [dict(zip(headers, row)) for row in data_rows]
         
-        # Store full dataset size information - THIS IS CRITICAL
         full_left_rows = len(left_data)
         full_left_cols = len(left_data[0]) if left_data and len(left_data) > 0 else 0
         
@@ -986,35 +825,20 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
         return prompt
 
     def generate_universal_algorithm_with_auto_retry(self, action_plan: str, left_data: list, right_data: list, max_retries: int = 5) -> str:
-        """
-        Generate a universal algorithm with automatic retry on execution errors
-        
-        Args:
-            action_plan: The action plan describing changes made
-            left_data: The left spreadsheet data (FULL dataset)
-            right_data: The right spreadsheet data (sample/template)
-            max_retries: Maximum number of retries on execution errors
-            
-        Returns:
-            str: Generated Python script implementing the universal algorithm
-        """
+        """Generate a universal algorithm with automatic retry on execution errors"""
         last_error_msg = None
         
         for retry_attempt in range(max_retries):
             try:
                 print(f"🔄 Auto-retry generation attempt {retry_attempt + 1}/{max_retries}")
                 
-                # Generate algorithm (with error feedback if available)
                 if retry_attempt == 0:
-                    # First attempt - use regular generation
                     algorithm_script = self.generate_universal_algorithm(action_plan, left_data, right_data)
                 else:
-                    # Subsequent attempts - use error feedback
                     algorithm_script = self.generate_universal_algorithm_with_error_feedback(
                         action_plan, left_data, right_data, last_error_msg
                     )
                 
-                # Validate the generated algorithm for full dataset processing
                 validation_warnings = self._validate_algorithm_for_full_dataset_processing(algorithm_script, len(left_data))
                 if validation_warnings:
                     print("⚠️  Validation warnings found in generated algorithm:")
@@ -1038,27 +862,16 @@ Generate ONLY the Python code - no explanations or markdown formatting:"""
         return self.handle_api_error(Exception("Unexpected error in universal algorithm generation with auto-retry"))
 
     def generate_script_correction(self, correction_prompt: str) -> str:
-        """
-        Generate a corrected script based on error feedback.
-        
-        Args:
-            correction_prompt: Prompt containing the failing script and error details
-            
-        Returns:
-            str: Corrected Python script
-        """
+        """Generate a corrected script based on error feedback."""
         try:
-            # Use the regular model for script corrections
             model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash-exp",
+                model_name="gemini-2.5-pro",
                 generation_config=self.generation_config,
                 safety_settings=self.safety_settings
             )
             
             response = model.generate_content(correction_prompt)
-            
-            # Track token usage
-            token_manager.extract_token_usage(response, correction_prompt, "gemini-2.0-flash-exp")
+            token_manager.extract_token_usage(response, correction_prompt, "gemini-2.5-pro")
             
             if response.text:
                 return response.text.strip()

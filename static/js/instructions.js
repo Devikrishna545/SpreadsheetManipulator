@@ -1,4 +1,3 @@
-// Instructions page specific interactivity and particles init (ES module)
 import { initParticleBackground } from './particleEffects.js';
 
 function initManualParticles() {
@@ -8,13 +7,10 @@ function initManualParticles() {
     console.warn('Particle system failed to initialize:', e);
   }
 }
-
-// Smooth scrolling for anchor links
 function setupSmoothAnchors() {
   document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
     anchor.addEventListener('click', function (e) {
       const href = this.getAttribute('href');
-      // ignore pure '#'
       if (!href || href === '#') return;
       const target = document.querySelector(href);
       if (target) {
@@ -24,8 +20,6 @@ function setupSmoothAnchors() {
     });
   });
 }
-
-// Intersection observer animations
 function setupSectionAnimations() {
   const observerOptions = { threshold: 0.1, rootMargin: '0px 0px -50px 0px' };
   const observer = new IntersectionObserver((entries) => {
@@ -35,8 +29,6 @@ function setupSectionAnimations() {
   }, observerOptions);
   document.querySelectorAll('.manual-section').forEach((section) => observer.observe(section));
 }
-
-// Demo step highlighting
 function highlightStep(stepNumber) {
   document.querySelectorAll('.demo-step').forEach((step) => {
     step.style.background = 'rgba(0, 191, 255, 0.1)';
@@ -105,7 +97,6 @@ function clearShortcutHighlights() {
 function stepShortcutHighlight() {
   const items = getShortcutItems();
   if (!items.length) return;
-  // Remove previous highlight and apply to current
   clearShortcutHighlights();
   const idx = shortcutCycle.index % items.length;
   items[idx].classList.add('highlight-active');
@@ -116,7 +107,7 @@ function startShortcutHighlight() {
   if (shortcutCycle.running) return;
   shortcutCycle.running = true;
   stepShortcutHighlight();
-  shortcutCycle.timerId = setInterval(stepShortcutHighlight, 1500); // gentle pace
+  shortcutCycle.timerId = setInterval(stepShortcutHighlight, 1500);
 }
 
 function stopShortcutHighlight() {
@@ -129,7 +120,6 @@ function stopShortcutHighlight() {
 }
 
 function setupShortcutHighlightCycle() {
-  // Toggle with Ctrl+H
   document.addEventListener('keydown', function (e) {
     if (e.ctrlKey && e.key.toLowerCase() === 'h') {
       e.preventDefault();
@@ -137,11 +127,8 @@ function setupShortcutHighlightCycle() {
       else startShortcutHighlight();
     }
   });
-  // Auto-start
   startShortcutHighlight();
 }
-
-// Feature card hover lift
 function setupFeatureCardHover() {
   document.querySelectorAll('.feature-card').forEach((card) => {
     card.addEventListener('mouseenter', function () {
@@ -152,8 +139,6 @@ function setupFeatureCardHover() {
     });
   });
 }
-
-// Error card expand/collapse
 function setupErrorCardToggle() {
   document.querySelectorAll('.error-card').forEach((card) => {
     card.addEventListener('click', function () {
@@ -164,10 +149,7 @@ function setupErrorCardToggle() {
     });
   });
 }
-
-// Floating help (bottom-left) and back-to-top (bottom-right)
 function createHelpAndTopButtons() {
-  // Help button - bottom-left
   const helpButton = document.createElement('div');
   helpButton.setAttribute('aria-label', 'Help');
   helpButton.setAttribute('title', 'Help');
@@ -197,7 +179,6 @@ function createHelpAndTopButtons() {
   });
   document.body.appendChild(helpButton);
 
-  // Back-to-top button - bottom-right
   const backToTop = document.createElement('button');
   backToTop.type = 'button';
   backToTop.setAttribute('aria-label', 'Back to top');
@@ -213,40 +194,73 @@ function createHelpAndTopButtons() {
     else { backToTop.style.opacity = '0'; backToTop.style.display = 'none'; }
   });
 }
-
-// Initialize everything when DOM is ready
 window.addEventListener('DOMContentLoaded', function () {
-  // Particles (idle init to avoid main thread contention)
+  initInstructionsSessionLifecycle();
+
   if ('requestIdleCallback' in window) {
     requestIdleCallback(() => initManualParticles(), { timeout: 1500 });
   } else {
     setTimeout(() => initManualParticles(), 0);
   }
-  // Behaviors
   setupSmoothAnchors();
   setupSectionAnimations();
   setupShortcutHighlightCycle();
   setupFeatureCardHover();
   setupErrorCardToggle();
-  // Demo steps clicks
   document.querySelectorAll('.demo-step').forEach((step, index) => {
     step.addEventListener('click', () => highlightStep(index + 1));
   });
-  // Floating buttons
   setTimeout(createHelpAndTopButtons, 500);
 });
 
-// Make scroll listener passive for perf
 (function makeScrollPassive(){
   try {
     const origAdd = window.addEventListener;
-    // attach an extra passive listener for our back-to-top behavior
     window.addEventListener('scroll', () => {}, { passive: true });
   } catch(_) {}
 })();
 
-// Expose functions used inline in HTML (if any)
 window.highlightStep = highlightStep;
 window.showStepInfo = showStepInfo;
 window.showFlowStepInfo = showFlowStepInfo;
 window.closeStepInfo = closeStepInfo;
+let instrHeartbeatTimer = null;
+
+async function initInstructionsSessionLifecycle() {
+  try {
+    const res = await fetch('/api/session/start', { method: 'POST' });
+    if (!res.ok) return;
+    const data = await res.json();
+    window.currentSessionId = data.sessionId;
+
+    fetch('/usermanual', {
+      method: 'GET',
+      headers: { 'X-Session-Id': window.currentSessionId },
+      cache: 'no-store',
+      keepalive: true
+    }).catch(() => {});
+
+    instrHeartbeatTimer = setInterval(() => {
+      if (!window.currentSessionId) return;
+      navigator.sendBeacon('/api/session/heartbeat', new Blob([
+        JSON.stringify({ sessionId: window.currentSessionId })
+      ], { type: 'application/json' }));
+    }, 25000);
+
+    window.addEventListener('beforeunload', endInstructionsSessionLifecycle);
+  } catch (e) {
+    console.warn('Instructions session start failed', e);
+  }
+}
+
+function endInstructionsSessionLifecycle() {
+  if (instrHeartbeatTimer) {
+    clearInterval(instrHeartbeatTimer);
+    instrHeartbeatTimer = null;
+  }
+  if (window.currentSessionId) {
+    navigator.sendBeacon('/api/session/end', new Blob([
+      JSON.stringify({ sessionId: window.currentSessionId })
+    ], { type: 'application/json' }));
+  }
+}

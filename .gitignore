@@ -23,9 +23,9 @@ static/json/*
 !static/json/.gitkeep
 
 # Generated script files
-src/script/*
-!src/script/__init__.py
-!src/script/.gitkeep
+src/scripts/*
+!src/scripts/__init__.py
+!src/scripts/.gitkeep
 
 # Virtual environment
 venv/

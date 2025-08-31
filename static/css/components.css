@@ -1,33 +1,11 @@
-/* Contains:
-    .navbar-brand (flicker animation and text-shadow)
-    @keyframes flicker
-    .status-badge, .status-badge::before, @keyframes scan-line
-    .file-input-wrapper, .file-input, .file-input-label
-    .btn-futuristic and its variants (.btn-outline-warning, etc.)
-    .session-item, .session-label, .session-value
-    .command-section, .command-card, .command-header, .command-body, .command-input-wrapper, .command-input, .btn-process
-    .spreadsheet-section, .spreadsheet-card, .spreadsheet-header, .spreadsheet-controls, .spreadsheet-body, #spreadsheetData
-    .loading-overlay, .loading-content, .futuristic-loader and its children, @keyframes for loader parts
-    .loading-text
-    .modal-content, .modal-header, .modal-title, .modal-body, .modal-footer, .modal-backdrop, .modal .btn-close, .modal .btn-secondary
-    .form-control, .form-text
-    Utility classes like .text-glow, .border-glow (if kept)
-*/
-
-/* Example structure: */
-.navbar-brand { /* Only animation and shadow here, base in layout.css */
+.navbar-brand {
     text-shadow: 0 0 5px var(--main-accent), 0 0 10px var(--main-accent);
     animation: flicker 3s infinite alternate; 
 }
 
 @keyframes flicker {
     0%, 18%, 22%, 25%, 53%, 57%, 100% {
-        text-shadow:
-            0 0 4px var(--main-accent),
-            0 0 11px var(--main-accent),
-            0 0 19px var(--main-accent),
-            0 0 40px var(--main-accent),
-            0 0 80px var(--main-accent);
+        text-shadow: 0 0 4px var(--main-accent), 0 0 11px var(--main-accent), 0 0 19px var(--main-accent), 0 0 40px var(--main-accent), 0 0 80px var(--main-accent);
         opacity: 1;
     }
     20%, 24%, 55% {        
@@ -36,7 +14,6 @@
     }
 }
 
-/* Footer Gear Animations */
 .footer-gears {
     position: relative;
     display: inline-block;
@@ -50,8 +27,7 @@
 .footer-gears .gear-2 {
     position: absolute;
     color: var(--main-accent);
-    text-shadow: inherit; /* Inherit the flicker animation from parent */
-    font-size: 12px;
+    text-shadow: inherit;
     transform-origin: center;
     transition: text-shadow 0.3s ease;
 }
@@ -59,38 +35,29 @@
 .footer-gears .gear-1 {
     top: 0;
     left: 0;
-    font-size: 14px; /* Bigger gear on the left */
+    font-size: 14px;
     animation: rotate-clockwise 4s linear infinite;
-    z-index: 2; /* Higher z-index for the bigger gear */
+    z-index: 2;
 }
 
 .footer-gears .gear-2 {
     top: 2px;
     right: 0;
-    font-size: 10px; /* Smaller gear on the right */
+    font-size: 10px;
     animation: rotate-counter-clockwise 4s linear infinite;
-    z-index: 1; /* Lower z-index for the smaller gear */
+    z-index: 1;
 }
 
-@keyframes rotate-clockwise {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
+@keyframes rotate-clockwise { to { transform: rotate(360deg); } }
+@keyframes rotate-counter-clockwise { to { transform: rotate(-360deg); } }
 
-@keyframes rotate-counter-clockwise {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(-360deg); }
-}
-
-.footer-text {
-    text-shadow: inherit;
-}
+.footer-text { text-shadow: inherit; }
 
 .status-badge {
     padding: 6px 12px; 
     background-color: transparent; 
     border: 1px solid var(--main-accent); 
-    border-radius: 6px; /* More rectangular with circular angles like the User Manual button */
+    border-radius: 6px;
     font-size: 0.8rem;
     font-weight: 500;
     color: var(--main-accent); 
@@ -124,7 +91,6 @@
     100% { left: 100%; opacity: 0; } 
 }
 
-/* File Input Styling */
 .file-input-wrapper {
     position: relative;
     margin-bottom: 8px;
@@ -152,7 +118,6 @@
 .file-input-label:hover {
     border-color: #ffffff;
     background-color: rgba(0, 191, 255, 0.1);
-    transform: none; 
 }
 
 .file-input-label i {
@@ -160,7 +125,6 @@
     font-size: 1.1rem;
 }
 
-/* Futuristic Buttons (Simplified) */
 .btn-futuristic {
     background-color: var(--main-accent);
     border: 1px solid var(--main-accent);
@@ -179,8 +143,6 @@
     background-color: #ffffff; 
     color: var(--main-accent);
     border-color: #ffffff;
-    transform: none; 
-    box-shadow: none;
 }
 
 .btn-futuristic:disabled {
@@ -189,7 +151,6 @@
     color: var(--base-bg) !important;
     opacity: 0.5;
 }
-
 
 .btn-outline-warning.btn-futuristic {
     background: transparent;
@@ -222,12 +183,10 @@
     border-color: #ffffff;
 }
 
-/* Specific tweak: make the User Manual footer link less rounded */
 .btn-futuristic.user-manual-link {
-    border-radius: 4px !important; /* override generic btn radius for crisper edges */
+    border-radius: 4px !important;
 }
 
-/* Session Info */
 .session-item {
     display: flex;
     justify-content: space-between;
@@ -247,7 +206,6 @@
     font-size: 0.8rem;
 }
 
-/* Command Section */
 .command-section {
     margin-bottom: 15px;
 }
@@ -292,11 +250,7 @@
     padding: 12px;
     resize: vertical;
     font-size: 0.95rem;
-    /* Avoid animating height during user resize to keep it snappy */
-    transition: background-color 0.2s ease-in-out,
-                border-color 0.2s ease-in-out,
-                box-shadow 0.2s ease-in-out,
-                color 0.2s ease-in-out;
+    transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
 .command-input:focus {
@@ -314,13 +268,12 @@
 }
 
 
-/* Spreadsheet Section */
 .spreadsheet-section {
     display: flex;
     flex-direction: column;
-    flex: 1 1 auto; /* occupy remaining vertical space under command section */
-    min-height: 0; /* allow inner scroll containers to shrink */
-    margin-bottom: 0; /* avoid accidental gap */
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-bottom: 0;
 }
 
 .spreadsheet-card {
@@ -328,16 +281,11 @@
     backdrop-filter: blur(var(--glass-blur-amount));
     border-radius: var(--border-radius);
     border: 1px solid var(--glass-border-color);
-    /* Fill the available height provided by the flex parent, no viewport math */
     height: 100%;
     display: flex;
     flex-direction: column;
-    /* Do not animate size/height to prevent lag when command input resizes */
-    transition: box-shadow 0.3s ease-in-out,
-                transform 0.3s ease-in-out,
-                background-color 0.3s ease-in-out,
-                border-color 0.3s ease-in-out; 
-    margin: 0; /* avoid outside spacing */
+    transition: box-shadow 0.3s ease-in-out, transform 0.3s ease-in-out, background-color 0.3s ease-in-out, border-color 0.3s ease-in-out; 
+    margin: 0;
 }
 
 .spreadsheet-card.fullscreen {
@@ -385,10 +333,8 @@
 .spreadsheet-controls .btn:hover {
     background: rgba(255, 255, 255, 0.05);
     color: var(--main-accent);
-    transform: none; 
 }
 
-/* Action Controls (moved from sidebar) */
 .action-controls {
     display: flex;
     align-items: center;
@@ -403,7 +349,6 @@
 .action-controls .btn:hover {
     background: rgba(255, 255, 255, 0.05);
     color: var(--main-accent);
-    transform: none;
 }
 
 .action-controls .btn:disabled {
@@ -416,7 +361,6 @@
     color: var(--text-secondary);
 }
 
-/* Cell Selector Bar */
 .cell-selector-bar {
     display: flex;
     align-items: center;
@@ -461,20 +405,18 @@
 .spreadsheet-body {
     flex: 1 1 auto;
     padding: 15px;
-    /* Reserve space for sheet tabs so they don't cover grid rows */
     padding-bottom: calc(15px + var(--sheet-tabs-height, 36px));
     overflow: hidden;
-    min-height: 0; /* allow inner handsontable to size properly */
+    min-height: 0;
 }
 
 #spreadsheetData {
     height: 100%;
     width: 100%;
     border-radius: var(--border-radius); 
-    overflow: hidden; /* clip grid so tabs never appear between row header and grid */
+    overflow: hidden;
 }
 
-/* Loading Overlay (Futuristic Circuit Loader) */
 .loading-overlay {
     position: fixed;
     top: 0;
@@ -570,15 +512,11 @@
     right: 0; top: 50%; transform: translateY(-50%) rotate(90deg); animation-delay: -1.5s;
 }
 
-@keyframes rotate-loader {
-    to { transform: rotate(360deg); }
-}
-
+@keyframes rotate-loader { to { transform: rotate(360deg); } }
 @keyframes pulse-dot {
     from { transform: scale(0.8); opacity: 0.7; }
     to { transform: scale(1.2); opacity: 1; }
 }
-
 @keyframes signal-flow {
     0%, 100% { opacity: 0; transform: translateY(-15px) scaleY(0.5) translateX(-50%); } 
     20% { opacity: 1; transform: translateY(0px) scaleY(1) translateX(-50%); } 
@@ -693,7 +631,6 @@
     color: #ffc107 !important;
 }
 
-/* Form Controls (Simplified) */
 .form-control {
     background-color: rgba(0,0,0,0.2);
     border: 1px solid var(--glass-border-color);
@@ -713,14 +650,8 @@
     font-size: 0.75rem;
 }
 
-/* Utility Classes */
-.text-glow {
-   text-shadow: none;
-}
-
-.border-glow {
-    box-shadow: none;
-}
+.text-glow { text-shadow: none; }
+.border-glow { box-shadow: none; }
 
 .highlight-escape {
     outline: 2px solid var(--accent-blue);
@@ -728,13 +659,11 @@
     transition: outline 0.2s, box-shadow 0.2s;
 }
 
-/* Ensure prompt buttons look consistent with process button */
 #savePromptBtn,
 #promptLibraryBtn {
     min-width: 0;
     flex: 1 1 0;
     margin: 0;
-    /* Remove outline-secondary for promptLibraryBtn, use outline-info for both */
 }
 
 #savePromptBtn .fa-save,
@@ -762,8 +691,8 @@
 
 #sheetTabContainer {
     position: absolute;
-    left: 15px; /* align with spreadsheet-body inner padding */
-    bottom: 15px; /* sit inside reserved padding space */
+    left: 15px;
+    bottom: 15px;
     z-index: 10;
     display: flex;
     gap: 4px;
@@ -771,7 +700,6 @@
     background: var(--bg-secondary, #23272b);
     border-radius: 0 8px 0 0;
     min-height: 36px;
-    /* Add a subtle box-shadow for separation */
     box-shadow: 0 -2px 8px rgba(0,0,0,0.15);
 }
 
@@ -1451,17 +1379,8 @@
     }
 }
 
-/* Reduced motion: tone down or disable decorative animations */
 @media (prefers-reduced-motion: reduce) {
-    .navbar-brand { animation: none; }
-    .footer-gears .gear-1, .footer-gears .gear-2 { animation: none; }
-    .status-badge::before { animation: none; }
-    .futuristic-loader .loader-ring { animation: none; }
-    .futuristic-loader .loader-dot { animation: none; }
-    .futuristic-loader .signal { animation: none; }
-    .metric-icon { animation: none; }
-    .activity-item { animation: none; }
-    .chart-loading-spinner { animation: none; }
+    .navbar-brand, .footer-gears .gear-1, .footer-gears .gear-2, .status-badge::before, .futuristic-loader .loader-ring, .futuristic-loader .loader-dot, .futuristic-loader .signal, .metric-icon, .activity-item, .chart-loading-spinner { animation: none; }
 }
 
 .chart-container {
@@ -1630,30 +1549,12 @@
     font-size: 0.9rem;
 }
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
-    .token-metric-card {
-        margin-bottom: 1rem;
-    }
-    
-    .chart-container {
-        height: 250px;
-        margin-bottom: 1rem;
-    }
-    
-    .metric-value {
-        font-size: 1.5rem;
-    }
-    
-    .activity-content {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
-    }
-    
-    .activity-stats {
-        gap: 0.5rem;
-    }
+    .token-metric-card { margin-bottom: 1rem; }
+    .chart-container { height: 250px; margin-bottom: 1rem; }
+    .metric-value { font-size: 1.5rem; }
+    .activity-content { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    .activity-stats { gap: 0.5rem; }
 }
 
 /* Custom scrollbar for recent activity */

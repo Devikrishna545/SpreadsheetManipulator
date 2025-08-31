@@ -1,38 +1,18 @@
-"""
-Upload Manager module
------------------
-Manages the cleanup of uploaded spreadsheet files
-"""
+"""Manage cleanup of uploaded spreadsheet files."""
 
-import os
-import time
+import os, time
 from typing import Optional
 
 class LoadManager:
-    """
-    Manages uploaded files and their cleanup
-    """
+    """Manage uploaded files and their cleanup."""
     
     def __init__(self, upload_dir: Optional[str] = None):
-        """
-        Initialize the upload manager
-        
-        Args:
-            upload_dir: Directory containing uploaded files (default: static/uploads)
-        """
+        """Initialize with uploads directory (default: static/uploads)."""
         self.upload_dir = upload_dir or os.path.join('static', 'uploads')
         os.makedirs(self.upload_dir, exist_ok=True)
     
     def cleanup_old_uploads(self, max_age_hours: int = 24) -> int:
-        """
-        Clean up old uploaded files
-        
-        Args:
-            max_age_hours: Maximum age of uploads to keep in hours
-            
-        Returns:
-            int: Number of uploads deleted
-        """
+        """Delete uploads older than max_age_hours; return number deleted."""
         now = time.time()
         max_age_seconds = max_age_hours * 3600
         deleted_count = 0
@@ -41,7 +21,6 @@ class LoadManager:
             return 0
             
         for filename in os.listdir(self.upload_dir):
-            # Skip .gitkeep files
             if filename == '.gitkeep':
                 continue
                 
